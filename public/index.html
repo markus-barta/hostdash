@@ -28,6 +28,7 @@
     --passive: #9ca79a;
     --sans: Inter, "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Code", monospace;
+    --zoom: 1;
   }
 
   * { box-sizing: border-box; }
@@ -42,6 +43,7 @@
     background:
       linear-gradient(180deg, rgba(238, 242, 236, 0.86), rgba(244, 246, 244, 0) 320px),
       var(--bg);
+    overflow-x: hidden;
   }
   a { color: inherit; text-decoration: none; }
   button, input { font: inherit; }
@@ -174,17 +176,22 @@
 
   .main {
     min-width: 0;
+    max-width: 100vw;
     padding: 28px clamp(18px, 4vw, 48px) 56px;
   }
   .topbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 360px);
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
     gap: 18px;
     align-items: center;
     margin: 0 0 22px;
   }
+  .title {
+    min-width: 0;
+  }
   .eyebrow {
     display: inline-flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     margin: 0 0 8px;
@@ -193,6 +200,7 @@
     font-weight: 700;
     letter-spacing: 0.11em;
     text-transform: uppercase;
+    overflow-wrap: anywhere;
   }
   .eyebrow::before {
     content: "";
@@ -215,13 +223,22 @@
     color: var(--muted);
     font-size: 14px;
     font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
   }
 
+  .top-actions {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    width: 100%;
+  }
   .search {
     position: relative;
+    min-width: 0;
   }
   .search input {
     width: 100%;
+    min-width: 0;
     min-height: 48px;
     padding: 0 72px 0 14px;
     border: 1px solid var(--line-strong);
@@ -258,6 +275,55 @@
     font-family: var(--mono);
     font-size: 12px;
     text-align: center;
+  }
+
+  .zoom {
+    display: grid;
+    grid-template-columns: 34px minmax(96px, 1fr) 46px 48px;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+    min-height: 38px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface) 78%, var(--surface-3));
+  }
+  .zoom button {
+    display: grid;
+    place-items: center;
+    height: 28px;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--muted);
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .zoom button:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .zoom button svg {
+    width: 16px;
+    height: 16px;
+  }
+  .zoom input {
+    width: 100%;
+    min-width: 0;
+    accent-color: var(--home);
+  }
+  .zoom output {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .workspace {
+    zoom: var(--zoom);
+    transform-origin: top left;
   }
 
   .mobile-chips {
@@ -314,6 +380,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
     gap: 12px;
+    min-width: 0;
   }
 
   .svc {
@@ -322,6 +389,7 @@
     grid-template-rows: auto 1fr auto;
     gap: 14px;
     min-height: 168px;
+    min-width: 0;
     padding: 16px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -347,6 +415,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    min-width: 0;
   }
   .icon {
     display: grid;
@@ -371,6 +440,7 @@
     font-weight: 750;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    flex-shrink: 0;
   }
   .dot {
     width: 8px;
@@ -384,6 +454,8 @@
   .state[data-s="checking"] .dot { background: var(--checking); animation: breathe 1.4s ease-in-out infinite; }
   .state[data-s="down"] { color: var(--down); border-color: rgba(186, 55, 45, 0.24); }
   .state[data-s="down"] .dot { background: var(--down); }
+  .state[data-s="cert"] { color: var(--checking); border-color: rgba(212, 147, 36, 0.28); }
+  .state[data-s="cert"] .dot { background: var(--checking); box-shadow: 0 0 0 4px rgba(212, 147, 36, 0.12); }
   .state[data-s="passive"] { color: var(--soft); }
   .state[data-s="passive"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--passive); }
 
@@ -468,14 +540,17 @@
     .main { padding-top: 22px; }
     .topbar { grid-template-columns: 1fr; align-items: stretch; }
     .mobile-chips { display: flex; }
-    .title h2 { font-size: 36px; }
+    .title h2 { font-size: 30px; }
   }
   @media (max-width: 560px) {
     .main { padding-inline: 14px; }
+    .zoom { grid-template-columns: 34px minmax(80px, 1fr) 42px; }
+    .zoom output { display: none; }
     .deck { grid-template-columns: 1fr; }
     .heading { align-items: flex-start; }
     .rule { display: none; }
     .svc { min-height: 148px; }
+    .title h2 { font-size: 28px; }
   }
 </style>
 </head>
@@ -503,6 +578,15 @@
   <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-logo-ha" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9 20v-5h6v5"/><path d="M8 12h8"/><path d="M12 8v4"/></symbol>
+  <symbol id="i-logo-nodered" viewBox="0 0 24 24"><rect width="6" height="6" x="3" y="3" rx="1.5"/><rect width="6" height="6" x="15" y="3" rx="1.5"/><rect width="6" height="6" x="9" y="15" rx="1.5"/><path d="M9 6h6"/><path d="M18 9v3a3 3 0 0 1-3 3h-3"/><path d="M6 9v3a3 3 0 0 0 3 3"/></symbol>
+  <symbol id="i-logo-z2m" viewBox="0 0 24 24"><path d="M12 3v3"/><path d="M12 18v3"/><path d="m4.2 7.5 2.6 1.5"/><path d="m17.2 15 2.6 1.5"/><path d="m19.8 7.5-2.6 1.5"/><path d="m6.8 15-2.6 1.5"/><polygon points="12 6.5 16.8 9.25 16.8 14.75 12 17.5 7.2 14.75 7.2 9.25"/></symbol>
+  <symbol id="i-logo-plex" viewBox="0 0 24 24"><path d="M8 4h4.2L18 12l-5.8 8H8l5.7-8z"/></symbol>
+  <symbol id="i-logo-scrypted" viewBox="0 0 24 24"><path d="M5 7.5 12 4l7 3.5v6.2c0 4-3 6.2-7 7.3-4-1.1-7-3.3-7-7.3z"/><circle cx="12" cy="12" r="3.2"/><path d="M12 8.8v6.4"/><path d="M8.8 12h6.4"/></symbol>
+  <symbol id="i-logo-mqtt" viewBox="0 0 24 24"><path d="M4 16a8 8 0 0 1 8-8"/><path d="M4 20c0-8.8 7.2-16 16-16"/><path d="M8 20c0-6.6 5.4-12 12-12"/><circle cx="4" cy="20" r="1.5" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-logo-apprise" viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 4.5 1.4 6 2.7 7.3A1 1 0 0 1 20 18H4a1 1 0 0 1-.7-1.7C4.6 15 6 13.5 6 9"/><path d="M10 21h4"/><path d="M8 5 5 2"/><path d="m16 5 3-3"/></symbol>
+  <symbol id="i-logo-pixdcon" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="3"/><path d="M8 8h.01"/><path d="M12 8h.01"/><path d="M16 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M8 16h.01"/><path d="M12 16h.01"/><path d="M16 16h.01"/></symbol>
 </defs></svg>
 
 <div class="app">
@@ -528,20 +612,30 @@
         <h2>Services</h2>
         <p>home server · hsb1.lan · 192.168.1.101 · NixOS</p>
       </div>
-      <label class="search">
-        <input id="q" type="search" placeholder="Search services" autocomplete="off" aria-label="Search services">
-        <span class="kbd">/</span>
-        <svg><use href="#i-search"></use></svg>
-      </label>
+      <div class="top-actions">
+        <label class="search">
+          <input id="q" type="search" placeholder="Search services" autocomplete="off" aria-label="Search services">
+          <span class="kbd">/</span>
+          <svg><use href="#i-search"></use></svg>
+        </label>
+        <div class="zoom" role="group" aria-label="View zoom">
+          <button id="zoomFit" type="button" title="Fit all services"><svg><use href="#i-maximize"></use></svg></button>
+          <input id="zoomRange" type="range" min="50" max="200" step="5" value="100" aria-label="Zoom">
+          <button id="zoomReset" type="button" title="100%">100</button>
+          <output id="zoomValue" for="zoomRange">100%</output>
+        </div>
+      </div>
     </header>
-    <div class="mobile-chips" id="mobileChips" aria-label="Service categories"></div>
-    <div id="wings"></div>
-    <div class="empty" id="empty">No services match the current filter.</div>
-    <footer class="meta">
-      <span><code>hosts/hsb1/docker</code></span>
-      <span><code>hsb1-home</code></span>
-      <span>Europe/Vienna</span>
-    </footer>
+    <section class="workspace" id="workspace" aria-label="Service overview">
+      <div class="mobile-chips" id="mobileChips" aria-label="Service categories"></div>
+      <div id="wings"></div>
+      <div class="empty" id="empty">No services match the current filter.</div>
+      <footer class="meta">
+        <span><code>hosts/hsb1/docker</code></span>
+        <span><code>hsb1-home</code></span>
+        <span>Europe/Vienna</span>
+      </footer>
+    </section>
   </main>
 </div>
 
@@ -555,22 +649,22 @@ const WINGS = [
 ];
 
 const SVC = [
-  {wing:"home", name:"Home Assistant", purpose:"Smart-home hub & automations", icon:"house", url:"http://hsb1.lan:8123/", port:":8123"},
-  {wing:"home", name:"Node-RED", purpose:"Visual flow automation", icon:"workflow", url:"http://hsb1.lan:1880/", port:":1880"},
-  {wing:"home", name:"Zigbee2MQTT", purpose:"Zigbee to MQTT bridge", icon:"radio-tower", url:"http://hsb1.lan:8888/", port:":8888"},
+  {wing:"home", name:"Home Assistant", purpose:"Smart-home hub & automations", icon:"logo-ha", url:"http://hsb1.lan:8123/", port:":8123"},
+  {wing:"home", name:"Node-RED", purpose:"Visual flow automation", icon:"logo-nodered", url:"http://hsb1.lan:1880/", port:":1880"},
+  {wing:"home", name:"Zigbee2MQTT", purpose:"Zigbee to MQTT bridge", icon:"logo-z2m", url:"http://hsb1.lan:8888/", port:":8888"},
   {wing:"home", name:"opusweb", purpose:"OPUS greenNet EnOcean control", icon:"sliders", url:"http://hsb1.lan:3102/", port:":3102"},
   {wing:"home", name:"Matter Server", purpose:"Matter/Thread controller for HA", icon:"hexagon", passive:true, foot:":5580 api · no UI"},
 
-  {wing:"media", name:"Plex", purpose:"Media library & streaming", icon:"clapperboard", url:"http://hsb1.lan:32400/web", port:":32400"},
-  {wing:"media", name:"pixdcon", purpose:"Pixoo pixel-display controller", icon:"grid-3x3", url:"http://hsb1.lan:8080/", port:":8080"},
+  {wing:"media", name:"Plex", purpose:"Media library & streaming", icon:"logo-plex", url:"http://hsb1.lan:32400/web", port:":32400"},
+  {wing:"media", name:"pixdcon", purpose:"Pixoo pixel-display controller", icon:"logo-pixdcon", url:"http://hsb1.lan:8080/", port:":8080"},
   {wing:"media", name:"funkeykid", purpose:"Kids audio/voice toy console", icon:"toy-brick", url:"http://hsb1.lan:8081/", port:":8081"},
 
-  {wing:"signals", name:"Apprise", purpose:"Unified notification gateway", icon:"bell-ring", url:"http://hsb1.lan:8001/", port:":8001"},
-  {wing:"signals", name:"Mosquitto", purpose:"MQTT broker and message bus", icon:"radio", passive:true, foot:":1883 · :9001 ws · broker"},
+  {wing:"signals", name:"Apprise", purpose:"Unified notification gateway", icon:"logo-apprise", url:"http://hsb1.lan:8001/", port:":8001"},
+  {wing:"signals", name:"Mosquitto", purpose:"MQTT broker and message bus", icon:"logo-mqtt", passive:true, foot:":1883 · :9001 ws · broker"},
   {wing:"signals", name:"opus-stream-to-mqtt", purpose:"OPUS gateway to MQTT bridge", icon:"audio-waveform", passive:true, foot:"agent · no UI"},
   {wing:"signals", name:"SMTP relay", purpose:"Outbound container mail", icon:"mail", passive:true, foot:":25 internal · relay"},
 
-  {wing:"safety", name:"Scrypted", purpose:"Camera/NVR hub to HomeKit/HA", icon:"camera", url:"https://hsb1.lan:10443/", port:":10443", note:"self-signed HTTPS"},
+  {wing:"safety", name:"Scrypted", purpose:"Camera/NVR hub to HomeKit/HA", icon:"logo-scrypted", url:"https://hsb1.lan:10443/", port:":10443", certIssue:true, note:"service answers with a self-signed localhost certificate"},
   {wing:"safety", name:"fritz-tripwire", purpose:"Snapshots mesh on device drop", icon:"shield-alert", url:"http://hsb1.lan:9000/", port:":9000", note:"plain-text status endpoint"},
 
   {wing:"infra", name:"Watchtower", purpose:"Weekly container auto-updates", icon:"refresh-cw", passive:true, foot:"Sat 05:00 · scheduled"},
@@ -642,12 +736,13 @@ WINGS.forEach(wing => {
       card.href = service.url;
       card.target = "_blank";
       card.rel = "noopener";
-      card.dataset.probe = service.url;
+      if (service.certIssue) card.dataset.staticState = "cert";
+      else card.dataset.probe = service.url;
     }
     if (service.note) card.title = service.note;
 
-    const status = active ? "checking" : "passive";
-    const statusLabel = active ? "Checking" : "Passive";
+    const status = service.certIssue ? "cert" : active ? "checking" : "passive";
+    const statusLabel = statusText(status);
     const foot = active
       ? `<span class="port">${service.port}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
       : `<span class="port">${service.foot || ""}</span>`;
@@ -672,6 +767,7 @@ WINGS.forEach(wing => {
 function statusText(state) {
   if (state === "up") return "Online";
   if (state === "down") return "Down";
+  if (state === "cert") return "TLS cert";
   if (state === "checking") return "Checking";
   return "Passive";
 }
@@ -681,7 +777,8 @@ function counts() {
   WINGS.forEach(wing => { per[wing.id] = 0; });
   let online = 0;
   cardIndex.forEach(card => {
-    if (card.querySelector(".state").dataset.s === "up") {
+    const state = card.querySelector(".state").dataset.s;
+    if (state === "up" || state === "cert") {
       online += 1;
       per[card.closest(".wing").dataset.wing] += 1;
     }
@@ -706,6 +803,51 @@ function applyFilter() {
 }
 
 const search = document.getElementById("q");
+const workspace = document.getElementById("workspace");
+const zoomRange = document.getElementById("zoomRange");
+const zoomValue = document.getElementById("zoomValue");
+const zoomFit = document.getElementById("zoomFit");
+const zoomReset = document.getElementById("zoomReset");
+const zoomKey = "hsb1.zoom";
+const zoomModeKey = "hsb1.zoomMode";
+
+function clampZoom(value) {
+  return Math.max(50, Math.min(200, Math.round(Number(value) / 5) * 5));
+}
+
+function setZoom(value, mode = "manual") {
+  const next = clampZoom(value);
+  document.documentElement.style.setProperty("--zoom", String(next / 100));
+  zoomRange.value = String(next);
+  zoomValue.value = `${next}%`;
+  localStorage.setItem(zoomKey, String(next));
+  localStorage.setItem(zoomModeKey, mode);
+}
+
+function fitAll() {
+  filter = "all";
+  localStorage.setItem("hsb1.wing", filter);
+  search.value = "";
+  applyFilter();
+  setZoom(100, "fit");
+  requestAnimationFrame(() => {
+    const box = workspace.getBoundingClientRect();
+    const availableWidth = Math.max(320, document.documentElement.clientWidth - box.left - 18);
+    const availableHeight = Math.max(360, window.innerHeight - box.top - 18);
+    const scale = Math.min(1, availableWidth / workspace.scrollWidth, availableHeight / workspace.scrollHeight);
+    setZoom(Math.max(50, Math.floor(scale * 100 / 5) * 5), "fit");
+  });
+}
+
+zoomRange.addEventListener("input", () => setZoom(zoomRange.value));
+zoomReset.addEventListener("click", () => setZoom(100));
+zoomFit.addEventListener("click", fitAll);
+window.addEventListener("resize", () => {
+  if (localStorage.getItem(zoomModeKey) === "fit") fitAll();
+});
+
+setZoom(localStorage.getItem(zoomKey) || 100, localStorage.getItem(zoomModeKey) || "manual");
+
 function runSearch() {
   const term = search.value.trim().toLowerCase();
   let visibleSections = 0;
@@ -767,6 +909,11 @@ function sweep() {
     const batch = queue.slice(index, index + 5);
     index += 5;
     batch.forEach(card => {
+      if (card.dataset.staticState) {
+        setStatus(card, card.dataset.staticState);
+        counts();
+        return;
+      }
       setStatus(card, "checking");
       probe(card);
     });

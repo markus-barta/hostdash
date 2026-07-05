@@ -99,7 +99,11 @@ try {
     cards: document.querySelectorAll(".svc").length,
     total: document.getElementById("totCount").textContent,
     online: document.getElementById("onCount").textContent,
-    search: document.getElementById("q")?.id
+    search: document.getElementById("q")?.id,
+    zoom: document.getElementById("zoomRange")?.value,
+    scrypted: [...document.querySelectorAll(".svc")]
+      .find(card => card.querySelector("h3")?.textContent === "Scrypted")
+      ?.querySelector(".state")?.dataset.s
   })`);
 
   if (initial.cards !== 19) {
@@ -114,6 +118,26 @@ try {
   if (initial.search !== "q") {
     throw new Error(`Search input missing: ${JSON.stringify(initial)}`);
   }
+  if (initial.zoom !== "100") {
+    throw new Error(`Zoom control missing or wrong initial value: ${JSON.stringify(initial)}`);
+  }
+  if (initial.scrypted !== "cert") {
+    throw new Error(`Expected Scrypted TLS-cert state, got ${JSON.stringify(initial)}`);
+  }
+
+  const zoomState = await value(`
+    const zoom = document.getElementById("zoomRange");
+    zoom.value = "75";
+    zoom.dispatchEvent(new Event("input", { bubbles: true }));
+    getComputedStyle(document.documentElement).getPropertyValue("--zoom").trim()
+  `);
+  if (zoomState !== "0.75") {
+    throw new Error(`Zoom slider did not update CSS zoom: ${zoomState}`);
+  }
+  await value(`
+    document.getElementById("zoomReset").click();
+    true
+  `);
 
   await send("Input.dispatchKeyEvent", {
     type: "keyDown",
@@ -175,4 +199,3 @@ try {
 } finally {
   await cleanup();
 }
-
