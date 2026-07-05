@@ -1,16 +1,54 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const browserPath =
   process.env.BROWSER_PATH || "/Applications/Helium.app/Contents/MacOS/Helium";
 const port = Number(process.env.CDP_PORT || 9349);
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
-const pageUrl = `file://${join(repoRoot, "public/index.html")}`;
+const host = process.env.HOSTDASH_HOST || "hsb1";
+const defaults = {
+  hsb0: {
+    cards: 11,
+    total: 4,
+    searchName: "AdGuard Home",
+    searchTerm: "adguard",
+    certService: "OpenClaw Gateway",
+  },
+  hsb1: {
+    cards: 19,
+    total: 10,
+    searchName: "Plex",
+    searchTerm: "plex",
+    certService: "Scrypted",
+  },
+};
+const expected = {
+  ...(defaults[host] || defaults.hsb1),
+  cards: Number(process.env.EXPECTED_CARDS || defaults[host]?.cards || defaults.hsb1.cards),
+  total: Number(process.env.EXPECTED_TOTAL || defaults[host]?.total || defaults.hsb1.total),
+  searchName: process.env.EXPECTED_SEARCH_NAME || defaults[host]?.searchName || defaults.hsb1.searchName,
+  searchTerm: process.env.EXPECTED_SEARCH_TERM || defaults[host]?.searchTerm || defaults.hsb1.searchTerm,
+  certService: process.env.EXPECTED_CERT_SERVICE || defaults[host]?.certService || defaults.hsb1.certService,
+};
 
-const profile = await mkdtemp(join(tmpdir(), "hsb1-home-dashboard-"));
+async function localPageUrl() {
+  const site = await mkdtemp(join(tmpdir(), "hostdash-site-"));
+  await cp(join(repoRoot, "public"), site, { recursive: true });
+  await copyFile(join(repoRoot, "hosts", host, "config.js"), join(site, "config.js"));
+  return {
+    url: pathToFileURL(join(site, "index.html")).href,
+    cleanup: () => rm(site, { recursive: true, force: true }),
+  };
+}
+
+const localPage = process.env.PAGE_URL ? null : await localPageUrl();
+const pageUrl = process.env.PAGE_URL || localPage.url;
+
+const profile = await mkdtemp(join(tmpdir(), "hostdash-smoke-"));
 const browser = spawn(browserPath, [
   "--headless=new",
   "--disable-gpu",
@@ -26,6 +64,7 @@ async function cleanup() {
   browser.kill("SIGTERM");
   await new Promise(resolve => setTimeout(resolve, 150));
   await rm(profile, { recursive: true, force: true });
+  await localPage?.cleanup();
 }
 
 async function waitForJson(path) {
@@ -95,7 +134,9 @@ try {
   await send("Page.navigate", { url: pageUrl });
   await new Promise(resolve => setTimeout(resolve, 2500));
 
-  const initial = await value(`({
+  const initial = await value(`(() => {
+    const certName = ${JSON.stringify(expected.certService)};
+    return {
     cards: document.querySelectorAll(".svc").length,
     total: document.getElementById("totCount").textContent,
     online: document.getElementById("onCount").textContent,
@@ -103,16 +144,18 @@ try {
     zoom: document.getElementById("zoomRange")?.value,
     topActionTags: [...document.querySelector(".top-actions")?.children || []].map(node => node.tagName.toLowerCase()),
     zoomNestedInSearch: Boolean(document.querySelector("label.search .zoom")),
-    scrypted: [...document.querySelectorAll(".svc")]
-      .find(card => card.querySelector("h3")?.textContent === "Scrypted")
+    certState: certName ? [...document.querySelectorAll(".svc")]
+      .find(card => card.querySelector("h3")?.textContent === certName)
       ?.querySelector(".state")?.dataset.s
-  })`);
+      : null
+    };
+  })()`);
 
-  if (initial.cards !== 19) {
-    throw new Error(`Expected 19 service cards, got ${JSON.stringify(initial)}`);
+  if (initial.cards !== expected.cards) {
+    throw new Error(`Expected ${expected.cards} service cards, got ${JSON.stringify(initial)}`);
   }
-  if (initial.total !== "10") {
-    throw new Error(`Expected 10 active services, got ${JSON.stringify(initial)}`);
+  if (initial.total !== String(expected.total)) {
+    throw new Error(`Expected ${expected.total} active services, got ${JSON.stringify(initial)}`);
   }
   if (!/^\d+$/.test(initial.online)) {
     throw new Error(`Online count is not numeric: ${JSON.stringify(initial)}`);
@@ -126,8 +169,8 @@ try {
   if (initial.zoomNestedInSearch || initial.topActionTags.join(",") !== "label,div") {
     throw new Error(`Search and zoom controls are not sibling controls: ${JSON.stringify(initial)}`);
   }
-  if (initial.scrypted !== "cert") {
-    throw new Error(`Expected Scrypted TLS-cert state, got ${JSON.stringify(initial)}`);
+  if (expected.certService && initial.certState !== "cert") {
+    throw new Error(`Expected ${expected.certService} TLS-cert state, got ${JSON.stringify(initial)}`);
   }
 
   const zoomState = await value(`
@@ -159,7 +202,7 @@ try {
 
   await value(`
     const q = document.getElementById("q");
-    q.value = "plex";
+    q.value = ${JSON.stringify(expected.searchTerm)};
     q.dispatchEvent(new Event("input", { bubbles: true }));
     true
   `);
@@ -171,7 +214,7 @@ try {
   })`);
   if (
     searchState.visibleCards.length !== 1 ||
-    searchState.visibleCards[0] !== "Plex" ||
+    searchState.visibleCards[0] !== expected.searchName ||
     searchState.empty !== "none"
   ) {
     throw new Error(`Search filter failed: ${JSON.stringify(searchState)}`);
@@ -191,7 +234,7 @@ try {
       .filter(card => !card.classList.contains("hidden") && !card.closest(".wing").classList.contains("hidden"))
       .length
   })`);
-  if (escapeState.value !== "" || escapeState.active === "q" || escapeState.visible !== 19) {
+  if (escapeState.value !== "" || escapeState.active === "q" || escapeState.visible !== expected.cards) {
     throw new Error(`Escape reset failed: ${JSON.stringify(escapeState)}`);
   }
 
@@ -199,7 +242,7 @@ try {
     throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   }
 
-  console.log(JSON.stringify({ initial, searchState, escapeState }, null, 2));
+  console.log(JSON.stringify({ host, pageUrl, initial, searchState, escapeState }, null, 2));
   await send("Browser.close").catch(() => {});
 } finally {
   await cleanup();

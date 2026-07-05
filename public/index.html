@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>hsb1 · home server</title>
+<title>HostDash</title>
 <style>
   :root {
     color-scheme: light;
@@ -587,6 +587,9 @@
   <symbol id="i-logo-mqtt" viewBox="0 0 24 24"><path d="M4 16a8 8 0 0 1 8-8"/><path d="M4 20c0-8.8 7.2-16 16-16"/><path d="M8 20c0-6.6 5.4-12 12-12"/><circle cx="4" cy="20" r="1.5" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-logo-apprise" viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 4.5 1.4 6 2.7 7.3A1 1 0 0 1 20 18H4a1 1 0 0 1-.7-1.7C4.6 15 6 13.5 6 9"/><path d="M10 21h4"/><path d="M8 5 5 2"/><path d="m16 5 3-3"/></symbol>
   <symbol id="i-logo-pixdcon" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="3"/><path d="M8 8h.01"/><path d="M12 8h.01"/><path d="M16 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M8 16h.01"/><path d="M12 16h.01"/><path d="M16 16h.01"/></symbol>
+  <symbol id="i-logo-adguard" viewBox="0 0 24 24"><path d="M12 3 5 5.8v5.9c0 4.2 2.7 7.1 7 9.3 4.3-2.2 7-5.1 7-9.3V5.8z"/><path d="m8.7 12.2 2.2 2.2 4.7-5"/></symbol>
+  <symbol id="i-logo-openclaw" viewBox="0 0 24 24"><path d="M5 18c1.3 1.6 3.4 2.5 6.1 2.5h1.8c2.7 0 4.8-.9 6.1-2.5"/><path d="M8.2 16.4c-.8-1.1-1.2-2.3-1.2-3.7 0-3 2.2-5.2 5-5.2s5 2.2 5 5.2c0 1.4-.4 2.6-1.2 3.7"/><path d="M8.8 10.3 6.4 6"/><path d="m15.2 10.3 2.4-4.3"/><path d="M10 13.5h.01"/><path d="M14 13.5h.01"/><path d="m9.2 18.4 1.4-3.3"/><path d="m12 18.8.2-3.5"/><path d="m14.8 18.4-1.4-3.3"/></symbol>
+  <symbol id="i-logo-speedtest" viewBox="0 0 24 24"><path d="M5.6 18a8 8 0 1 1 12.8 0"/><path d="M12 18h.01"/><path d="m12 14 4-5"/><path d="M8 13h.01"/><path d="M16 13h.01"/></symbol>
 </defs></svg>
 
 <div class="app">
@@ -594,8 +597,8 @@
     <div class="brand">
       <div class="mark"><svg><use href="#i-server"></use></svg></div>
       <div>
-        <h1>hsb1</h1>
-        <p>home server</p>
+        <h1 id="hostName">Host</h1>
+        <p id="hostRole">services</p>
       </div>
     </div>
     <section class="status-panel" aria-label="Host status">
@@ -608,9 +611,9 @@
   <main class="main">
     <header class="topbar">
       <div class="title">
-        <div class="eyebrow">NixOS · hsb1.lan · 192.168.1.101</div>
-        <h2>Services</h2>
-        <p>home server · hsb1.lan · 192.168.1.101 · NixOS</p>
+        <div class="eyebrow" id="hostEyebrow">HostDash</div>
+        <h2 id="mainTitle">Services</h2>
+        <p id="hostSubtitle">Host service dashboard</p>
       </div>
       <div class="top-actions">
         <label class="search">
@@ -630,49 +633,22 @@
       <div class="mobile-chips" id="mobileChips" aria-label="Service categories"></div>
       <div id="wings"></div>
       <div class="empty" id="empty">No services match the current filter.</div>
-      <footer class="meta">
-        <span><code>hosts/hsb1/docker</code></span>
-        <span><code>hsb1-home</code></span>
-        <span>Europe/Vienna</span>
-      </footer>
+      <footer class="meta" id="meta"></footer>
     </section>
   </main>
 </div>
 
+<script src="./config.js"></script>
 <script>
-const WINGS = [
-  {id:"home", name:"Home & Automation", color:"var(--home)", icon:"house"},
-  {id:"media", name:"Media & Play", color:"var(--media)", icon:"clapperboard"},
-  {id:"signals", name:"Signals & Messaging", color:"var(--signals)", icon:"radio"},
-  {id:"safety", name:"Cameras & Safety", color:"var(--safety)", icon:"camera"},
-  {id:"infra", name:"Housekeeping", color:"var(--infra)", icon:"refresh-cw"},
-];
+const CONFIG = window.HOSTDASH_CONFIG;
+if (!CONFIG) {
+  throw new Error("HostDash config.js is missing");
+}
 
-const SVC = [
-  {wing:"home", name:"Home Assistant", purpose:"Smart-home hub & automations", icon:"logo-ha", url:"http://hsb1.lan:8123/", port:":8123"},
-  {wing:"home", name:"Node-RED", purpose:"Visual flow automation", icon:"logo-nodered", url:"http://hsb1.lan:1880/", port:":1880"},
-  {wing:"home", name:"Zigbee2MQTT", purpose:"Zigbee to MQTT bridge", icon:"logo-z2m", url:"http://hsb1.lan:8888/", port:":8888"},
-  {wing:"home", name:"opusweb", purpose:"OPUS greenNet EnOcean control", icon:"sliders", url:"http://hsb1.lan:3102/", port:":3102"},
-  {wing:"home", name:"Matter Server", purpose:"Matter/Thread controller for HA", icon:"hexagon", passive:true, foot:":5580 api · no UI"},
-
-  {wing:"media", name:"Plex", purpose:"Media library & streaming", icon:"logo-plex", url:"http://hsb1.lan:32400/web", port:":32400"},
-  {wing:"media", name:"pixdcon", purpose:"Pixoo pixel-display controller", icon:"logo-pixdcon", url:"http://hsb1.lan:8080/", port:":8080"},
-  {wing:"media", name:"funkeykid", purpose:"Kids audio/voice toy console", icon:"toy-brick", url:"http://hsb1.lan:8081/", port:":8081"},
-
-  {wing:"signals", name:"Apprise", purpose:"Unified notification gateway", icon:"logo-apprise", url:"http://hsb1.lan:8001/", port:":8001"},
-  {wing:"signals", name:"Mosquitto", purpose:"MQTT broker and message bus", icon:"logo-mqtt", passive:true, foot:":1883 · :9001 ws · broker"},
-  {wing:"signals", name:"opus-stream-to-mqtt", purpose:"OPUS gateway to MQTT bridge", icon:"audio-waveform", passive:true, foot:"agent · no UI"},
-  {wing:"signals", name:"SMTP relay", purpose:"Outbound container mail", icon:"mail", passive:true, foot:":25 internal · relay"},
-
-  {wing:"safety", name:"Scrypted", purpose:"Camera/NVR hub to HomeKit/HA", icon:"logo-scrypted", url:"https://hsb1.lan:10443/", port:":10443", certIssue:true, note:"service answers with a self-signed localhost certificate"},
-  {wing:"safety", name:"fritz-tripwire", purpose:"Snapshots mesh on device drop", icon:"shield-alert", url:"http://hsb1.lan:9000/", port:":9000", note:"plain-text status endpoint"},
-
-  {wing:"infra", name:"Watchtower", purpose:"Weekly container auto-updates", icon:"refresh-cw", passive:true, foot:"Sat 05:00 · scheduled"},
-  {wing:"infra", name:"restic", purpose:"Nightly backup to Hetzner", icon:"hard-drive-download", passive:true, foot:"01:30 daily · backup"},
-  {wing:"infra", name:"FleetCom", purpose:"Heartbeats to fleet.barta.cm", icon:"satellite-dish", passive:true, foot:"agent · no UI"},
-  {wing:"infra", name:"pharos-beacon", purpose:"Host status to pharosd on csb1", icon:"radar", passive:true, foot:"beacon · outbound only"},
-  {wing:"infra", name:"claude-code", purpose:"Idle Claude Code shell", icon:"terminal", passive:true, foot:"shell · no UI"},
-];
+const WINGS = CONFIG.wings || [];
+const SVC = CONFIG.services || [];
+const storagePrefix = CONFIG.storageKey || `hostdash.${CONFIG.host?.name || "host"}`;
+const wingKey = `${storagePrefix}.wing`;
 
 const el = (tag, className) => {
   const node = document.createElement(tag);
@@ -680,11 +656,43 @@ const el = (tag, className) => {
   return node;
 };
 
+function setText(id, value) {
+  const node = document.getElementById(id);
+  if (node) node.textContent = value || "";
+}
+
+function renderHostInfo() {
+  const host = CONFIG.host || {};
+  const eyebrow = host.eyebrow || [host.os, host.fqdn, host.ip].filter(Boolean).join(" · ");
+  const subtitle = host.subtitle || [host.role, host.fqdn, host.ip, host.os].filter(Boolean).join(" · ");
+
+  document.title = host.title || `${host.name || "HostDash"} · ${host.role || "services"}`;
+  setText("hostName", host.name || "HostDash");
+  setText("hostRole", host.role || "services");
+  setText("hostEyebrow", eyebrow || "HostDash");
+  setText("mainTitle", host.heading || "Services");
+  setText("hostSubtitle", subtitle || "Host service dashboard");
+
+  const meta = document.getElementById("meta");
+  (CONFIG.meta || []).forEach(item => {
+    const span = el("span");
+    const text = typeof item === "string" ? item : item.text;
+    if (typeof item === "object" && item.code) {
+      const code = el("code");
+      code.textContent = text;
+      span.appendChild(code);
+    } else {
+      span.textContent = text;
+    }
+    meta.appendChild(span);
+  });
+}
+
 const wingsEl = document.getElementById("wings");
 const sideChips = document.getElementById("sideChips");
 const mobileChips = document.getElementById("mobileChips");
 const empty = document.getElementById("empty");
-let filter = localStorage.getItem("hsb1.wing") || "all";
+let filter = localStorage.getItem(wingKey) || "all";
 const cardIndex = [];
 
 function makeChip(id, label, color) {
@@ -696,7 +704,7 @@ function makeChip(id, label, color) {
   button.innerHTML = `<span class="swatch"></span><span class="label">${label}</span><span class="n" data-n="${id}">0</span>`;
   button.addEventListener("click", () => {
     filter = id;
-    localStorage.setItem("hsb1.wing", id);
+    localStorage.setItem(wingKey, id);
     applyFilter();
   });
   return button;
@@ -706,6 +714,7 @@ function renderChips(target) {
   target.appendChild(makeChip("all", "All services", "var(--ink)"));
   WINGS.forEach(wing => target.appendChild(makeChip(wing.id, wing.name, wing.color)));
 }
+renderHostInfo();
 renderChips(sideChips);
 renderChips(mobileChips);
 
@@ -808,8 +817,8 @@ const zoomRange = document.getElementById("zoomRange");
 const zoomValue = document.getElementById("zoomValue");
 const zoomFit = document.getElementById("zoomFit");
 const zoomReset = document.getElementById("zoomReset");
-const zoomKey = "hsb1.zoom";
-const zoomModeKey = "hsb1.zoomMode";
+const zoomKey = `${storagePrefix}.zoom`;
+const zoomModeKey = `${storagePrefix}.zoomMode`;
 
 function clampZoom(value) {
   return Math.max(50, Math.min(200, Math.round(Number(value) / 5) * 5));
@@ -826,7 +835,7 @@ function setZoom(value, mode = "manual") {
 
 function fitAll() {
   filter = "all";
-  localStorage.setItem("hsb1.wing", filter);
+  localStorage.setItem(wingKey, filter);
   search.value = "";
   applyFilter();
   setZoom(100, "fit");

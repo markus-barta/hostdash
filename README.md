@@ -1,39 +1,39 @@
-# hsb1-home-dashboard
+# HostDash
 
-Static service dashboard currently served at `http://hsb1/`.
+Static service dashboards for home hosts, served as immutable Nix package
+outputs and mounted into small nginx containers.
 
-The first version is an extraction of the live `hsb1-home` page that was
-previously served from:
+Canonical repo: `github.com/markus-barta/hostdash`.
 
-```text
-/home/mba/docker/mounts/hsb1-home/index.html
-```
-
-The dashboard is packaged as a Nix flake output so host configs can mount the
-resulting immutable directory into an nginx container.
+The shared app lives in `public/`. Host-specific service lists and metadata live
+in `hosts/<host>/config.js`; package outputs copy the shared app plus the chosen
+host config as `config.js`.
 
 ## Build
 
 ```bash
 nix build .#hsb1
+nix build .#hsb0
 ```
 
-The package output contains:
+Package outputs contain:
 
 ```text
-share/hsb1-home-dashboard/index.html
+share/hostdash-hsb1/index.html
+share/hostdash-hsb0/index.html
 ```
 
 ## UI Smoke Test
 
 ```bash
 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
 ```
 
-The test launches a temporary headless Chromium-compatible browser profile and
-checks that the dashboard renders, the online counter initializes, the search
-and zoom controls remain separate sibling controls, zoom changes update the CSS
-scale, `/` focuses search, search filters cards, and Escape clears the filter.
+The test launches a temporary headless Chromium-compatible browser profile,
+assembles the same app/config shape as the package output, and verifies render
+counts, online counters, search hotkeys/filtering, Escape reset, zoom behavior,
+TLS-cert badges, and that search/zoom controls remain separate sibling controls.
 Set `BROWSER_PATH` to use a different Chromium-compatible browser.
 
 ## QA Checklist
@@ -43,40 +43,41 @@ Before pushing or redeploying, run:
 ```bash
 node --check scripts/smoke-ui.mjs
 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
 nix build .#hsb1 --no-link
+nix build .#hsb0 --no-link
 ```
 
-Deployment is indirect: push this repository, update the `hsb1-home-dashboard`
-flake input in `nixcfg`, then deploy the hsb1 host configuration so `/etc/hsb1-home-dashboard`
-points at the new package output and the `hsb1-home` nginx container is recreated.
-
-## Design Reference
-
-`docs/design/hsb1-dashboard-concept.png` is the generated visual reference used
-for the first redesign pass. The shipped page remains static HTML/CSS/JS in
-`public/index.html`.
+Deployment is indirect: push this repository, update the `hostdash` flake input
+in `nixcfg`, then deploy each host configuration so `/etc/hostdash/<host>` points
+at the new package output and the host's nginx dashboard container is recreated.
 
 ## Deployment Pattern
 
-For hsb1, nixcfg pins this repo as a flake input and exposes the package via:
+For a host, nixcfg pins this repo as a flake input and exposes the package via:
 
 ```nix
-environment.etc."hsb1-home-dashboard".source =
-  inputs.hsb1-home-dashboard.packages.${pkgs.system}.hsb1;
+environment.etc."hostdash/hsb1".source =
+  inputs.hostdash.packages.${pkgs.system}.hsb1;
 ```
 
 The Docker compose service then mounts:
 
 ```yaml
-/etc/hsb1-home-dashboard/share/hsb1-home-dashboard:/usr/share/nginx/html:ro
+/etc/hostdash/hsb1/share/hostdash-hsb1:/usr/share/nginx/html:ro
 ```
 
-The pattern is reusable for other hosts by adding another package output with
-that host's static dashboard assets and mounting the package directory into the
-same nginx image.
+Adding a host means adding `hosts/<host>/config.js`, exposing a flake package
+output, and mounting that package into the host's nginx dashboard service.
+
+## Design Reference
+
+`docs/design/hsb1-dashboard-concept.png` is the generated visual reference used
+for the first redesign pass. The shipped page remains static HTML/CSS/JS.
 
 ## Safety Notes
 
 - No secrets are stored here.
 - The page is static HTML/CSS/JS.
-- The live hsb1 file was backed up before redeploying declaratively.
+- TLS services with self-signed host certificates are marked explicitly instead
+  of being counted as down.

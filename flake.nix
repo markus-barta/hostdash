@@ -1,5 +1,5 @@
 {
-  description = "Static service dashboard for hsb1 and reusable host dashboards";
+  description = "HostDash static service dashboards for home hosts";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -20,12 +20,15 @@
       mkDashboardPackage =
         pkgs:
         {
-          pname,
-          src,
+          host,
           metaDescription,
         }:
+        let
+          pname = "hostdash-${host}";
+        in
         pkgs.stdenvNoCC.mkDerivation {
-          inherit pname src;
+          inherit pname;
+          src = ./.;
           version = "0.1.0";
 
           dontConfigure = true;
@@ -34,7 +37,8 @@
           installPhase = ''
             runHook preInstall
             install -d "$out/share/${pname}"
-            cp -R . "$out/share/${pname}/"
+            cp -R public/. "$out/share/${pname}/"
+            cp "hosts/${host}/config.js" "$out/share/${pname}/config.js"
             runHook postInstall
           '';
 
@@ -50,13 +54,16 @@
         let
           pkgs = import nixpkgs { inherit system; };
           hsb1 = mkDashboardPackage pkgs {
-            pname = "hsb1-home-dashboard";
-            src = ./public;
-            metaDescription = "Static hsb1 service dashboard";
+            host = "hsb1";
+            metaDescription = "HostDash service dashboard for hsb1";
+          };
+          hsb0 = mkDashboardPackage pkgs {
+            host = "hsb0";
+            metaDescription = "HostDash service dashboard for hsb0";
           };
         in
         {
-          inherit hsb1;
+          inherit hsb0 hsb1;
           default = hsb1;
         }
       );
