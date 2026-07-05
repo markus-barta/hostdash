@@ -25,14 +25,33 @@ const defaults = {
     searchTerm: "plex",
     certService: "Scrypted",
   },
+  csb0: {
+    cards: 12,
+    total: 5,
+    searchName: "Node-RED",
+    searchTerm: "node-red",
+    certService: null,
+  },
+  csb1: {
+    cards: 28,
+    total: 15,
+    searchName: "Docmost",
+    searchTerm: "knowledge",
+    certService: null,
+  },
 };
+const expectedString = (envName, key) =>
+  process.env[envName] ??
+  (Object.prototype.hasOwnProperty.call(defaults[host] || {}, key)
+    ? defaults[host][key]
+    : defaults.hsb1[key]);
 const expected = {
   ...(defaults[host] || defaults.hsb1),
   cards: Number(process.env.EXPECTED_CARDS || defaults[host]?.cards || defaults.hsb1.cards),
   total: Number(process.env.EXPECTED_TOTAL || defaults[host]?.total || defaults.hsb1.total),
-  searchName: process.env.EXPECTED_SEARCH_NAME || defaults[host]?.searchName || defaults.hsb1.searchName,
-  searchTerm: process.env.EXPECTED_SEARCH_TERM || defaults[host]?.searchTerm || defaults.hsb1.searchTerm,
-  certService: process.env.EXPECTED_CERT_SERVICE || defaults[host]?.certService || defaults.hsb1.certService,
+  searchName: expectedString("EXPECTED_SEARCH_NAME", "searchName"),
+  searchTerm: expectedString("EXPECTED_SEARCH_TERM", "searchTerm"),
+  certService: expectedString("EXPECTED_CERT_SERVICE", "certService"),
 };
 
 async function localPageUrl() {

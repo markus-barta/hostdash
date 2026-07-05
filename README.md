@@ -1,6 +1,6 @@
 # HostDash
 
-Static service dashboards for home hosts, served as immutable Nix package
+Static service dashboards for fleet hosts, served as immutable Nix package
 outputs and mounted into small nginx containers.
 
 Canonical repo: `github.com/markus-barta/hostdash`.
@@ -14,6 +14,8 @@ host config as `config.js`.
 ```bash
 nix build .#hsb1
 nix build .#hsb0
+nix build .#csb0
+nix build .#csb1
 ```
 
 Package outputs contain:
@@ -21,6 +23,8 @@ Package outputs contain:
 ```text
 share/hostdash-hsb1/index.html
 share/hostdash-hsb0/index.html
+share/hostdash-csb0/index.html
+share/hostdash-csb1/index.html
 ```
 
 ## UI Smoke Test
@@ -28,6 +32,8 @@ share/hostdash-hsb0/index.html
 ```bash
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
 ```
 
 The test launches a temporary headless Chromium-compatible browser profile,
@@ -44,8 +50,12 @@ Before pushing or redeploying, run:
 node --check scripts/smoke-ui.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
 nix build .#hsb1 --no-link
 nix build .#hsb0 --no-link
+nix build .#csb0 --no-link
+nix build .#csb1 --no-link
 ```
 
 Deployment is indirect: push this repository, update the `hostdash` flake input

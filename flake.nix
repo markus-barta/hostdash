@@ -1,5 +1,5 @@
 {
-  description = "HostDash static service dashboards for home hosts";
+  description = "HostDash static service dashboards for fleet hosts";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -61,9 +61,22 @@
             host = "hsb0";
             metaDescription = "HostDash service dashboard for hsb0";
           };
+          csb0 = mkDashboardPackage pkgs {
+            host = "csb0";
+            metaDescription = "HostDash service dashboard for csb0";
+          };
+          csb1 = mkDashboardPackage pkgs {
+            host = "csb1";
+            metaDescription = "HostDash service dashboard for csb1";
+          };
         in
         {
-          inherit hsb0 hsb1;
+          inherit
+            csb0
+            csb1
+            hsb0
+            hsb1
+            ;
           default = hsb1;
         }
       );

@@ -1,0 +1,61 @@
+window.HOSTDASH_CONFIG = {
+  slug: "csb1",
+  storageKey: "hostdash.csb1",
+  host: {
+    name: "csb1",
+    role: "cloud apps",
+    os: "NixOS",
+    fqdn: "cs1.barta.cm",
+    ip: "152.53.64.166",
+    title: "csb1 · cloud apps",
+    heading: "Services",
+  },
+  meta: [
+    { text: "hosts/csb1/docker", code: true },
+    { text: "csb1", code: true },
+    "Europe/Vienna",
+  ],
+  wings: [
+    { id: "edge", name: "Edge & Identity", color: "var(--home)", icon: "shield-alert" },
+    { id: "docs", name: "Docs & Work", color: "var(--media)", icon: "book-open" },
+    { id: "platforms", name: "Platforms", color: "var(--signals)", icon: "server" },
+    { id: "sites", name: "Sites", color: "var(--safety)", icon: "globe" },
+    { id: "data", name: "Data & Sidecars", color: "var(--infra)", icon: "database" },
+    { id: "housekeeping", name: "Housekeeping", color: "var(--soft)", icon: "refresh-cw" },
+  ],
+  services: [
+    { wing: "edge", name: "Traefik API", purpose: "Public TLS edge and Docker router", icon: "shield-alert", url: "https://cs1.barta.cm/api/version", port: ":443 /api" },
+    { wing: "edge", name: "Zitadel", purpose: "INSPR identity provider", icon: "key-round", url: "https://auth.inspr.at/", port: ":443" },
+    { wing: "edge", name: "inspr-auth", purpose: "Magic-link and session gateway for inspr.at", icon: "shield-alert", url: "https://inspr.at/enter", port: ":443" },
+    { wing: "edge", name: "docker socket proxy", purpose: "Read-only Docker API for Traefik discovery", icon: "server", passive: true, foot: "internal · :2375" },
+
+    { wing: "docs", name: "Docmost", purpose: "Team knowledge base", icon: "book-open", url: "https://docmost.barta.cm/", port: ":443" },
+    { wing: "docs", name: "Paperless", purpose: "Document archive and OCR", icon: "file-text", url: "https://paperless.barta.cm/", port: ":443" },
+    { wing: "docs", name: "Excalidraw", purpose: "Self-hosted whiteboard", icon: "pen-tool", url: "https://draw.barta.cm/", port: ":443" },
+    { wing: "docs", name: "PPM", purpose: "Personal project management", icon: "logo-paimos", url: "https://pm.barta.cm/", port: ":443" },
+
+    { wing: "platforms", name: "Janus", purpose: "Secret metadata control plane", icon: "key-round", url: "https://vault.barta.cm/", port: ":443" },
+    { wing: "platforms", name: "MinIO", purpose: "Object storage console for app attachments", icon: "box", url: "https://minio.barta.cm/", port: ":443" },
+    { wing: "platforms", name: "Pharos", purpose: "Fleet status dashboard and beacon receiver", icon: "radar", url: "https://pharos.barta.cm/", port: ":443" },
+    { wing: "platforms", name: "FleetCom", purpose: "Legacy fleet lifecycle dashboard", icon: "satellite-dish", url: "https://fleet.barta.cm/", port: ":443" },
+    { wing: "platforms", name: "WEG Portal", purpose: "Multi-tenant house portal", icon: "house", url: "https://jhw22.hausv.org/", port: ":443" },
+
+    { wing: "sites", name: "INSPR site", purpose: "Public INSPR web presence", icon: "globe", url: "https://inspr.at/", port: ":443" },
+    { wing: "sites", name: "PAIMOS site", purpose: "Public PAIMOS web presence", icon: "logo-paimos", url: "https://paimos.com/", port: ":443" },
+    { wing: "sites", name: "jobs.at", purpose: "Austrian labor-market exposition", icon: "briefcase", url: "https://zukunftschance.ai.barta.cm/", port: ":443" },
+
+    { wing: "data", name: "Docmost Postgres", purpose: "Docmost relational store", icon: "database", passive: true, foot: "postgres · internal" },
+    { wing: "data", name: "Docmost Redis", purpose: "Docmost cache and jobs", icon: "database", passive: true, foot: "redis · internal" },
+    { wing: "data", name: "Paperless Postgres", purpose: "Paperless relational store", icon: "database", passive: true, foot: "postgres · internal" },
+    { wing: "data", name: "Paperless Redis", purpose: "Paperless cache and task queue", icon: "database", passive: true, foot: "redis · internal" },
+    { wing: "data", name: "Paperless Tika", purpose: "Document text extraction sidecar", icon: "file-text", passive: true, foot: ":9998 internal" },
+    { wing: "data", name: "Paperless Gotenberg", purpose: "Office/PDF conversion sidecar", icon: "file-text", passive: true, foot: ":3000 internal" },
+    { wing: "data", name: "Zitadel Postgres", purpose: "Zitadel identity database", icon: "database", passive: true, foot: "postgres · internal" },
+
+    { wing: "housekeeping", name: "restic", purpose: "Nightly backup to Hetzner Storage Box", icon: "hard-drive-download", passive: true, foot: "01:30 daily · backup" },
+    { wing: "housekeeping", name: "SMTP relay", purpose: "Outbound container mail", icon: "mail", passive: true, foot: ":25 internal · relay" },
+    { wing: "housekeeping", name: "Watchtower", purpose: "Weekly updates for opted-in containers", icon: "refresh-cw", passive: true, foot: "Sat 08:00 · scheduled" },
+    { wing: "housekeeping", name: "FleetCom Bosun", purpose: "Heartbeats and lifecycle events to fleet.barta.cm", icon: "satellite-dish", passive: true, foot: "agent · outbound only" },
+    { wing: "housekeeping", name: "pharos-beacon", purpose: "Host status to local pharosd", icon: "radar", passive: true, foot: "beacon · outbound only" },
+  ],
+};
