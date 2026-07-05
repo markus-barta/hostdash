@@ -827,22 +827,38 @@ function cleanServices(services) {
   return arrayOrEmpty(services)
     .filter(service => isObject(service) && typeof service.wing === "string" && typeof service.name === "string")
     .map(service => {
-      const statusPolicy = objectOr(service.statusPolicy);
-      const status = service.status || statusPolicy.staticState || null;
+      const rawStatusPolicy = objectOr(service.statusPolicy);
+      const statusPolicy = {
+        source: stringOr(rawStatusPolicy.source, "hostdash-probe"),
+        ...(typeof rawStatusPolicy.staticState === "string" ? { staticState: rawStatusPolicy.staticState } : {}),
+      };
+      const status = typeof service.status === "string"
+        ? service.status
+        : statusPolicy.staticState || null;
       const url = typeof service.url === "string" ? service.url : null;
+      const probe = typeof service.probe === "boolean" || typeof service.probe === "string"
+        ? service.probe
+        : null;
       return {
-        ...service,
         wing: service.wing,
         name: service.name,
         purpose: stringOr(service.purpose),
         icon: stringOr(service.icon, "server"),
-        url,
         urls: objectOr(service.urls),
         sameHost: service.sameHost === true,
         passive: service.passive === true || !url,
         certIssue: service.certIssue === true,
         statusPolicy,
+        ...(url ? { url } : {}),
+        ...(typeof service.scheme === "string" ? { scheme: service.scheme } : {}),
+        ...(typeof service.port === "string" ? { port: service.port } : {}),
+        ...(typeof service.hostPort === "string" ? { hostPort: service.hostPort } : {}),
+        ...(typeof service.path === "string" ? { path: service.path } : {}),
+        ...(typeof service.search === "string" ? { search: service.search } : {}),
+        ...(typeof service.foot === "string" ? { foot: service.foot } : {}),
         ...(status ? { status } : {}),
+        ...(probe !== null ? { probe } : {}),
+        ...(typeof service.note === "string" ? { note: service.note } : {}),
       };
     });
 }

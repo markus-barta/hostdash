@@ -122,7 +122,7 @@ function manifestFromConfig(config) {
     slug: config.slug,
     storageKey: config.storageKey,
     host: config.host,
-    meta: config.meta,
+    meta: [...(config.meta || []), { ignored: true }],
     palette: {
       name: "custom-hsb8",
       displayName: "Custom (hsb8)",
@@ -141,8 +141,10 @@ function manifestFromConfig(config) {
       text: {},
       zellij: {},
     },
-    wings: config.wings,
-    services: config.services,
+    wings: config.wings.map((wing, index) => index === 0 ? { ...wing, color: 42 } : wing),
+    services: config.services.map((service, index) =>
+      index === 0 ? { ...service, urls: "invalid optional field", note: 42 } : service
+    ),
     policy: {
       declaredOnly: true,
       runtimeStateOwner: "pharos",
