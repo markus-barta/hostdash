@@ -34,13 +34,13 @@ window.HOSTDASH_CONFIG = {
     { wing: "docs", name: "Excalidraw", purpose: "Self-hosted whiteboard", icon: "pen-tool", url: "https://draw.barta.cm/", port: ":443" },
     { wing: "docs", name: "PPM", purpose: "Personal project management", icon: "logo-paimos", url: "https://pm.barta.cm/", port: ":443" },
 
-    { wing: "platforms", name: "Janus", purpose: "Secret metadata control plane", icon: "key-round", url: "https://vault.barta.cm/", port: ":443" },
+    { wing: "platforms", name: "Janus", purpose: "Secret metadata control plane", icon: "key-round", url: "https://vault.barta.cm/", port: ":443", status: "protected", note: "SSO/CORP-protected; browser probes from HostDash are intentionally disabled" },
     { wing: "platforms", name: "MinIO", purpose: "Object storage console for app attachments", icon: "box", url: "https://minio.barta.cm/", port: ":443" },
     { wing: "platforms", name: "Pharos", purpose: "Fleet status dashboard and beacon receiver", icon: "radar", url: "https://pharos.barta.cm/", port: ":443" },
     { wing: "platforms", name: "FleetCom", purpose: "Legacy fleet lifecycle dashboard", icon: "satellite-dish", url: "https://fleet.barta.cm/", port: ":443" },
     { wing: "platforms", name: "WEG Portal", purpose: "Multi-tenant house portal", icon: "house", url: "https://jhw22.hausv.org/", port: ":443" },
 
-    { wing: "sites", name: "INSPR site", purpose: "Public INSPR web presence", icon: "globe", url: "https://inspr.at/", port: ":443" },
+    { wing: "sites", name: "INSPR site", purpose: "Public INSPR web presence", icon: "globe", url: "https://inspr.at/", port: ":443", status: "external", note: "Public site sends CORP same-origin; browser probes from HostDash are intentionally disabled" },
     { wing: "sites", name: "PAIMOS site", purpose: "Public PAIMOS web presence", icon: "logo-paimos", url: "https://paimos.com/", port: ":443" },
     { wing: "sites", name: "jobs.at", purpose: "Austrian labor-market exposition", icon: "briefcase", url: "https://zukunftschance.ai.barta.cm/", port: ":443" },
 

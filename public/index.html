@@ -515,6 +515,10 @@
   .state[data-s="down"] .dot { background: var(--down); }
   .state[data-s="cert"] { color: var(--checking); border-color: rgba(212, 147, 36, 0.28); }
   .state[data-s="cert"] .dot { background: var(--checking); box-shadow: 0 0 0 4px rgba(212, 147, 36, 0.12); }
+  .state[data-s="external"],
+  .state[data-s="protected"] { color: var(--up); border-color: rgba(38, 122, 83, 0.22); }
+  .state[data-s="external"] .dot,
+  .state[data-s="protected"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--up); }
   .state[data-s="passive"] { color: var(--soft); }
   .state[data-s="passive"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--passive); }
 
@@ -891,12 +895,14 @@ WINGS.forEach(wing => {
       card.href = targetUrl;
       card.target = "_blank";
       card.rel = "noopener";
-      if (service.certIssue) card.dataset.staticState = "cert";
+      if (service.status) card.dataset.staticState = service.status;
+      else if (service.certIssue) card.dataset.staticState = "cert";
+      else if (service.probe === false) card.dataset.staticState = "external";
       else card.dataset.probe = targetUrl;
     }
     if (service.note) card.title = service.note;
 
-    const status = service.certIssue ? "cert" : active ? "checking" : "passive";
+    const status = service.status || (service.certIssue ? "cert" : active ? "checking" : "passive");
     const statusLabel = statusText(status);
     const foot = active
       ? `<span class="port">${service.port}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
@@ -937,6 +943,8 @@ function statusText(state) {
   if (state === "up") return "Online";
   if (state === "down") return "Down";
   if (state === "cert") return "TLS cert";
+  if (state === "external") return "External";
+  if (state === "protected") return "Protected";
   if (state === "checking") return "Checking";
   return "Passive";
 }
@@ -947,7 +955,7 @@ function counts() {
   let online = 0;
   cardIndex.forEach(card => {
     const state = card.querySelector(".state").dataset.s;
-    if (state === "up" || state === "cert") {
+    if (state === "up" || state === "cert" || state === "external" || state === "protected") {
       online += 1;
       per[card.closest(".wing").dataset.wing] += 1;
     }

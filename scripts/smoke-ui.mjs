@@ -20,6 +20,7 @@ const defaults = {
     sameHostService: "AdGuard Home",
     sameHostPort: "3000",
     sameHostPath: "/",
+    staticStates: {},
   },
   hsb1: {
     cards: 19,
@@ -30,6 +31,7 @@ const defaults = {
     sameHostService: "Plex",
     sameHostPort: "32400",
     sameHostPath: "/web",
+    staticStates: {},
   },
   hsb8: {
     cards: 6,
@@ -40,6 +42,7 @@ const defaults = {
     sameHostService: "Home Assistant",
     sameHostPort: "8123",
     sameHostPath: "/",
+    staticStates: {},
   },
   hsb9: {
     cards: 4,
@@ -50,6 +53,7 @@ const defaults = {
     sameHostService: "Home Assistant",
     sameHostPort: "8123",
     sameHostPath: "/",
+    staticStates: {},
   },
   csb0: {
     cards: 12,
@@ -60,6 +64,7 @@ const defaults = {
     sameHostService: null,
     sameHostPort: null,
     sameHostPath: null,
+    staticStates: {},
   },
   csb1: {
     cards: 28,
@@ -70,6 +75,10 @@ const defaults = {
     sameHostService: null,
     sameHostPort: null,
     sameHostPath: null,
+    staticStates: {
+      Janus: "protected",
+      "INSPR site": "external",
+    },
   },
 };
 const expectedString = (envName, key) =>
@@ -213,6 +222,11 @@ try {
       .find(card => card.querySelector("h3")?.textContent === certName)
       ?.querySelector(".state")?.dataset.s
       : null,
+    staticStates: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticStates || {})}).map(name => {
+      const card = [...document.querySelectorAll(".svc")]
+        .find(item => item.querySelector("h3")?.textContent === name);
+      return [name, card?.querySelector(".state")?.dataset.s || null];
+    })),
     sameHostHref: sameHostCard?.href || null
     };
   })()`);
@@ -237,6 +251,11 @@ try {
   }
   if (expected.certService && initial.certState !== "cert") {
     throw new Error(`Expected ${expected.certService} TLS-cert state, got ${JSON.stringify(initial)}`);
+  }
+  for (const [name, state] of Object.entries(expected.staticStates || {})) {
+    if (initial.staticStates[name] !== state) {
+      throw new Error(`Expected ${name} state ${state}, got ${JSON.stringify(initial)}`);
+    }
   }
   if (expected.sameHostService && /^https?:/.test(pageUrl)) {
     const actual = new URL(initial.sameHostHref);
