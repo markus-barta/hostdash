@@ -24,6 +24,23 @@ The package output contains:
 share/hsb1-home-dashboard/index.html
 ```
 
+## UI Smoke Test
+
+```bash
+node scripts/smoke-ui.mjs
+```
+
+The test launches a temporary headless Chromium-compatible browser profile and
+checks that the dashboard renders, the online counter initializes, `/` focuses
+search, search filters cards, and Escape clears the filter. Set `BROWSER_PATH`
+to use a different Chromium-compatible browser.
+
+## Design Reference
+
+`docs/design/hsb1-dashboard-concept.png` is the generated visual reference used
+for the first redesign pass. The shipped page remains static HTML/CSS/JS in
+`public/index.html`.
+
 ## Deployment Pattern
 
 For hsb1, nixcfg pins this repo as a flake input and exposes the package via:
@@ -48,4 +65,3 @@ same nginx image.
 - No secrets are stored here.
 - The page is static HTML/CSS/JS.
 - The live hsb1 file was backed up before redeploying declaratively.
-

@@ -5,298 +5,789 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>hsb1 · home server</title>
 <style>
-  :root{
-    --canvas:#FBF6EC; --card:#FFFDF8; --sunk:#F6EFE0; --line:#E7DCC9;
-    --ink:#2A2620; --taupe:#6B6154;
-    --home:#C75D3A; --media:#A85686; --signals:#CC8B2A; --safety:#6F8C5A; --infra:#8A7E6B;
-    --up:#4E8D6B; --checking:#D69A2D; --down:#B23A2E; --passive:#B8AD98;
-    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
-    --sans:"Avenir Next",Avenir,"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,"Cascadia Code",monospace;
+  :root {
+    color-scheme: light;
+    --bg: #f4f6f4;
+    --surface: #ffffff;
+    --surface-2: #f9faf8;
+    --surface-3: #eef2ec;
+    --line: #dce3da;
+    --line-strong: #c6d1c3;
+    --ink: #172016;
+    --muted: #62705f;
+    --soft: #84907f;
+    --shadow: 0 14px 32px rgba(32, 45, 31, 0.08);
+    --home: #d45c3f;
+    --media: #b55787;
+    --signals: #c98625;
+    --safety: #668d55;
+    --infra: #777465;
+    --up: #267a53;
+    --checking: #d49324;
+    --down: #ba372d;
+    --passive: #9ca79a;
+    --sans: Inter, "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Code", monospace;
   }
-  *{box-sizing:border-box;margin:0}
-  html,body{overflow-x:hidden}
-  body{
-    background:var(--canvas); color:var(--ink); font-family:var(--sans); line-height:1.5;
-    -webkit-font-smoothing:antialiased; min-height:100vh;
-    background-image:
-      radial-gradient(120% 90% at 100% -10%, rgba(204,139,42,.14), rgba(199,93,58,.05) 32%, transparent 60%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    background-attachment:fixed;
+
+  * { box-sizing: border-box; }
+  html { min-height: 100%; background: var(--bg); }
+  body {
+    min-height: 100vh;
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    background:
+      linear-gradient(180deg, rgba(238, 242, 236, 0.86), rgba(244, 246, 244, 0) 320px),
+      var(--bg);
   }
-  .wrap{max-width:1240px; margin:0 auto; padding:0 clamp(20px,5vw,64px)}
-  a{color:inherit; text-decoration:none}
-
-  /* masthead */
-  .mast{background:var(--sunk); border-bottom:1px solid var(--line)}
-  .mast .wrap{display:flex; align-items:center; gap:24px; flex-wrap:wrap; padding:22px clamp(20px,5vw,64px)}
-  .brand{display:flex; align-items:center; gap:14px; margin-right:auto}
-  .brand .mark{width:40px;height:40px;color:var(--home);flex:none}
-  .brand h1{font-family:var(--serif); font-size:44px; letter-spacing:-.01em; font-weight:600; line-height:1}
-  .brand .sub{font-size:12.5px; color:var(--taupe); font-variant-numeric:tabular-nums; margin-top:3px}
-  .agg{text-align:right; font-variant-numeric:tabular-nums}
-  .agg .count{font-family:var(--serif); font-size:22px}
-  .agg .count b{color:var(--up)}
-  .agg .clock{font-size:12px; color:var(--taupe); font-family:var(--mono)}
-  .search{position:relative}
-  .search input{
-    font-family:var(--sans); font-size:14px; color:var(--ink); background:var(--card);
-    border:1px solid var(--line); border-radius:10px; padding:9px 34px 9px 13px; width:230px; outline:none;
+  a { color: inherit; text-decoration: none; }
+  button, input { font: inherit; }
+  svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
-  .search input:focus{border-color:var(--home); box-shadow:0 0 0 3px rgba(199,93,58,.12)}
-  .search .kbd{position:absolute; right:10px; top:50%; transform:translateY(-50%); font-family:var(--mono);
-    font-size:11px; color:var(--taupe); border:1px solid var(--line); border-radius:5px; padding:0 5px; background:var(--sunk)}
 
-  /* filter rail */
-  .rail{position:sticky; top:0; z-index:20; background:rgba(251,246,236,.86); backdrop-filter:blur(8px); border-bottom:1px solid var(--line)}
-  .rail .wrap{display:flex; gap:8px; flex-wrap:wrap; padding:12px clamp(20px,5vw,64px)}
-  .chip{display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--ink);
-    background:var(--card); border:1px solid var(--line); border-radius:999px; padding:5px 13px; cursor:pointer; transition:.15s}
-  .chip .dot{width:8px;height:8px;border-radius:50%; background:var(--c,var(--taupe))}
-  .chip .n{font-variant-numeric:tabular-nums; color:var(--taupe); font-size:12px}
-  .chip[aria-pressed="true"]{background:var(--c,var(--ink)); border-color:var(--c,var(--ink)); color:#fff}
-  .chip[aria-pressed="true"] .n{color:rgba(255,255,255,.8)}
-  .chip[aria-pressed="true"] .dot{background:#fff}
+  .app {
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr);
+    min-height: 100vh;
+  }
 
-  /* wings */
-  main{padding:26px 0 60px}
-  .wing{position:relative; margin:0 0 30px; padding-left:18px}
-  .wing::before{content:""; position:absolute; left:0; top:4px; bottom:4px; width:3px; border-radius:3px; background:var(--c)}
-  .wing-h{display:flex; align-items:center; gap:10px; margin:0 0 14px}
-  .wing-h .wi{width:22px;height:22px;color:var(--c)}
-  .wing-h h2{font-family:var(--serif); font-size:15px; text-transform:uppercase; letter-spacing:.14em; font-weight:600}
-  .wing-h .n{font-size:12px; color:var(--taupe); font-variant-numeric:tabular-nums}
-  .deck{display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:16px}
+  .side {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 24px 18px;
+    border-right: 1px solid var(--line);
+    background: rgba(249, 250, 248, 0.9);
+    backdrop-filter: blur(14px);
+  }
 
-  /* card */
-  .svc{position:relative; display:grid; grid-template-rows:auto 1fr auto; gap:10px; min-height:132px;
-    background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px;
-    box-shadow:0 1px 2px rgba(42,38,32,.05); transition:transform .16s cubic-bezier(.2,.7,.2,1),box-shadow .16s,border-color .16s}
-  .svc .top{display:flex; align-items:flex-start; justify-content:space-between}
-  .chipi{width:38px;height:38px;border-radius:11px; display:grid; place-items:center; color:var(--c);
-    background:color-mix(in srgb,var(--c) 12%,transparent); transition:.16s}
-  .chipi svg{width:20px;height:20px}
-  .svc h3{font-size:17px; font-weight:600; color:var(--ink); line-height:1.2}
-  .svc .purpose{font-size:13.5px; color:var(--taupe); line-height:1.45}
-  .svc .foot{display:flex; align-items:baseline; justify-content:space-between; gap:8px}
-  .svc .port{font-family:var(--mono); font-size:12px; color:var(--taupe); font-variant-numeric:tabular-nums}
-  .svc .open{font-size:12.5px; color:var(--c); display:inline-flex; align-items:center; gap:4px; opacity:0; transform:translateX(-4px); transition:.16s}
-  .svc .open svg{width:14px;height:14px}
-  a.svc:hover{transform:translateY(-3px); box-shadow:0 8px 24px rgba(42,38,32,.10); border-color:color-mix(in srgb,var(--c) 55%,var(--line))}
-  a.svc:hover .chipi{background:color-mix(in srgb,var(--c) 18%,transparent)}
-  a.svc:hover .open{opacity:1; transform:translateX(0)}
-  a.svc:active{transform:translateY(-1px) scale(.997)}
-  a.svc:focus-visible{outline:2px solid var(--c); outline-offset:3px}
-  /* status dot */
-  .dot2{width:9px;height:9px;border-radius:50%; position:relative; margin-top:4px}
-  .dot2[data-s="up"]{background:var(--up)}
-  .dot2[data-s="up"]::after{content:""; position:absolute; inset:-4px; border-radius:50%; background:var(--up); opacity:.35; animation:pulse 2.4s ease infinite}
-  .dot2[data-s="checking"]{background:var(--checking); animation:blink 1.4s ease infinite}
-  .dot2[data-s="down"]{background:var(--down)}
-  .dot2[data-s="passive"]{background:transparent; box-shadow:inset 0 0 0 1.5px var(--passive)}
-  @keyframes pulse{0%{transform:scale(.6);opacity:.5}100%{transform:scale(1.6);opacity:0}}
-  @keyframes blink{50%{opacity:.35}}
-  /* passive card */
-  .svc.passive{background:var(--sunk); border-style:dotted; cursor:default}
-  .svc.passive h3{font-weight:600}
-  .svc.passive .port{color:var(--taupe)}
-  .hidden{display:none !important}
-  footer{border-top:1px solid var(--line); color:var(--taupe); font-size:12px}
-  footer .wrap{padding:16px clamp(20px,5vw,64px); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap}
-  footer code{font-family:var(--mono); font-size:11px}
-  @media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
-  @media (max-width:520px){.brand h1{font-size:34px}.search input{width:150px}}
+  .brand {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 4px 6px 22px;
+  }
+  .mark {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--home);
+    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
+  }
+  .mark svg, .icon svg, .action svg, .heading svg { width: 20px; height: 20px; }
+  .brand h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: 0;
+    font-weight: 760;
+  }
+  .brand p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .status-panel {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 20px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .status-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .status-row span {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .status-row strong {
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .status-row strong b { color: var(--up); }
+  .clock {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .nav {
+    display: grid;
+    gap: 6px;
+  }
+  .chip {
+    display: grid;
+    grid-template-columns: 10px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--ink);
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+  .chip:hover { background: var(--surface-3); }
+  .chip[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--c) 34%, var(--line));
+    background: color-mix(in srgb, var(--c) 11%, var(--surface));
+  }
+  .chip .swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c, var(--ink));
+  }
+  .chip .label { font-size: 13px; font-weight: 650; }
+  .chip .n {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .main {
+    min-width: 0;
+    padding: 28px clamp(18px, 4vw, 48px) 56px;
+  }
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 360px);
+    gap: 18px;
+    align-items: center;
+    margin: 0 0 22px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--up);
+    box-shadow: 0 0 0 5px rgba(38, 122, 83, 0.12);
+  }
+  .title h2 {
+    margin: 0;
+    max-width: 760px;
+    font-size: 30px;
+    line-height: 1.1;
+    letter-spacing: 0;
+    font-weight: 780;
+  }
+  .title p {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .search {
+    position: relative;
+  }
+  .search input {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 72px 0 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    outline: none;
+    color: var(--ink);
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
+  }
+  .search input:focus {
+    border-color: var(--home);
+    box-shadow: 0 0 0 4px rgba(212, 92, 63, 0.12);
+  }
+  .search svg {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    transform: translateY(-50%);
+    color: var(--muted);
+  }
+  .kbd {
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: 24px;
+    padding: 1px 6px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--muted);
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .mobile-chips {
+    display: none;
+    gap: 8px;
+    margin: 0 0 22px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .mobile-chips .chip {
+    width: auto;
+    min-width: max-content;
+    grid-template-columns: 8px auto auto;
+    background: var(--surface);
+    border-color: var(--line);
+  }
+
+  .wing {
+    --c: var(--home);
+    margin: 0 0 34px;
+  }
+  .heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 0 12px;
+  }
+  .heading-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .heading svg { color: var(--c); }
+  .heading h2 {
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .heading .n {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .rule {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--c) 44%, var(--line)), transparent);
+  }
+
+  .deck {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+    gap: 12px;
+  }
+
+  .svc {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 14px;
+    min-height: 168px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
+    transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  }
+  a.svc:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--c) 48%, var(--line));
+    box-shadow: var(--shadow);
+  }
+  a.svc:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--c) 32%, transparent);
+    outline-offset: 2px;
+  }
+  .svc.passive {
+    background: linear-gradient(180deg, var(--surface-2), color-mix(in srgb, var(--c) 5%, var(--surface-2)));
+    border-style: dashed;
+  }
+  .svc-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 10%, var(--surface));
+  }
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-2);
+    font-size: 11px;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--passive);
+  }
+  .state[data-s="up"] { color: var(--up); border-color: rgba(38, 122, 83, 0.25); }
+  .state[data-s="up"] .dot { background: var(--up); box-shadow: 0 0 0 4px rgba(38, 122, 83, 0.12); }
+  .state[data-s="checking"] { color: var(--checking); border-color: rgba(212, 147, 36, 0.28); }
+  .state[data-s="checking"] .dot { background: var(--checking); animation: breathe 1.4s ease-in-out infinite; }
+  .state[data-s="down"] { color: var(--down); border-color: rgba(186, 55, 45, 0.24); }
+  .state[data-s="down"] .dot { background: var(--down); }
+  .state[data-s="passive"] { color: var(--soft); }
+  .state[data-s="passive"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--passive); }
+
+  .svc h3 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.2;
+    letter-spacing: 0;
+  }
+  .purpose {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .svc-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+  }
+  .port {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--c);
+    font-size: 12px;
+    font-weight: 760;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+  }
+  .action svg { width: 14px; height: 14px; }
+  a.svc:hover .action, a.svc:focus-visible .action {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .empty {
+    display: none;
+    padding: 26px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+  }
+
+  .hidden { display: none !important; }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 28px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .meta span {
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .meta code {
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  @keyframes breathe { 50% { opacity: 0.36; } }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  @media (max-width: 900px) {
+    .app { display: block; }
+    .side { display: none; }
+    .main { padding-top: 22px; }
+    .topbar { grid-template-columns: 1fr; align-items: stretch; }
+    .mobile-chips { display: flex; }
+    .title h2 { font-size: 36px; }
+  }
+  @media (max-width: 560px) {
+    .main { padding-inline: 14px; }
+    .deck { grid-template-columns: 1fr; }
+    .heading { align-items: flex-start; }
+    .rule { display: none; }
+    .svc { min-height: 148px; }
+  }
 </style>
 </head>
 <body>
-<!-- lucide sprite -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-<symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
-<symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></symbol>
-<symbol id="i-radio-tower" viewBox="0 0 24 24"><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/><path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/></symbol>
-<symbol id="i-hexagon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></symbol>
-<symbol id="i-clapperboard" viewBox="0 0 24 24"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
-<symbol id="i-grid-3x3" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></symbol>
-<symbol id="i-toy-brick" viewBox="0 0 24 24"><rect width="18" height="12" x="3" y="8" rx="1"/><path d="M10 8V5c0-.6-.4-1-1-1H6a1 1 0 0 0-1 1v3"/><path d="M19 8V5c0-.6-.4-1-1-1h-3a1 1 0 0 0-1 1v3"/></symbol>
-<symbol id="i-radio" viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></symbol>
-<symbol id="i-bell-ring" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M22 8c0-2.3-.8-4.3-2-6"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/></symbol>
-<symbol id="i-audio-waveform" viewBox="0 0 24 24"><path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/></symbol>
-<symbol id="i-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
-<symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></symbol>
-<symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
-<symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
-<symbol id="i-hard-drive-download" viewBox="0 0 24 24"><path d="M12 2v8"/><path d="m16 6-4 4-4-4"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 18h.01"/><path d="M10 18h.01"/></symbol>
-<symbol id="i-satellite-dish" viewBox="0 0 24 24"><path d="M4 10a7.31 7.31 0 0 0 10 10Z"/><path d="m9 15 3-3"/><path d="M17 13a6 6 0 0 0-6-6"/><path d="M21 13A10 10 0 0 0 11 3"/></symbol>
-<symbol id="i-radar" viewBox="0 0 24 24"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></symbol>
-<symbol id="i-terminal" viewBox="0 0 24 24"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></symbol>
-<symbol id="i-sunrise" viewBox="0 0 24 24"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></symbol>
-<symbol id="i-sliders" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></symbol>
-<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01"/><path d="M6 18h.01"/></symbol>
+  <symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></symbol>
+  <symbol id="i-radio-tower" viewBox="0 0 24 24"><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/><path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/></symbol>
+  <symbol id="i-hexagon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></symbol>
+  <symbol id="i-clapperboard" viewBox="0 0 24 24"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-grid-3x3" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></symbol>
+  <symbol id="i-toy-brick" viewBox="0 0 24 24"><rect width="18" height="12" x="3" y="8" rx="1"/><path d="M10 8V5c0-.6-.4-1-1-1H6a1 1 0 0 0-1 1v3"/><path d="M19 8V5c0-.6-.4-1-1-1h-3a1 1 0 0 0-1 1v3"/></symbol>
+  <symbol id="i-radio" viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></symbol>
+  <symbol id="i-bell-ring" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M22 8c0-2.3-.8-4.3-2-6"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/></symbol>
+  <symbol id="i-audio-waveform" viewBox="0 0 24 24"><path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+  <symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-hard-drive-download" viewBox="0 0 24 24"><path d="M12 2v8"/><path d="m16 6-4 4-4-4"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 18h.01"/><path d="M10 18h.01"/></symbol>
+  <symbol id="i-satellite-dish" viewBox="0 0 24 24"><path d="M4 10a7.31 7.31 0 0 0 10 10Z"/><path d="m9 15 3-3"/><path d="M17 13a6 6 0 0 0-6-6"/><path d="M21 13A10 10 0 0 0 11 3"/></symbol>
+  <symbol id="i-radar" viewBox="0 0 24 24"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
 </defs></svg>
 
-<header class="mast"><div class="wrap">
-  <div class="brand">
-    <svg class="mark"><use href="#i-sunrise"/></svg>
-    <div><h1>hsb1</h1><div class="sub">home server · hsb1.lan · 192.168.1.101 · NixOS</div></div>
-  </div>
-  <div class="agg">
-    <div class="count"><b id="onCount">–</b> / <span id="totCount">–</span> online</div>
-    <div class="clock" id="clock"></div>
-  </div>
-  <div class="search"><input id="q" type="search" placeholder="Jump to a service…" autocomplete="off" aria-label="Search services"><span class="kbd">/</span></div>
-</div></header>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="mark"><svg><use href="#i-server"></use></svg></div>
+      <div>
+        <h1>hsb1</h1>
+        <p>home server</p>
+      </div>
+    </div>
+    <section class="status-panel" aria-label="Host status">
+      <div class="status-row"><span>Online</span><strong><b id="onCount">0</b>/<span id="totCount">0</span></strong></div>
+      <div class="clock" id="clock"></div>
+    </section>
+    <nav class="nav" id="sideChips" aria-label="Service categories"></nav>
+  </aside>
 
-<div class="rail"><div class="wrap" id="chips"></div></div>
-
-<main class="wrap" id="wings"></main>
-
-<footer><div class="wrap">
-  <span>docker-compose SSOT · edit local → commit → push → pull → <code>up -d</code> · never edit on host</span>
-  <span>hosts/hsb1/docker · nixcfg</span>
-</div></footer>
+  <main class="main">
+    <header class="topbar">
+      <div class="title">
+        <div class="eyebrow">NixOS · hsb1.lan · 192.168.1.101</div>
+        <h2>Services</h2>
+        <p>home server · hsb1.lan · 192.168.1.101 · NixOS</p>
+      </div>
+      <label class="search">
+        <input id="q" type="search" placeholder="Search services" autocomplete="off" aria-label="Search services">
+        <span class="kbd">/</span>
+        <svg><use href="#i-search"></use></svg>
+      </label>
+    </header>
+    <div class="mobile-chips" id="mobileChips" aria-label="Service categories"></div>
+    <div id="wings"></div>
+    <div class="empty" id="empty">No services match the current filter.</div>
+    <footer class="meta">
+      <span><code>hosts/hsb1/docker</code></span>
+      <span><code>hsb1-home</code></span>
+      <span>Europe/Vienna</span>
+    </footer>
+  </main>
+</div>
 
 <script>
 const WINGS = [
-  {id:"home",    name:"Home &amp; Automation", color:"var(--home)",    icon:"house"},
-  {id:"media",   name:"Media &amp; Play",      color:"var(--media)",   icon:"clapperboard"},
-  {id:"signals", name:"Signals &amp; Messaging",color:"var(--signals)", icon:"radio"},
-  {id:"safety",  name:"Cameras &amp; Safety",  color:"var(--safety)",  icon:"camera"},
-  {id:"infra",   name:"Housekeeping",          color:"var(--infra)",   icon:"refresh-cw"},
+  {id:"home", name:"Home & Automation", color:"var(--home)", icon:"house"},
+  {id:"media", name:"Media & Play", color:"var(--media)", icon:"clapperboard"},
+  {id:"signals", name:"Signals & Messaging", color:"var(--signals)", icon:"radio"},
+  {id:"safety", name:"Cameras & Safety", color:"var(--safety)", icon:"camera"},
+  {id:"infra", name:"Housekeeping", color:"var(--infra)", icon:"refresh-cw"},
 ];
-// active:true = clickable + probed; passive:true = background service, not a link
+
 const SVC = [
-  {wing:"home", name:"Home Assistant", purpose:"Smart-home hub &amp; automations", icon:"house",       url:"http://hsb1.lan:8123/",  port:":8123"},
-  {wing:"home", name:"Node-RED",       purpose:"Visual flow automation",           icon:"workflow",    url:"http://hsb1.lan:1880/",  port:":1880"},
-  {wing:"home", name:"Zigbee2MQTT",    purpose:"Zigbee ↔ MQTT bridge",             icon:"radio-tower", url:"http://hsb1.lan:8888/",  port:":8888"},
-  {wing:"home", name:"opusweb",        purpose:"OPUS greenNet EnOcean control",     icon:"sliders",     url:"http://hsb1.lan:3102/",  port:":3102"},
-  {wing:"home", name:"Matter Server",  purpose:"Matter/Thread controller for HA",  icon:"hexagon",     passive:true, foot:":5580 api · no UI"},
+  {wing:"home", name:"Home Assistant", purpose:"Smart-home hub & automations", icon:"house", url:"http://hsb1.lan:8123/", port:":8123"},
+  {wing:"home", name:"Node-RED", purpose:"Visual flow automation", icon:"workflow", url:"http://hsb1.lan:1880/", port:":1880"},
+  {wing:"home", name:"Zigbee2MQTT", purpose:"Zigbee to MQTT bridge", icon:"radio-tower", url:"http://hsb1.lan:8888/", port:":8888"},
+  {wing:"home", name:"opusweb", purpose:"OPUS greenNet EnOcean control", icon:"sliders", url:"http://hsb1.lan:3102/", port:":3102"},
+  {wing:"home", name:"Matter Server", purpose:"Matter/Thread controller for HA", icon:"hexagon", passive:true, foot:":5580 api · no UI"},
 
-  {wing:"media", name:"Plex",     purpose:"Media library &amp; streaming",  icon:"clapperboard", url:"http://hsb1.lan:32400/web", port:":32400"},
-  {wing:"media", name:"pixdcon",  purpose:"Pixoo pixel-display controller", icon:"grid-3x3",     url:"http://hsb1.lan:8080/",     port:":8080"},
-  {wing:"media", name:"funkeykid",purpose:"Kids audio/voice toy console",   icon:"toy-brick",    url:"http://hsb1.lan:8081/",     port:":8081"},
+  {wing:"media", name:"Plex", purpose:"Media library & streaming", icon:"clapperboard", url:"http://hsb1.lan:32400/web", port:":32400"},
+  {wing:"media", name:"pixdcon", purpose:"Pixoo pixel-display controller", icon:"grid-3x3", url:"http://hsb1.lan:8080/", port:":8080"},
+  {wing:"media", name:"funkeykid", purpose:"Kids audio/voice toy console", icon:"toy-brick", url:"http://hsb1.lan:8081/", port:":8081"},
 
-  {wing:"signals", name:"Apprise",              purpose:"Unified notification gateway",  icon:"bell-ring",       url:"http://hsb1.lan:8001/", port:":8001"},
-  {wing:"signals", name:"Mosquitto",            purpose:"MQTT broker · the message bus", icon:"radio",           passive:true, foot:":1883 · :9001 ws · broker"},
-  {wing:"signals", name:"opus-stream-to-mqtt",  purpose:"OPUS gateway → MQTT bridge",    icon:"audio-waveform",  passive:true, foot:"agent · no UI"},
-  {wing:"signals", name:"SMTP relay",           purpose:"Outbound container mail",       icon:"mail",            passive:true, foot:":25 internal · relay"},
+  {wing:"signals", name:"Apprise", purpose:"Unified notification gateway", icon:"bell-ring", url:"http://hsb1.lan:8001/", port:":8001"},
+  {wing:"signals", name:"Mosquitto", purpose:"MQTT broker and message bus", icon:"radio", passive:true, foot:":1883 · :9001 ws · broker"},
+  {wing:"signals", name:"opus-stream-to-mqtt", purpose:"OPUS gateway to MQTT bridge", icon:"audio-waveform", passive:true, foot:"agent · no UI"},
+  {wing:"signals", name:"SMTP relay", purpose:"Outbound container mail", icon:"mail", passive:true, foot:":25 internal · relay"},
 
-  {wing:"safety", name:"Scrypted",       purpose:"Camera/NVR hub → HomeKit/HA", icon:"camera",       url:"https://hsb1.lan:10443/", port:":10443", https:true, note:"self-signed HTTPS"},
-  {wing:"safety", name:"fritz-tripwire", purpose:"Snapshots mesh on device drop",icon:"shield-alert", url:"http://hsb1.lan:9000/",  port:":9000",  note:"plain-text status endpoint"},
+  {wing:"safety", name:"Scrypted", purpose:"Camera/NVR hub to HomeKit/HA", icon:"camera", url:"https://hsb1.lan:10443/", port:":10443", note:"self-signed HTTPS"},
+  {wing:"safety", name:"fritz-tripwire", purpose:"Snapshots mesh on device drop", icon:"shield-alert", url:"http://hsb1.lan:9000/", port:":9000", note:"plain-text status endpoint"},
 
-  {wing:"infra", name:"Watchtower",   purpose:"Weekly container auto-updates",   icon:"refresh-cw",         passive:true, foot:"Sat 05:00 · scheduled"},
-  {wing:"infra", name:"restic",       purpose:"Nightly backup → Hetzner",        icon:"hard-drive-download",passive:true, foot:"01:30 daily · backup"},
-  {wing:"infra", name:"FleetCom",     purpose:"Heartbeats → fleet.barta.cm",     icon:"satellite-dish",     passive:true, foot:"agent · no UI"},
-  {wing:"infra", name:"pharos-beacon",purpose:"Host status → pharosd (csb1)",    icon:"radar",              passive:true, foot:"beacon · outbound only"},
-  {wing:"infra", name:"claude-code",  purpose:"Idle Claude Code shell",          icon:"terminal",           passive:true, foot:"shell · no UI"},
+  {wing:"infra", name:"Watchtower", purpose:"Weekly container auto-updates", icon:"refresh-cw", passive:true, foot:"Sat 05:00 · scheduled"},
+  {wing:"infra", name:"restic", purpose:"Nightly backup to Hetzner", icon:"hard-drive-download", passive:true, foot:"01:30 daily · backup"},
+  {wing:"infra", name:"FleetCom", purpose:"Heartbeats to fleet.barta.cm", icon:"satellite-dish", passive:true, foot:"agent · no UI"},
+  {wing:"infra", name:"pharos-beacon", purpose:"Host status to pharosd on csb1", icon:"radar", passive:true, foot:"beacon · outbound only"},
+  {wing:"infra", name:"claude-code", purpose:"Idle Claude Code shell", icon:"terminal", passive:true, foot:"shell · no UI"},
 ];
 
-const el = (t,c)=>{const e=document.createElement(t); if(c)e.className=c; return e};
+const el = (tag, className) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  return node;
+};
+
 const wingsEl = document.getElementById("wings");
-const chipsEl = document.getElementById("chips");
+const sideChips = document.getElementById("sideChips");
+const mobileChips = document.getElementById("mobileChips");
+const empty = document.getElementById("empty");
 let filter = localStorage.getItem("hsb1.wing") || "all";
+const cardIndex = [];
 
-// build chips
-function chip(id,label,color){
-  const b=el("button","chip"); b.dataset.wing=id; b.setAttribute("aria-pressed", id===filter);
-  if(color) b.style.setProperty("--c",color);
-  b.innerHTML = (id==="all"?"":'<span class="dot"></span>')+`<span>${label}</span> <span class="n" data-n="${id}"></span>`;
-  b.onclick=()=>{ filter=id; localStorage.setItem("hsb1.wing",id); applyFilter(); };
-  return b;
-}
-chipsEl.appendChild(chip("all","All","var(--ink)"));
-WINGS.forEach(w=>chipsEl.appendChild(chip(w.id,w.name,w.color)));
-
-// build wings + cards
-const cardIndex=[];
-WINGS.forEach(w=>{
-  const sec=el("section","wing"); sec.style.setProperty("--c",w.color); sec.dataset.wing=w.id;
-  const list=SVC.filter(s=>s.wing===w.id);
-  const h=el("div","wing-h");
-  h.innerHTML=`<svg class="wi"><use href="#i-${w.icon}"/></svg><h2>${w.name}</h2><span class="n">${list.length}</span>`;
-  sec.appendChild(h);
-  const deck=el("div","deck");
-  list.forEach(s=>{
-    const active = !s.passive;
-    const card = active ? el("a","svc") : el("div","svc passive");
-    card.style.setProperty("--c",w.color);
-    if(active){ card.href=s.url; card.target="_blank"; card.rel="noopener"; card.dataset.probe=s.url; }
-    if(s.note) card.title=s.note;
-    card.dataset.name=(s.name+" "+s.purpose+" "+(s.port||s.foot||"")).toLowerCase();
-    const foot = active
-      ? `<span class="port">${s.port}</span><span class="open">Open <svg><use href="#i-arrow"/></svg></span>`
-      : `<span class="port">${s.foot||""}</span>`;
-    card.innerHTML =
-      `<div class="top"><span class="chipi"><svg><use href="#i-${s.icon}"/></svg></span>`+
-      `<span class="dot2" data-s="${active?'checking':'passive'}"></span></div>`+
-      `<div><h3>${s.name}</h3><div class="purpose">${s.purpose}</div></div>`+
-      `<div class="foot">${foot}</div>`;
-    deck.appendChild(card);
-    if(active) cardIndex.push(card);
+function makeChip(id, label, color) {
+  const button = el("button", "chip");
+  button.type = "button";
+  button.dataset.wing = id;
+  button.style.setProperty("--c", color || "var(--ink)");
+  button.setAttribute("aria-pressed", id === filter);
+  button.innerHTML = `<span class="swatch"></span><span class="label">${label}</span><span class="n" data-n="${id}">0</span>`;
+  button.addEventListener("click", () => {
+    filter = id;
+    localStorage.setItem("hsb1.wing", id);
+    applyFilter();
   });
-  sec.appendChild(deck);
-  wingsEl.appendChild(sec);
+  return button;
+}
+
+function renderChips(target) {
+  target.appendChild(makeChip("all", "All services", "var(--ink)"));
+  WINGS.forEach(wing => target.appendChild(makeChip(wing.id, wing.name, wing.color)));
+}
+renderChips(sideChips);
+renderChips(mobileChips);
+
+WINGS.forEach(wing => {
+  const services = SVC.filter(service => service.wing === wing.id);
+  const section = el("section", "wing");
+  section.dataset.wing = wing.id;
+  section.style.setProperty("--c", wing.color);
+
+  const heading = el("div", "heading");
+  heading.innerHTML = `
+    <div class="heading-left">
+      <svg><use href="#i-${wing.icon}"></use></svg>
+      <h2>${wing.name}</h2>
+      <span class="n">${services.length}</span>
+    </div>
+    <div class="rule"></div>`;
+  section.appendChild(heading);
+
+  const deck = el("div", "deck");
+  services.forEach(service => {
+    const active = !service.passive;
+    const card = active ? el("a", "svc") : el("div", "svc passive");
+    card.style.setProperty("--c", wing.color);
+    card.dataset.name = `${service.name} ${service.purpose} ${service.port || service.foot || ""}`.toLowerCase();
+
+    if (active) {
+      card.href = service.url;
+      card.target = "_blank";
+      card.rel = "noopener";
+      card.dataset.probe = service.url;
+    }
+    if (service.note) card.title = service.note;
+
+    const status = active ? "checking" : "passive";
+    const statusLabel = active ? "Checking" : "Passive";
+    const foot = active
+      ? `<span class="port">${service.port}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
+      : `<span class="port">${service.foot || ""}</span>`;
+
+    card.innerHTML = `
+      <div class="svc-top">
+        <span class="icon"><svg><use href="#i-${service.icon}"></use></svg></span>
+        <span class="state" data-s="${status}"><span class="dot"></span><span class="state-label">${statusLabel}</span></span>
+      </div>
+      <div>
+        <h3>${service.name}</h3>
+        <p class="purpose">${service.purpose}</p>
+      </div>
+      <div class="svc-foot">${foot}</div>`;
+    deck.appendChild(card);
+    if (active) cardIndex.push(card);
+  });
+  section.appendChild(deck);
+  wingsEl.appendChild(section);
 });
 
-// counts + filter
-function counts(){
-  const per={}; WINGS.forEach(w=>per[w.id]=0); let on=0;
-  cardIndex.forEach(c=>{ if(c.querySelector(".dot2").dataset.s==="up"){ on++; per[c.closest(".wing").dataset.wing]++; }});
-  document.getElementById("onCount").textContent=on;
-  document.getElementById("totCount").textContent=cardIndex.length;
-  document.querySelectorAll(".chip .n").forEach(n=>{
-    const id=n.dataset.n;
-    n.textContent = id==="all" ? `${on}/${cardIndex.length}` : (per[id]||0);
+function statusText(state) {
+  if (state === "up") return "Online";
+  if (state === "down") return "Down";
+  if (state === "checking") return "Checking";
+  return "Passive";
+}
+
+function counts() {
+  const per = {};
+  WINGS.forEach(wing => { per[wing.id] = 0; });
+  let online = 0;
+  cardIndex.forEach(card => {
+    if (card.querySelector(".state").dataset.s === "up") {
+      online += 1;
+      per[card.closest(".wing").dataset.wing] += 1;
+    }
+  });
+  document.getElementById("onCount").textContent = online;
+  document.getElementById("totCount").textContent = cardIndex.length;
+  document.querySelectorAll(".chip .n").forEach(node => {
+    const id = node.dataset.n;
+    node.textContent = id === "all" ? `${online}/${cardIndex.length}` : (per[id] || 0);
   });
 }
-function applyFilter(){
-  document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed", c.dataset.wing===filter));
-  document.querySelectorAll(".wing").forEach(s=> s.classList.toggle("hidden", filter!=="all" && s.dataset.wing!==filter));
+
+function syncPressed() {
+  document.querySelectorAll(".chip").forEach(chip => {
+    chip.setAttribute("aria-pressed", chip.dataset.wing === filter);
+  });
+}
+
+function applyFilter() {
+  syncPressed();
   runSearch();
 }
-applyFilter();
 
-// search
-const q=document.getElementById("q");
-function runSearch(){
-  const t=q.value.trim().toLowerCase();
-  document.querySelectorAll(".wing").forEach(sec=>{
-    if(filter!=="all" && sec.dataset.wing!==filter){ return; }
-    let shown=0;
-    sec.querySelectorAll(".svc").forEach(card=>{
-      const hit = !t || card.dataset.name.includes(t);
-      card.classList.toggle("hidden", !hit); if(hit) shown++;
+const search = document.getElementById("q");
+function runSearch() {
+  const term = search.value.trim().toLowerCase();
+  let visibleSections = 0;
+  document.querySelectorAll(".wing").forEach(section => {
+    if (filter !== "all" && section.dataset.wing !== filter) {
+      section.classList.add("hidden");
+      return;
+    }
+
+    let shown = 0;
+    section.querySelectorAll(".svc").forEach(card => {
+      const hit = !term || card.dataset.name.includes(term);
+      card.classList.toggle("hidden", !hit);
+      if (hit) shown += 1;
     });
-    sec.classList.toggle("hidden", shown===0);
+
+    section.classList.toggle("hidden", shown === 0);
+    if (shown > 0) visibleSections += 1;
   });
+  empty.style.display = visibleSections === 0 ? "block" : "none";
 }
-q.addEventListener("input", runSearch);
-document.addEventListener("keydown", e=>{
-  if(e.key==="/" && document.activeElement!==q){ e.preventDefault(); q.focus(); }
-  if(e.key==="Escape"){ q.value=""; q.blur(); runSearch(); }
+
+search.addEventListener("input", runSearch);
+document.addEventListener("keydown", event => {
+  if (event.key === "/" && document.activeElement !== search) {
+    event.preventDefault();
+    search.focus();
+  }
+  if (event.key === "Escape") {
+    search.value = "";
+    search.blur();
+    runSearch();
+  }
 });
 
-// status probing — client-side, opaque responses count as reachable
-function probe(card){
-  const url=card.dataset.probe, dot=card.querySelector(".dot2");
-  const ac=new AbortController(); const to=setTimeout(()=>ac.abort(),4000);
-  fetch(url,{mode:"no-cors",signal:ac.signal})
-    .then(()=>{ dot.dataset.s="up"; })
-    .catch(()=>{ dot.dataset.s="down"; })
-    .finally(()=>{ clearTimeout(to); counts(); });
+function setStatus(card, state) {
+  const badge = card.querySelector(".state");
+  badge.dataset.s = state;
+  badge.querySelector(".state-label").textContent = statusText(state);
 }
-function sweep(){
-  let i=0; const q=[...cardIndex];
-  (function next(){ if(i>=q.length) return; const batch=q.slice(i,i+5); i+=5; batch.forEach(probe); setTimeout(next,300); })();
-}
-sweep();
-setInterval(sweep, 25000 + Math.random()*10000);
 
-// clock
-function tick(){ const d=new Date(); document.getElementById("clock").textContent =
-  d.toLocaleDateString("de-AT",{weekday:"short",day:"2-digit",month:"2-digit"})+" · "+
-  d.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}); }
-tick(); setInterval(tick,60000);
+function probe(card) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  fetch(card.dataset.probe, { mode: "no-cors", signal: controller.signal })
+    .then(() => setStatus(card, "up"))
+    .catch(() => setStatus(card, "down"))
+    .finally(() => {
+      clearTimeout(timeout);
+      counts();
+    });
+}
+
+function sweep() {
+  let index = 0;
+  const queue = [...cardIndex];
+  (function next() {
+    if (index >= queue.length) return;
+    const batch = queue.slice(index, index + 5);
+    index += 5;
+    batch.forEach(card => {
+      setStatus(card, "checking");
+      probe(card);
+    });
+    setTimeout(next, 300);
+  })();
+}
+
+function tick() {
+  const now = new Date();
+  document.getElementById("clock").textContent =
+    now.toLocaleDateString("de-AT", { weekday: "short", day: "2-digit", month: "2-digit" }) +
+    " · " +
+    now.toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" });
+}
+
+applyFilter();
 counts();
+tick();
+sweep();
+setInterval(tick, 60000);
+setInterval(sweep, 25000 + Math.random() * 10000);
 </script>
 </body>
 </html>

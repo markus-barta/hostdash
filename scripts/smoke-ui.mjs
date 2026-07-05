@@ -1,0 +1,178 @@
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+
+const browserPath =
+  process.env.BROWSER_PATH || "/Applications/Helium.app/Contents/MacOS/Helium";
+const port = Number(process.env.CDP_PORT || 9349);
+const repoRoot = resolve(new URL("..", import.meta.url).pathname);
+const pageUrl = `file://${join(repoRoot, "public/index.html")}`;
+
+const profile = await mkdtemp(join(tmpdir(), "hsb1-home-dashboard-"));
+const browser = spawn(browserPath, [
+  "--headless=new",
+  "--disable-gpu",
+  `--remote-debugging-port=${port}`,
+  `--user-data-dir=${profile}`,
+  "about:blank",
+]);
+
+browser.stdout.resume();
+browser.stderr.resume();
+
+async function cleanup() {
+  browser.kill("SIGTERM");
+  await new Promise(resolve => setTimeout(resolve, 150));
+  await rm(profile, { recursive: true, force: true });
+}
+
+async function waitForJson(path) {
+  const url = `http://127.0.0.1:${port}${path}`;
+  for (let i = 0; i < 80; i += 1) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return await response.json();
+    } catch {
+      // Browser not ready yet.
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error(`Timed out waiting for ${url}`);
+}
+
+try {
+  const pages = await waitForJson("/json/list");
+  const page = pages.find(item => item.type === "page");
+  if (!page) throw new Error("No browser page target found");
+
+  const ws = new WebSocket(page.webSocketDebuggerUrl);
+  let id = 0;
+  const pending = new Map();
+  const exceptions = [];
+
+  ws.onmessage = event => {
+    const message = JSON.parse(event.data);
+    if (message.method === "Runtime.exceptionThrown") {
+      exceptions.push(message.params.exceptionDetails.text || "exception");
+    }
+    if (message.id && pending.has(message.id)) {
+      const { resolve, reject } = pending.get(message.id);
+      pending.delete(message.id);
+      if (message.error) reject(new Error(JSON.stringify(message.error)));
+      else resolve(message.result);
+    }
+  };
+
+  await new Promise(resolve => {
+    ws.onopen = resolve;
+  });
+
+  function send(method, params = {}) {
+    const messageId = ++id;
+    ws.send(JSON.stringify({ id: messageId, method, params }));
+    return new Promise((resolve, reject) => {
+      pending.set(messageId, { resolve, reject });
+    });
+  }
+
+  async function value(expression) {
+    const result = await send("Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    });
+    if (result.exceptionDetails) {
+      throw new Error(result.exceptionDetails.text || "Runtime.evaluate failed");
+    }
+    return result.result.value;
+  }
+
+  await send("Page.enable");
+  await send("Runtime.enable");
+  await send("Input.setIgnoreInputEvents", { ignore: false });
+  await send("Page.navigate", { url: pageUrl });
+  await new Promise(resolve => setTimeout(resolve, 2500));
+
+  const initial = await value(`({
+    cards: document.querySelectorAll(".svc").length,
+    total: document.getElementById("totCount").textContent,
+    online: document.getElementById("onCount").textContent,
+    search: document.getElementById("q")?.id
+  })`);
+
+  if (initial.cards !== 19) {
+    throw new Error(`Expected 19 service cards, got ${JSON.stringify(initial)}`);
+  }
+  if (initial.total !== "10") {
+    throw new Error(`Expected 10 active services, got ${JSON.stringify(initial)}`);
+  }
+  if (!/^\d+$/.test(initial.online)) {
+    throw new Error(`Online count is not numeric: ${JSON.stringify(initial)}`);
+  }
+  if (initial.search !== "q") {
+    throw new Error(`Search input missing: ${JSON.stringify(initial)}`);
+  }
+
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "/",
+    code: "Slash",
+    text: "/",
+    windowsVirtualKeyCode: 191,
+    nativeVirtualKeyCode: 191,
+  });
+  const focused = await value("document.activeElement && document.activeElement.id");
+  if (focused !== "q") {
+    throw new Error(`Slash hotkey did not focus search; active=${focused}`);
+  }
+
+  await value(`
+    const q = document.getElementById("q");
+    q.value = "plex";
+    q.dispatchEvent(new Event("input", { bubbles: true }));
+    true
+  `);
+  const searchState = await value(`({
+    visibleCards: [...document.querySelectorAll(".svc")]
+      .filter(card => !card.classList.contains("hidden") && !card.closest(".wing").classList.contains("hidden"))
+      .map(card => card.querySelector("h3")?.textContent),
+    empty: getComputedStyle(document.getElementById("empty")).display
+  })`);
+  if (
+    searchState.visibleCards.length !== 1 ||
+    searchState.visibleCards[0] !== "Plex" ||
+    searchState.empty !== "none"
+  ) {
+    throw new Error(`Search filter failed: ${JSON.stringify(searchState)}`);
+  }
+
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+    nativeVirtualKeyCode: 27,
+  });
+  const escapeState = await value(`({
+    value: document.getElementById("q").value,
+    active: document.activeElement && document.activeElement.id,
+    visible: [...document.querySelectorAll(".svc")]
+      .filter(card => !card.classList.contains("hidden") && !card.closest(".wing").classList.contains("hidden"))
+      .length
+  })`);
+  if (escapeState.value !== "" || escapeState.active === "q" || escapeState.visible !== 19) {
+    throw new Error(`Escape reset failed: ${JSON.stringify(escapeState)}`);
+  }
+
+  if (exceptions.length) {
+    throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
+  }
+
+  console.log(JSON.stringify({ initial, searchState, escapeState }, null, 2));
+  await send("Browser.close").catch(() => {});
+} finally {
+  await cleanup();
+}
+
