@@ -101,6 +101,8 @@ try {
     online: document.getElementById("onCount").textContent,
     search: document.getElementById("q")?.id,
     zoom: document.getElementById("zoomRange")?.value,
+    topActionTags: [...document.querySelector(".top-actions")?.children || []].map(node => node.tagName.toLowerCase()),
+    zoomNestedInSearch: Boolean(document.querySelector("label.search .zoom")),
     scrypted: [...document.querySelectorAll(".svc")]
       .find(card => card.querySelector("h3")?.textContent === "Scrypted")
       ?.querySelector(".state")?.dataset.s
@@ -120,6 +122,9 @@ try {
   }
   if (initial.zoom !== "100") {
     throw new Error(`Zoom control missing or wrong initial value: ${JSON.stringify(initial)}`);
+  }
+  if (initial.zoomNestedInSearch || initial.topActionTags.join(",") !== "label,div") {
+    throw new Error(`Search and zoom controls are not sibling controls: ${JSON.stringify(initial)}`);
   }
   if (initial.scrypted !== "cert") {
     throw new Error(`Expected Scrypted TLS-cert state, got ${JSON.stringify(initial)}`);

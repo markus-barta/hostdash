@@ -31,9 +31,24 @@ node scripts/smoke-ui.mjs
 ```
 
 The test launches a temporary headless Chromium-compatible browser profile and
-checks that the dashboard renders, the online counter initializes, `/` focuses
-search, search filters cards, and Escape clears the filter. Set `BROWSER_PATH`
-to use a different Chromium-compatible browser.
+checks that the dashboard renders, the online counter initializes, the search
+and zoom controls remain separate sibling controls, zoom changes update the CSS
+scale, `/` focuses search, search filters cards, and Escape clears the filter.
+Set `BROWSER_PATH` to use a different Chromium-compatible browser.
+
+## QA Checklist
+
+Before pushing or redeploying, run:
+
+```bash
+node --check scripts/smoke-ui.mjs
+node scripts/smoke-ui.mjs
+nix build .#hsb1 --no-link
+```
+
+Deployment is indirect: push this repository, update the `hsb1-home-dashboard`
+flake input in `nixcfg`, then deploy the hsb1 host configuration so `/etc/hsb1-home-dashboard`
+points at the new package output and the `hsb1-home` nginx container is recreated.
 
 ## Design Reference
 
