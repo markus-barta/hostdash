@@ -51,7 +51,7 @@ HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
 The test launches a temporary headless Chromium-compatible browser profile,
 assembles the same app/config shape as the package output, and verifies render
 counts, online counters, search hotkeys/filtering, Escape reset, zoom behavior,
-TLS-cert badges, and that search/zoom controls remain separate sibling controls.
+TLS-cert badges, and that search/zoom controls remain in the responsive sidebar.
 Set `BROWSER_PATH` to use a different Chromium-compatible browser.
 
 ## QA Checklist

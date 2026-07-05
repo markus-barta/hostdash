@@ -199,7 +199,13 @@ try {
     online: document.getElementById("onCount").textContent,
     search: document.getElementById("q")?.id,
     zoom: document.getElementById("zoomRange")?.value,
-    topActionTags: [...document.querySelector(".top-actions")?.children || []].map(node => node.tagName.toLowerCase()),
+    controlsInSidebar: Boolean(
+      document.querySelector(".side .controls #q") &&
+      document.querySelector(".side .controls #zoomRange") &&
+      document.querySelector(".side .controls #zoomFit") &&
+      document.querySelector(".side .controls #zoomReset")
+    ),
+    controlsInTopbar: Boolean(document.querySelector(".topbar #q, .topbar #zoomRange")),
     zoomNestedInSearch: Boolean(document.querySelector("label.search .zoom")),
     certState: certName ? [...document.querySelectorAll(".svc")]
       .find(card => card.querySelector("h3")?.textContent === certName)
@@ -224,8 +230,8 @@ try {
   if (initial.zoom !== "100") {
     throw new Error(`Zoom control missing or wrong initial value: ${JSON.stringify(initial)}`);
   }
-  if (initial.zoomNestedInSearch || initial.topActionTags.join(",") !== "label,div") {
-    throw new Error(`Search and zoom controls are not sibling controls: ${JSON.stringify(initial)}`);
+  if (!initial.controlsInSidebar || initial.controlsInTopbar || initial.zoomNestedInSearch) {
+    throw new Error(`Search and zoom controls are not in the sidebar control rail: ${JSON.stringify(initial)}`);
   }
   if (expected.certService && initial.certState !== "cert") {
     throw new Error(`Expected ${expected.certService} TLS-cert state, got ${JSON.stringify(initial)}`);
@@ -241,6 +247,39 @@ try {
       throw new Error(`Same-host URL resolution failed: ${JSON.stringify({ pageUrl, initial })}`);
     }
   }
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 2,
+    mobile: true,
+  });
+  await new Promise(resolve => setTimeout(resolve, 150));
+  const mobileLayout = await value(`(() => {
+    const side = document.querySelector(".side");
+    const controls = document.querySelector(".side .controls");
+    const sideBox = side?.getBoundingClientRect();
+    const controlsBox = controls?.getBoundingClientRect();
+    return {
+      sideDisplay: side ? getComputedStyle(side).display : null,
+      controlsDisplay: controls ? getComputedStyle(controls).display : null,
+      sideWidth: sideBox ? Math.round(sideBox.width) : 0,
+      controlsWidth: controlsBox ? Math.round(controlsBox.width) : 0,
+      searchVisible: Boolean(document.querySelector(".side .controls #q")?.offsetParent),
+      zoomVisible: Boolean(document.querySelector(".side .controls #zoomRange")?.offsetParent),
+    };
+  })()`);
+  if (
+    mobileLayout.sideDisplay === "none" ||
+    mobileLayout.controlsDisplay === "none" ||
+    mobileLayout.sideWidth < 300 ||
+    mobileLayout.controlsWidth < 250 ||
+    !mobileLayout.searchVisible ||
+    !mobileLayout.zoomVisible
+  ) {
+    throw new Error(`Sidebar controls are not usable on mobile: ${JSON.stringify(mobileLayout)}`);
+  }
+  await send("Emulation.clearDeviceMetricsOverride");
 
   const zoomState = await value(`
     const zoom = document.getElementById("zoomRange");

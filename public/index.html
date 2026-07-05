@@ -64,11 +64,15 @@
   .side {
     position: sticky;
     top: 0;
+    display: flex;
+    flex-direction: column;
     height: 100vh;
     padding: 24px 18px;
     border-right: 1px solid var(--line);
     background: rgba(249, 250, 248, 0.9);
     backdrop-filter: blur(14px);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   .brand {
@@ -180,10 +184,6 @@
     padding: 28px clamp(18px, 4vw, 48px) 56px;
   }
   .topbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
-    gap: 18px;
-    align-items: center;
     margin: 0 0 22px;
   }
   .title {
@@ -226,11 +226,13 @@
     overflow-wrap: anywhere;
   }
 
-  .top-actions {
+  .controls {
     display: grid;
     gap: 10px;
     min-width: 0;
-    width: 100%;
+    margin: 0 0 18px;
+    padding: 0 2px 18px;
+    border-bottom: 1px solid var(--line);
   }
   .search {
     position: relative;
@@ -239,8 +241,8 @@
   .search input {
     width: 100%;
     min-width: 0;
-    min-height: 48px;
-    padding: 0 72px 0 14px;
+    min-height: 44px;
+    padding: 0 64px 0 12px;
     border: 1px solid var(--line-strong);
     border-radius: 8px;
     outline: none;
@@ -254,7 +256,7 @@
   }
   .search svg {
     position: absolute;
-    right: 14px;
+    right: 12px;
     top: 50%;
     width: 18px;
     height: 18px;
@@ -263,7 +265,7 @@
   }
   .kbd {
     position: absolute;
-    right: 40px;
+    right: 36px;
     top: 50%;
     transform: translateY(-50%);
     min-width: 24px;
@@ -279,7 +281,7 @@
 
   .zoom {
     display: grid;
-    grid-template-columns: 34px minmax(96px, 1fr) 46px 48px;
+    grid-template-columns: 32px minmax(72px, 1fr) 46px 32px;
     gap: 8px;
     align-items: center;
     min-width: 0;
@@ -292,7 +294,7 @@
   .zoom button {
     display: grid;
     place-items: center;
-    height: 28px;
+    height: 30px;
     min-width: 0;
     border: 1px solid var(--line);
     border-radius: 6px;
@@ -314,31 +316,22 @@
     accent-color: var(--home);
   }
   .zoom output {
+    display: block;
+    min-width: 0;
+    padding: 3px 5px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
     color: var(--muted);
+    background: var(--surface);
     font-family: var(--mono);
     font-size: 12px;
-    text-align: right;
+    text-align: center;
     font-variant-numeric: tabular-nums;
   }
 
   .workspace {
     zoom: var(--zoom);
     transform-origin: top left;
-  }
-
-  .mobile-chips {
-    display: none;
-    gap: 8px;
-    margin: 0 0 22px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-  .mobile-chips .chip {
-    width: auto;
-    min-width: max-content;
-    grid-template-columns: 8px auto auto;
-    background: var(--surface);
-    border-color: var(--line);
   }
 
   .wing {
@@ -536,16 +529,81 @@
 
   @media (max-width: 900px) {
     .app { display: block; }
-    .side { display: none; }
+    .side {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.35fr);
+      gap: 12px 14px;
+      height: auto;
+      padding: 14px;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+      overflow: visible;
+    }
+    .brand {
+      align-self: center;
+      padding: 0;
+    }
+    .status-panel {
+      align-self: start;
+      margin: 0;
+      padding: 10px 12px;
+    }
+    .controls {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      align-self: stretch;
+      margin: 0;
+      padding: 0 0 0 14px;
+      border-bottom: 0;
+      border-left: 1px solid var(--line);
+      align-content: center;
+    }
+    .nav {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px 0 4px;
+    }
+    .nav .chip {
+      width: auto;
+      min-width: max-content;
+      grid-template-columns: 8px auto auto;
+      background: var(--surface);
+      border-color: var(--line);
+    }
     .main { padding-top: 22px; }
-    .topbar { grid-template-columns: 1fr; align-items: stretch; }
-    .mobile-chips { display: flex; }
+    .topbar { margin-bottom: 18px; }
     .title h2 { font-size: 30px; }
   }
   @media (max-width: 560px) {
     .main { padding-inline: 14px; }
-    .zoom { grid-template-columns: 34px minmax(80px, 1fr) 42px; }
-    .zoom output { display: none; }
+    .side {
+      grid-template-columns: 1fr;
+      padding: 12px;
+    }
+    .brand {
+      grid-template-columns: 38px 1fr;
+      gap: 10px;
+    }
+    .mark {
+      width: 38px;
+      height: 38px;
+    }
+    .brand h1 { font-size: 24px; }
+    .status-panel {
+      grid-template-columns: 1fr auto;
+      align-items: center;
+    }
+    .controls {
+      grid-column: 1;
+      grid-row: auto;
+      padding: 0 0 12px;
+      border-left: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .zoom { grid-template-columns: 32px minmax(80px, 1fr) 46px 32px; }
     .deck { grid-template-columns: 1fr; }
     .heading { align-items: flex-start; }
     .rule { display: none; }
@@ -614,6 +672,19 @@
       <div class="status-row"><span>Online</span><strong><b id="onCount">0</b>/<span id="totCount">0</span></strong></div>
       <div class="clock" id="clock"></div>
     </section>
+    <section class="controls" aria-label="Dashboard controls">
+      <label class="search">
+        <input id="q" type="search" placeholder="Search services" autocomplete="off" aria-label="Search services">
+        <span class="kbd">/</span>
+        <svg><use href="#i-search"></use></svg>
+      </label>
+      <div class="zoom" role="group" aria-label="View zoom">
+        <button id="zoomFit" type="button" title="Fit all services" aria-label="Fit all services"><svg><use href="#i-maximize"></use></svg></button>
+        <input id="zoomRange" type="range" min="50" max="200" step="5" value="100" aria-label="Zoom">
+        <output id="zoomValue" for="zoomRange">100%</output>
+        <button id="zoomReset" type="button" title="Reset zoom" aria-label="Reset zoom"><svg><use href="#i-refresh-cw"></use></svg></button>
+      </div>
+    </section>
     <nav class="nav" id="sideChips" aria-label="Service categories"></nav>
   </aside>
 
@@ -624,22 +695,8 @@
         <h2 id="mainTitle">Services</h2>
         <p id="hostSubtitle">Host service dashboard</p>
       </div>
-      <div class="top-actions">
-        <label class="search">
-          <input id="q" type="search" placeholder="Search services" autocomplete="off" aria-label="Search services">
-          <span class="kbd">/</span>
-          <svg><use href="#i-search"></use></svg>
-        </label>
-        <div class="zoom" role="group" aria-label="View zoom">
-          <button id="zoomFit" type="button" title="Fit all services"><svg><use href="#i-maximize"></use></svg></button>
-          <input id="zoomRange" type="range" min="50" max="200" step="5" value="100" aria-label="Zoom">
-          <button id="zoomReset" type="button" title="100%">100</button>
-          <output id="zoomValue" for="zoomRange">100%</output>
-        </div>
-      </div>
     </header>
     <section class="workspace" id="workspace" aria-label="Service overview">
-      <div class="mobile-chips" id="mobileChips" aria-label="Service categories"></div>
       <div id="wings"></div>
       <div class="empty" id="empty">No services match the current filter.</div>
       <footer class="meta" id="meta"></footer>
@@ -699,7 +756,6 @@ function renderHostInfo() {
 
 const wingsEl = document.getElementById("wings");
 const sideChips = document.getElementById("sideChips");
-const mobileChips = document.getElementById("mobileChips");
 const empty = document.getElementById("empty");
 let filter = localStorage.getItem(wingKey) || "all";
 const cardIndex = [];
@@ -725,7 +781,6 @@ function renderChips(target) {
 }
 renderHostInfo();
 renderChips(sideChips);
-renderChips(mobileChips);
 
 WINGS.forEach(wing => {
   const services = SVC.filter(service => service.wing === wing.id);
@@ -853,6 +908,7 @@ function setZoom(value, mode = "manual") {
   document.documentElement.style.setProperty("--zoom", String(next / 100));
   zoomRange.value = String(next);
   zoomValue.value = `${next}%`;
+  zoomValue.textContent = `${next}%`;
   localStorage.setItem(zoomKey, String(next));
   localStorage.setItem(zoomModeKey, mode);
 }
