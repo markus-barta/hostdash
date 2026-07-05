@@ -117,8 +117,8 @@ browser.stderr.resume();
 async function cleanup() {
   browser.kill("SIGTERM");
   await new Promise(resolve => setTimeout(resolve, 150));
-  await rm(profile, { recursive: true, force: true });
-  await localPage?.cleanup();
+  await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 120 });
+  await localPage?.cleanup?.();
 }
 
 async function waitForJson(path) {
@@ -202,6 +202,8 @@ try {
     controlsInSidebar: Boolean(
       document.querySelector(".side .controls #q") &&
       document.querySelector(".side .controls #zoomRange") &&
+      document.querySelector(".side .controls #zoomOut") &&
+      document.querySelector(".side .controls #zoomIn") &&
       document.querySelector(".side .controls #zoomFit") &&
       document.querySelector(".side .controls #zoomReset")
     ),
@@ -289,6 +291,23 @@ try {
   `);
   if (zoomState !== "0.75") {
     throw new Error(`Zoom slider did not update CSS zoom: ${zoomState}`);
+  }
+  const steppedZoomState = await value(`
+    document.getElementById("zoomOut").click();
+    document.getElementById("zoomIn").click();
+    document.getElementById("zoomIn").click();
+    ({
+      zoom: getComputedStyle(document.documentElement).getPropertyValue("--zoom").trim(),
+      value: document.getElementById("zoomRange").value,
+      text: document.getElementById("zoomValue").textContent
+    })
+  `);
+  if (
+    steppedZoomState.zoom !== "0.8" ||
+    steppedZoomState.value !== "80" ||
+    steppedZoomState.text !== "80%"
+  ) {
+    throw new Error(`Zoom step buttons failed: ${JSON.stringify(steppedZoomState)}`);
   }
   await value(`
     document.getElementById("zoomReset").click();
