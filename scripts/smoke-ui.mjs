@@ -25,6 +25,20 @@ const defaults = {
     searchTerm: "plex",
     certService: "Scrypted",
   },
+  hsb8: {
+    cards: 6,
+    total: 2,
+    searchName: "Home Assistant",
+    searchTerm: "assistant",
+    certService: null,
+  },
+  hsb9: {
+    cards: 4,
+    total: 1,
+    searchName: "Home Assistant",
+    searchTerm: "assistant",
+    certService: null,
+  },
   csb0: {
     cards: 12,
     total: 5,

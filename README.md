@@ -14,6 +14,8 @@ host config as `config.js`.
 ```bash
 nix build .#hsb1
 nix build .#hsb0
+nix build .#hsb8
+nix build .#hsb9
 nix build .#csb0
 nix build .#csb1
 ```
@@ -23,6 +25,8 @@ Package outputs contain:
 ```text
 share/hostdash-hsb1/index.html
 share/hostdash-hsb0/index.html
+share/hostdash-hsb8/index.html
+share/hostdash-hsb9/index.html
 share/hostdash-csb0/index.html
 share/hostdash-csb1/index.html
 ```
@@ -32,6 +36,8 @@ share/hostdash-csb1/index.html
 ```bash
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb9 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
 ```
@@ -50,10 +56,14 @@ Before pushing or redeploying, run:
 node --check scripts/smoke-ui.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb9 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
 nix build .#hsb1 --no-link
 nix build .#hsb0 --no-link
+nix build .#hsb8 --no-link
+nix build .#hsb9 --no-link
 nix build .#csb0 --no-link
 nix build .#csb1 --no-link
 ```

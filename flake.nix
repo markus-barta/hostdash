@@ -61,6 +61,14 @@
             host = "hsb0";
             metaDescription = "HostDash service dashboard for hsb0";
           };
+          hsb8 = mkDashboardPackage pkgs {
+            host = "hsb8";
+            metaDescription = "HostDash service dashboard for hsb8";
+          };
+          hsb9 = mkDashboardPackage pkgs {
+            host = "hsb9";
+            metaDescription = "HostDash service dashboard for hsb9";
+          };
           csb0 = mkDashboardPackage pkgs {
             host = "csb0";
             metaDescription = "HostDash service dashboard for csb0";
@@ -76,6 +84,8 @@
             csb1
             hsb0
             hsb1
+            hsb8
+            hsb9
             ;
           default = hsb1;
         }
