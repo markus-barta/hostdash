@@ -790,11 +790,125 @@
 </div>
 
 <script src="./config.js"></script>
-<script>
-const CONFIG = window.HOSTDASH_CONFIG;
-if (!CONFIG) {
-  throw new Error("HostDash config.js is missing");
+<script type="module">
+const FALLBACK_CONFIG = window.HOSTDASH_CONFIG || null;
+const MANIFEST_URL = window.HOSTDASH_MANIFEST_URL || "./manifest.json";
+
+const isObject = value => value && typeof value === "object" && !Array.isArray(value);
+const isHex = value => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
+const objectOr = value => isObject(value) ? value : {};
+const arrayOrEmpty = value => Array.isArray(value) ? value : [];
+const stringOr = (value, fallback = "") => typeof value === "string" ? value : fallback;
+
+function cleanMeta(meta) {
+  return arrayOrEmpty(meta)
+    .map(item => {
+      if (typeof item === "string") return item;
+      if (isObject(item) && typeof item.text === "string") {
+        return { text: item.text, code: item.code === true };
+      }
+      return null;
+    })
+    .filter(Boolean);
 }
+
+function cleanWings(wings) {
+  return arrayOrEmpty(wings)
+    .filter(wing => isObject(wing) && typeof wing.id === "string" && typeof wing.name === "string")
+    .map(wing => ({
+      id: wing.id,
+      name: wing.name,
+      color: stringOr(wing.color, "var(--home)"),
+      icon: stringOr(wing.icon, "server"),
+    }));
+}
+
+function cleanServices(services) {
+  return arrayOrEmpty(services)
+    .filter(service => isObject(service) && typeof service.wing === "string" && typeof service.name === "string")
+    .map(service => {
+      const statusPolicy = objectOr(service.statusPolicy);
+      const status = service.status || statusPolicy.staticState || null;
+      const url = typeof service.url === "string" ? service.url : null;
+      return {
+        ...service,
+        wing: service.wing,
+        name: service.name,
+        purpose: stringOr(service.purpose),
+        icon: stringOr(service.icon, "server"),
+        url,
+        urls: objectOr(service.urls),
+        sameHost: service.sameHost === true,
+        passive: service.passive === true || !url,
+        certIssue: service.certIssue === true,
+        statusPolicy,
+        ...(status ? { status } : {}),
+      };
+    });
+}
+
+function manifestToConfig(manifest) {
+  if (!isObject(manifest)) throw new Error("manifest is not an object");
+  if (manifest.schema !== "inspr.hostdash.config.v1") throw new Error("unsupported manifest schema");
+  if (manifest.version !== 1) throw new Error("unsupported manifest version");
+
+  const host = objectOr(manifest.host);
+  if (typeof host.name !== "string") throw new Error("manifest host.name is required");
+
+  const wings = cleanWings(manifest.wings);
+  const services = cleanServices(manifest.services);
+  if (!wings.length) throw new Error("manifest wings are required");
+  if (!services.length) throw new Error("manifest services are required");
+
+  const slug = stringOr(manifest.slug, host.name);
+  return {
+    __source: "manifest-json",
+    schema: manifest.schema,
+    version: manifest.version,
+    slug,
+    storageKey: stringOr(manifest.storageKey, `hostdash.${slug}`),
+    host,
+    meta: cleanMeta(manifest.meta),
+    palette: objectOr(manifest.palette),
+    policy: objectOr(manifest.policy),
+    wings,
+    services,
+  };
+}
+
+async function loadManifestConfig() {
+  try {
+    const response = await fetch(MANIFEST_URL, { cache: "no-store" });
+    if (!response.ok) return null;
+    return manifestToConfig(await response.json());
+  } catch (error) {
+    console.warn(`HostDash manifest ignored: ${error.message}`);
+    return null;
+  }
+}
+
+async function loadHostdashConfig() {
+  const manifestConfig = await loadManifestConfig();
+  if (manifestConfig) return manifestConfig;
+  if (FALLBACK_CONFIG) return { __source: "config-js", ...FALLBACK_CONFIG };
+  throw new Error("HostDash config.js is missing and no valid manifest.json is available");
+}
+
+function applyPalette(config) {
+  const palette = objectOr(config.palette);
+  const gradient = objectOr(palette.gradient);
+  const accent = palette.accent || gradient.primary;
+  if (!isHex(accent)) return;
+
+  const root = document.documentElement;
+  root.style.setProperty("--home", accent);
+  root.style.setProperty("--manifest-accent", accent);
+  if (isHex(gradient.lightest)) root.style.setProperty("--line-strong", gradient.lightest);
+}
+
+const CONFIG = await loadHostdashConfig();
+document.documentElement.dataset.configSource = CONFIG.__source || "unknown";
+applyPalette(CONFIG);
 
 const WINGS = CONFIG.wings || [];
 const SVC = CONFIG.services || [];

@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { copyFile, cp, mkdtemp, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import { copyFile, cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import vm from "node:vm";
 
 const browserPath =
   process.env.BROWSER_PATH || "/Applications/Helium.app/Contents/MacOS/Helium";
-const port = Number(process.env.CDP_PORT || 9349);
+const cdpPort = Number(process.env.CDP_PORT || 9349);
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
 const host = process.env.HOSTDASH_HOST || "hsb1";
+const configMode = process.env.HOSTDASH_CONFIG_MODE || "config";
+const manifestMode = configMode === "manifest";
 const defaults = {
   hsb0: {
     cards: 11,
@@ -96,15 +100,111 @@ const expected = {
   sameHostService: expectedString("EXPECTED_SAME_HOST_SERVICE", "sameHostService"),
   sameHostPort: expectedString("EXPECTED_SAME_HOST_PORT", "sameHostPort"),
   sameHostPath: expectedString("EXPECTED_SAME_HOST_PATH", "sameHostPath"),
+  configSource: process.env.EXPECTED_CONFIG_SOURCE || (manifestMode ? "manifest-json" : "config-js"),
 };
+
+async function readHostConfig(hostName) {
+  const configPath = join(repoRoot, "hosts", hostName, "config.js");
+  const source = await readFile(configPath, "utf8");
+  const sandbox = { window: {} };
+  vm.runInNewContext(source, sandbox, { filename: configPath });
+  if (!sandbox.window.HOSTDASH_CONFIG) {
+    throw new Error(`No HOSTDASH_CONFIG exported by ${configPath}`);
+  }
+  return sandbox.window.HOSTDASH_CONFIG;
+}
+
+function manifestFromConfig(config) {
+  return {
+    schema: "inspr.hostdash.config.v1",
+    version: 1,
+    generatedBy: "hostdash-smoke",
+    slug: config.slug,
+    storageKey: config.storageKey,
+    host: config.host,
+    meta: config.meta,
+    palette: {
+      name: "custom-hsb8",
+      displayName: "Custom (hsb8)",
+      category: "custom",
+      description: "Smoke-test palette generated from nixcfg manifest shape",
+      accent: "#e09051",
+      gradient: {
+        lightest: "#ecba93",
+        primary: "#e09051",
+        secondary: "#c26923",
+        midDark: "#572f0f",
+        dark: "#341c09",
+        darker: "#231306",
+        darkest: "#160c04",
+      },
+      text: {},
+      zellij: {},
+    },
+    wings: config.wings,
+    services: config.services,
+    policy: {
+      declaredOnly: true,
+      runtimeStateOwner: "pharos",
+      privilegedActions: {
+        mode: "none",
+        janusRequired: false,
+      },
+    },
+  };
+}
+
+async function serveDirectory(root) {
+  const server = createServer(async (request, response) => {
+    const url = new URL(request.url || "/", "http://127.0.0.1");
+    const name = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
+    if (!name || name.includes("..") || name.startsWith("/")) {
+      response.writeHead(400);
+      response.end("bad request");
+      return;
+    }
+
+    try {
+      const file = await readFile(join(root, name));
+      const type = name.endsWith(".html")
+        ? "text/html; charset=utf-8"
+        : name.endsWith(".js")
+          ? "text/javascript; charset=utf-8"
+          : name.endsWith(".json")
+            ? "application/json; charset=utf-8"
+            : "application/octet-stream";
+      response.writeHead(200, { "content-type": type });
+      response.end(file);
+    } catch {
+      response.writeHead(404);
+      response.end("not found");
+    }
+  });
+
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  return {
+    url: `http://127.0.0.1:${address.port}/index.html`,
+    cleanup: () => new Promise(resolve => server.close(resolve)),
+  };
+}
 
 async function localPageUrl() {
   const site = await mkdtemp(join(tmpdir(), "hostdash-site-"));
   await cp(join(repoRoot, "public"), site, { recursive: true });
   await copyFile(join(repoRoot, "hosts", host, "config.js"), join(site, "config.js"));
+  let server = null;
+  if (manifestMode) {
+    const config = await readHostConfig(host);
+    await writeFile(join(site, "manifest.json"), JSON.stringify(manifestFromConfig(config), null, 2));
+    server = await serveDirectory(site);
+  }
   return {
-    url: pathToFileURL(join(site, "index.html")).href,
-    cleanup: () => rm(site, { recursive: true, force: true }),
+    url: server?.url || pathToFileURL(join(site, "index.html")).href,
+    cleanup: async () => {
+      await server?.cleanup?.();
+      await rm(site, { recursive: true, force: true });
+    },
   };
 }
 
@@ -115,7 +215,7 @@ const profile = await mkdtemp(join(tmpdir(), "hostdash-smoke-"));
 const browser = spawn(browserPath, [
   "--headless=new",
   "--disable-gpu",
-  `--remote-debugging-port=${port}`,
+  `--remote-debugging-port=${cdpPort}`,
   `--user-data-dir=${profile}`,
   "about:blank",
 ]);
@@ -131,7 +231,7 @@ async function cleanup() {
 }
 
 async function waitForJson(path) {
-  const url = `http://127.0.0.1:${port}${path}`;
+  const url = `http://127.0.0.1:${cdpPort}${path}`;
   for (let i = 0; i < 80; i += 1) {
     try {
       const response = await fetch(url);
@@ -203,36 +303,44 @@ try {
     const sameHostCard = sameHostName ? [...document.querySelectorAll(".svc")]
       .find(card => card.querySelector("h3")?.textContent === sameHostName) : null;
     return {
-    cards: document.querySelectorAll(".svc").length,
-    total: document.getElementById("totCount").textContent,
-    online: document.getElementById("onCount").textContent,
-    search: document.getElementById("q")?.id,
-    zoom: document.getElementById("zoomRange")?.value,
-    controlsInSidebar: Boolean(
-      document.querySelector(".side .controls #q") &&
-      document.querySelector(".side .controls #zoomRange") &&
-      document.querySelector(".side .controls #zoomOut") &&
-      document.querySelector(".side .controls #zoomIn") &&
-      document.querySelector(".side .controls #zoomFit") &&
-      document.querySelector(".side .controls #zoomReset")
-    ),
-    controlsInTopbar: Boolean(document.querySelector(".topbar #q, .topbar #zoomRange")),
-    zoomNestedInSearch: Boolean(document.querySelector("label.search .zoom")),
-    certState: certName ? [...document.querySelectorAll(".svc")]
-      .find(card => card.querySelector("h3")?.textContent === certName)
-      ?.querySelector(".state")?.dataset.s
-      : null,
-    staticStates: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticStates || {})}).map(name => {
-      const card = [...document.querySelectorAll(".svc")]
-        .find(item => item.querySelector("h3")?.textContent === name);
-      return [name, card?.querySelector(".state")?.dataset.s || null];
-    })),
-    sameHostHref: sameHostCard?.href || null
+      configSource: document.documentElement.dataset.configSource,
+      manifestAccent: getComputedStyle(document.documentElement).getPropertyValue("--manifest-accent").trim(),
+      cards: document.querySelectorAll(".svc").length,
+      total: document.getElementById("totCount").textContent,
+      online: document.getElementById("onCount").textContent,
+      search: document.getElementById("q")?.id,
+      zoom: document.getElementById("zoomRange")?.value,
+      controlsInSidebar: Boolean(
+        document.querySelector(".side .controls #q") &&
+        document.querySelector(".side .controls #zoomRange") &&
+        document.querySelector(".side .controls #zoomOut") &&
+        document.querySelector(".side .controls #zoomIn") &&
+        document.querySelector(".side .controls #zoomFit") &&
+        document.querySelector(".side .controls #zoomReset")
+      ),
+      controlsInTopbar: Boolean(document.querySelector(".topbar #q, .topbar #zoomRange")),
+      zoomNestedInSearch: Boolean(document.querySelector("label.search .zoom")),
+      certState: certName ? [...document.querySelectorAll(".svc")]
+        .find(card => card.querySelector("h3")?.textContent === certName)
+        ?.querySelector(".state")?.dataset.s
+        : null,
+      staticStates: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticStates || {})}).map(name => {
+        const card = [...document.querySelectorAll(".svc")]
+          .find(item => item.querySelector("h3")?.textContent === name);
+        return [name, card?.querySelector(".state")?.dataset.s || null];
+      })),
+      sameHostHref: sameHostCard?.href || null
     };
   })()`);
 
   if (initial.cards !== expected.cards) {
     throw new Error(`Expected ${expected.cards} service cards, got ${JSON.stringify(initial)}`);
+  }
+  if (initial.configSource !== expected.configSource) {
+    throw new Error(`Expected config source ${expected.configSource}, got ${JSON.stringify(initial)}`);
+  }
+  if (manifestMode && initial.manifestAccent.toLowerCase() !== "#e09051") {
+    throw new Error(`Manifest palette was not applied: ${JSON.stringify(initial)}`);
   }
   if (initial.total !== String(expected.total)) {
     throw new Error(`Expected ${expected.total} active services, got ${JSON.stringify(initial)}`);

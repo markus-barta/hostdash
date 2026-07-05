@@ -37,6 +37,10 @@ share/hostdash-csb0/index.html
 share/hostdash-csb1/index.html
 ```
 
+If `manifest.json` is present beside `config.js`, the app loads the versioned
+manifest first and falls back to `config.js` if the manifest is missing or
+invalid.
+
 ## UI Smoke Test
 
 ```bash
@@ -46,6 +50,7 @@ HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb9 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb8 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 ```
 
 The test launches a temporary headless Chromium-compatible browser profile,
@@ -66,6 +71,7 @@ HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb9 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb8 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 nix build .#hsb1 --no-link
 nix build .#hsb0 --no-link
 nix build .#hsb8 --no-link

@@ -39,6 +39,9 @@
             install -d "$out/share/${pname}"
             cp -R public/. "$out/share/${pname}/"
             cp "hosts/${host}/config.js" "$out/share/${pname}/config.js"
+            if [ -f "hosts/${host}/manifest.json" ]; then
+              cp "hosts/${host}/manifest.json" "$out/share/${pname}/manifest.json"
+            fi
             runHook postInstall
           '';
 
