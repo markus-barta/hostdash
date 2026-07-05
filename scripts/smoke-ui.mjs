@@ -17,6 +17,9 @@ const defaults = {
     searchName: "AdGuard Home",
     searchTerm: "adguard",
     certService: "OpenClaw Gateway",
+    sameHostService: "AdGuard Home",
+    sameHostPort: "3000",
+    sameHostPath: "/",
   },
   hsb1: {
     cards: 19,
@@ -24,6 +27,9 @@ const defaults = {
     searchName: "Plex",
     searchTerm: "plex",
     certService: "Scrypted",
+    sameHostService: "Plex",
+    sameHostPort: "32400",
+    sameHostPath: "/web",
   },
   hsb8: {
     cards: 6,
@@ -31,6 +37,9 @@ const defaults = {
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
+    sameHostService: "Home Assistant",
+    sameHostPort: "8123",
+    sameHostPath: "/",
   },
   hsb9: {
     cards: 4,
@@ -38,6 +47,9 @@ const defaults = {
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
+    sameHostService: "Home Assistant",
+    sameHostPort: "8123",
+    sameHostPath: "/",
   },
   csb0: {
     cards: 12,
@@ -45,6 +57,9 @@ const defaults = {
     searchName: "Node-RED",
     searchTerm: "node-red",
     certService: null,
+    sameHostService: null,
+    sameHostPort: null,
+    sameHostPath: null,
   },
   csb1: {
     cards: 28,
@@ -52,6 +67,9 @@ const defaults = {
     searchName: "Docmost",
     searchTerm: "knowledge",
     certService: null,
+    sameHostService: null,
+    sameHostPort: null,
+    sameHostPath: null,
   },
 };
 const expectedString = (envName, key) =>
@@ -66,6 +84,9 @@ const expected = {
   searchName: expectedString("EXPECTED_SEARCH_NAME", "searchName"),
   searchTerm: expectedString("EXPECTED_SEARCH_TERM", "searchTerm"),
   certService: expectedString("EXPECTED_CERT_SERVICE", "certService"),
+  sameHostService: expectedString("EXPECTED_SAME_HOST_SERVICE", "sameHostService"),
+  sameHostPort: expectedString("EXPECTED_SAME_HOST_PORT", "sameHostPort"),
+  sameHostPath: expectedString("EXPECTED_SAME_HOST_PATH", "sameHostPath"),
 };
 
 async function localPageUrl() {
@@ -169,6 +190,9 @@ try {
 
   const initial = await value(`(() => {
     const certName = ${JSON.stringify(expected.certService)};
+    const sameHostName = ${JSON.stringify(expected.sameHostService)};
+    const sameHostCard = sameHostName ? [...document.querySelectorAll(".svc")]
+      .find(card => card.querySelector("h3")?.textContent === sameHostName) : null;
     return {
     cards: document.querySelectorAll(".svc").length,
     total: document.getElementById("totCount").textContent,
@@ -180,7 +204,8 @@ try {
     certState: certName ? [...document.querySelectorAll(".svc")]
       .find(card => card.querySelector("h3")?.textContent === certName)
       ?.querySelector(".state")?.dataset.s
-      : null
+      : null,
+    sameHostHref: sameHostCard?.href || null
     };
   })()`);
 
@@ -204,6 +229,17 @@ try {
   }
   if (expected.certService && initial.certState !== "cert") {
     throw new Error(`Expected ${expected.certService} TLS-cert state, got ${JSON.stringify(initial)}`);
+  }
+  if (expected.sameHostService && /^https?:/.test(pageUrl)) {
+    const actual = new URL(initial.sameHostHref);
+    const current = new URL(pageUrl);
+    if (
+      actual.hostname !== current.hostname ||
+      actual.port !== expected.sameHostPort ||
+      actual.pathname !== expected.sameHostPath
+    ) {
+      throw new Error(`Same-host URL resolution failed: ${JSON.stringify({ pageUrl, initial })}`);
+    }
   }
 
   const zoomState = await value(`

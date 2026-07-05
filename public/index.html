@@ -751,11 +751,12 @@ WINGS.forEach(wing => {
     card.dataset.name = `${service.name} ${service.purpose} ${service.port || service.foot || ""}`.toLowerCase();
 
     if (active) {
-      card.href = service.url;
+      const targetUrl = serviceTargetUrl(service);
+      card.href = targetUrl;
       card.target = "_blank";
       card.rel = "noopener";
       if (service.certIssue) card.dataset.staticState = "cert";
-      else card.dataset.probe = service.url;
+      else card.dataset.probe = targetUrl;
     }
     if (service.note) card.title = service.note;
 
@@ -781,6 +782,20 @@ WINGS.forEach(wing => {
   section.appendChild(deck);
   wingsEl.appendChild(section);
 });
+
+function serviceTargetUrl(service) {
+  if (!service.sameHost || !/^https?:$/.test(window.location.protocol) || !window.location.hostname) {
+    return service.url;
+  }
+
+  const target = new URL(window.location.href);
+  target.protocol = service.scheme || target.protocol;
+  target.port = String(service.hostPort || service.port || "").replace(/^:/, "").split(/\s+/)[0];
+  target.pathname = service.path || "/";
+  target.search = service.search || "";
+  target.hash = "";
+  return target.href;
+}
 
 function statusText(state) {
   if (state === "up") return "Online";

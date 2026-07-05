@@ -9,6 +9,12 @@ The shared app lives in `public/`. Host-specific service lists and metadata live
 in `hosts/<host>/config.js`; package outputs copy the shared app plus the chosen
 host config as `config.js`.
 
+Host-local services should set `sameHost: true` and keep their canonical `.lan`
+URL as `url`. At runtime the app rewrites the service link/probe to the hostname
+used for the dashboard itself, so `http://hsb8.lan/`, `http://192.168.1.100/`,
+and `http://100.64.0.3/` probe `:8123` on the matching address instead of
+hardcoding one network.
+
 ## Build
 
 ```bash

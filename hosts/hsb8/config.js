@@ -22,9 +22,9 @@ window.HOSTDASH_CONFIG = {
     { id: "housekeeping", name: "Housekeeping", color: "var(--infra)", icon: "refresh-cw" },
   ],
   services: [
-    { wing: "network", name: "AdGuard Home", purpose: "Local DNS, DHCP, filtering, and leases", icon: "logo-adguard", url: "http://hsb8.lan:3000/", port: ":3000" },
+    { wing: "network", name: "AdGuard Home", purpose: "Local DNS, DHCP, filtering, and leases", icon: "logo-adguard", url: "http://hsb8.lan:3000/", sameHost: true, port: ":3000" },
 
-    { wing: "home", name: "Home Assistant", purpose: "Parents' home automation hub", icon: "logo-ha", url: "http://hsb8.lan:8123/", port: ":8123" },
+    { wing: "home", name: "Home Assistant", purpose: "Parents' home automation hub", icon: "logo-ha", url: "http://hsb8.lan:8123/", sameHost: true, port: ":8123" },
     { wing: "home", name: "Mosquitto", purpose: "MQTT broker for local automations", icon: "logo-mqtt", passive: true, foot: ":1883 · broker" },
 
     { wing: "ops", name: "FleetCom Bosun", purpose: "Heartbeats and lifecycle events to fleet.barta.cm", icon: "satellite-dish", passive: true, foot: "agent · outbound only" },

@@ -21,7 +21,7 @@ window.HOSTDASH_CONFIG = {
     { id: "housekeeping", name: "Housekeeping", color: "var(--infra)", icon: "refresh-cw" },
   ],
   services: [
-    { wing: "home", name: "Home Assistant", purpose: "Parents-in-law home automation hub", icon: "logo-ha", url: "http://hsb9.lan:8123/", port: ":8123" },
+    { wing: "home", name: "Home Assistant", purpose: "Parents-in-law home automation hub", icon: "logo-ha", url: "http://hsb9.lan:8123/", sameHost: true, port: ":8123" },
     { wing: "home", name: "Mosquitto", purpose: "MQTT broker for local automations", icon: "logo-mqtt", passive: true, foot: ":1883 · broker" },
 
     { wing: "ops", name: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
