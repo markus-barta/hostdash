@@ -519,6 +519,31 @@
   .state[data-s="protected"] { color: var(--up); border-color: rgba(38, 122, 83, 0.22); }
   .state[data-s="external"] .dot,
   .state[data-s="protected"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--up); }
+
+  /* HOSTD-7 — states the dashboard could not previously express.
+
+     "running": the HOST vouches for it (docker ps / systemctl). Solid green, because
+     this is stronger evidence than any browser probe — it is not a guess at all.
+
+     "unreachable": running, but THIS browser cannot reach it (self-signed cert, wrong
+     network path, Tailscale, CORP). Amber, hollow: something is off, but it is about
+     the route, not the service. Rendering this as red "Down" — as the old code did —
+     sent you hunting a service that was never broken.
+
+     "stopped": the host says it is NOT running. Solid red, and trustworthy, unlike a
+     "Down" inferred from a failed socket.
+
+     "unknown": no host truth and nothing probeable. Grey. The most important addition:
+     the dashboard is now able to admit it does not know, instead of drawing a
+     confident dot over a state nobody measured. */
+  .state[data-s="running"] { color: var(--up); border-color: rgba(38, 122, 83, 0.25); }
+  .state[data-s="running"] .dot { background: var(--up); box-shadow: 0 0 0 4px rgba(38, 122, 83, 0.12); }
+  .state[data-s="unreachable"] { color: var(--checking); border-color: rgba(212, 147, 36, 0.28); }
+  .state[data-s="unreachable"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--checking); }
+  .state[data-s="stopped"] { color: var(--down); border-color: rgba(186, 55, 45, 0.24); }
+  .state[data-s="stopped"] .dot { background: var(--down); }
+  .state[data-s="unknown"] { color: var(--muted); border-color: rgba(120, 120, 120, 0.22); }
+  .state[data-s="unknown"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
   .state[data-s="passive"] { color: var(--soft); }
   .state[data-s="passive"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--passive); }
 
@@ -922,8 +947,76 @@ function applyPalette(config) {
   if (isHex(gradient.lightest)) root.style.setProperty("--line-strong", gradient.lightest);
 }
 
+// ── HOST TRUTH (HOSTD-7 / NIX-280) ───────────────────────────────────────────
+//
+// Until now the ONLY status signal was a browser `fetch(url, {mode:"no-cors"})`.
+// That response is OPAQUE by design: the status code, headers and body cannot be
+// read, and `.then()` fires merely because the request did not network-error.
+//
+// So the dashboard could not distinguish:
+//   * HTTP 500                         -> reported "Online"
+//   * self-signed cert (Scrypted)      -> reported "Down", while running fine
+//   * running, but not on this network -> reported "Down"
+//   * no HTTP endpoint at all          -> never checked; 9 of 19 services on hsb1
+//
+// It answered "can my browser open a socket?" and printed that as "Online". Half
+// the board was a state nobody had measured — the same failure as the babycam that
+// showed a perfect picture and made no sound (NIX-151). A monitor that reports
+// health it cannot verify is worse than none, because it is trusted.
+//
+// `running` cannot be known client-side. Ever. So the HOST now says so: a generator
+// writes status.json (docker ps + systemctl) and nginx serves it SAME-ORIGIN, which
+// is what makes it readable at all. Host truth OUTRANKS the browser probe; the probe
+// is demoted to what it actually measures — client reachability.
+const STATUS_URL = window.HOSTDASH_STATUS_URL || "./status/status.json";
+
+// The artifact refreshes every 60s. Anything older than this is treated as UNKNOWN,
+// never as healthy. A dead generator whose last file still says "running" would leave
+// the board reading green forever — which is exactly the bug being fixed, reintroduced
+// one layer down. Staleness must degrade to honest ignorance.
+const STATUS_MAX_AGE_MS = 5 * 60 * 1000;
+
+let HOST_STATUS = null;
+
+async function loadHostStatus() {
+  try {
+    const response = await fetch(STATUS_URL, { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.schema !== "inspr.hostdash.status.v1") return null;
+    const ageMs = Date.now() - (Number(data.generated) || 0) * 1000;
+    if (ageMs > STATUS_MAX_AGE_MS) {
+      console.warn(`[hostdash] status artifact is stale (${Math.round(ageMs / 1000)}s) — ignoring`);
+      return null;
+    }
+    return data;
+  } catch {
+    // Absent or unreachable is FINE: we fall back to probe-only behaviour and simply
+    // know less. Degrading to ignorance is correct; degrading to green is not.
+    return null;
+  }
+}
+
+// "running" | "stopped" | null (= no host truth for this service; do not guess)
+function hostStateFor(service) {
+  if (!HOST_STATUS) return null;
+  if (service.container) {
+    const entry = HOST_STATUS.containers?.[service.container];
+    if (!entry) return null;
+    return entry.running ? "running" : "stopped";
+  }
+  if (service.unit) {
+    const entry = HOST_STATUS.units?.[service.unit];
+    if (!entry) return null;
+    return entry.running ? "running" : "stopped";
+  }
+  return null;
+}
+
 const CONFIG = await loadHostdashConfig();
+HOST_STATUS = await loadHostStatus();
 document.documentElement.dataset.configSource = CONFIG.__source || "unknown";
+document.documentElement.dataset.hostTruth = HOST_STATUS ? "live" : "absent";
 applyPalette(CONFIG);
 
 const WINGS = CONFIG.wings || [];
@@ -1016,9 +1109,17 @@ WINGS.forEach(wing => {
   const deck = el("div", "deck");
   services.forEach(service => {
     const active = !service.passive;
+    // A service the HOST can vouch for is trackable even with no URL to click.
+    // This is what finally lights up the passive half of the board — Mosquitto,
+    // restic, Watchtower, pharos-beacon and friends, which have no HTTP endpoint
+    // and so were never checked at all, merely drawn.
+    const tracked = !!(service.container || service.unit);
     const card = active ? el("a", "svc") : el("div", "svc passive");
     card.style.setProperty("--c", wing.color);
     card.dataset.name = `${service.name} ${service.purpose} ${service.port || service.foot || ""}`.toLowerCase();
+
+    if (service.container) card.dataset.container = service.container;
+    if (service.unit) card.dataset.unit = service.unit;
 
     if (active) {
       const targetUrl = serviceTargetUrl(service);
@@ -1026,13 +1127,17 @@ WINGS.forEach(wing => {
       card.target = "_blank";
       card.rel = "noopener";
       if (service.status) card.dataset.staticState = service.status;
-      else if (service.certIssue) card.dataset.staticState = "cert";
       else if (service.probe === false) card.dataset.staticState = "external";
       else card.dataset.probe = targetUrl;
+      // NOTE: `certIssue` is deliberately NOT a static state any more. It existed
+      // only to stop a self-signed cert being reported as "Down" — a workaround for
+      // the probe's blindness. With host truth we can say the true thing instead:
+      // running, but the browser cannot reach it. The flag survives as a hint below.
+      if (service.certIssue) card.dataset.certIssue = "1";
     }
     if (service.note) card.title = service.note;
 
-    const status = service.status || (service.certIssue ? "cert" : active ? "checking" : "passive");
+    const status = service.status || (active || tracked ? "checking" : "passive");
     const statusLabel = statusText(status);
     const foot = active
       ? `<span class="port">${service.port}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
@@ -1049,7 +1154,7 @@ WINGS.forEach(wing => {
       </div>
       <div class="svc-foot">${foot}</div>`;
     deck.appendChild(card);
-    if (active) cardIndex.push(card);
+    if (active || tracked) cardIndex.push(card);
   });
   section.appendChild(deck);
   wingsEl.appendChild(section);
@@ -1071,6 +1176,10 @@ function serviceTargetUrl(service) {
 
 function statusText(state) {
   if (state === "up") return "Online";
+  if (state === "running") return "Running"; // host says so; nothing here to open
+  if (state === "unreachable") return "Unreachable"; // running — but not from THIS browser
+  if (state === "stopped") return "Stopped"; // host says so. authoritative.
+  if (state === "unknown") return "Unknown"; // no host truth, nothing probeable — say so
   if (state === "down") return "Down";
   if (state === "cert") return "TLS cert";
   if (state === "external") return "External";
@@ -1083,9 +1192,19 @@ function counts() {
   const per = {};
   WINGS.forEach(wing => { per[wing.id] = 0; });
   let online = 0;
+  // What counts as "online" is a claim, so only count what was actually established.
+  //
+  // `unreachable` COUNTS: the host confirmed the service is running. Your browser just
+  // cannot get to it, which is a fact about the network, not about the service.
+  //
+  // `unknown` does NOT count, and neither does `stopped` or `down`. Previously `cert`
+  // and `external` were counted as online without anything ever being verified — a
+  // number inflated by services nobody had checked. They still count (a cert error and
+  // an external link both imply something is answering), but nothing UNMEASURED does.
+  const ONLINE = new Set(["up", "running", "unreachable", "cert", "external", "protected"]);
   cardIndex.forEach(card => {
     const state = card.querySelector(".state").dataset.s;
-    if (state === "up" || state === "cert" || state === "external" || state === "protected") {
+    if (ONLINE.has(state)) {
       online += 1;
       per[card.closest(".wing").dataset.wing] += 1;
     }
@@ -1203,12 +1322,37 @@ function setStatus(card, state) {
   badge.querySelector(".state-label").textContent = statusText(state);
 }
 
-function probe(card) {
+// What the host says about this card: "running" | "stopped" | null.
+function cardHostState(card) {
+  if (!HOST_STATUS) return null;
+  const { container, unit } = card.dataset;
+  const entry = container
+    ? HOST_STATUS.containers?.[container]
+    : unit
+      ? HOST_STATUS.units?.[unit]
+      : null;
+  if (!entry) return null;
+  return entry.running ? "running" : "stopped";
+}
+
+// The probe measures ONE thing: can THIS BROWSER reach it. It is no longer allowed
+// to pronounce on whether the service is running — it never could, it just did.
+//
+// `hostState` is the host's verdict, and it wins on the question of running/stopped.
+// The probe only refines it with client reachability:
+//
+//   host running + probe ok   -> "up"          — running, and you can open it
+//   host running + probe fail -> "unreachable"  — running; YOUR path to it is broken
+//                                (self-signed cert, wrong network, Tailscale, CORP).
+//                                Emphatically NOT "Down". The service is fine.
+//   no host truth + probe ok   -> "up"          — legacy behaviour, all we can say
+//   no host truth + probe fail -> "down"        — legacy behaviour, honestly ambiguous
+function probe(card, hostState) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
   fetch(card.dataset.probe, { mode: "no-cors", signal: controller.signal })
     .then(() => setStatus(card, "up"))
-    .catch(() => setStatus(card, "down"))
+    .catch(() => setStatus(card, hostState === "running" ? "unreachable" : "down"))
     .finally(() => {
       clearTimeout(timeout);
       counts();
@@ -1228,8 +1372,29 @@ function sweep() {
         counts();
         return;
       }
+
+      const host = cardHostState(card);
+
+      // The host says it is NOT running. That is authoritative and needs no probe —
+      // and it is the one thing the old dashboard could never tell you, because an
+      // unreachable socket and a stopped service looked identical.
+      if (host === "stopped") {
+        setStatus(card, "stopped");
+        counts();
+        return;
+      }
+
+      // Nothing to probe (no HTTP endpoint). Previously these were drawn as inert
+      // "Passive" chips and excluded from the counts entirely. Now the host can
+      // actually answer for them.
+      if (!card.dataset.probe) {
+        setStatus(card, host === "running" ? "running" : "unknown");
+        counts();
+        return;
+      }
+
       setStatus(card, "checking");
-      probe(card);
+      probe(card, host);
     });
     setTimeout(next, 300);
   })();
