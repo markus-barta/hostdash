@@ -135,6 +135,29 @@
     letter-spacing: 0;
   }
   .status-row strong b { color: var(--up); }
+
+  /* HOSTD-8 — provenance of the numbers above.
+
+     "host truth" means the host itself vouched for what is running (docker ps /
+     systemctl), which no browser can determine. Without it, every state on the board
+     is inferred from an OPAQUE fetch that cannot even read a status code — and the
+     board must SAY so, because a dashboard silently degraded to guessing looks exactly
+     like one that knows. That indistinguishability is the bug. */
+  .truth {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 6px; font-size: 11px; letter-spacing: 0.02em;
+    color: var(--muted);
+  }
+  .truth-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted); flex: none;
+  }
+  .truth[data-t="live"] { color: var(--up); }
+  .truth[data-t="live"] .truth-dot { background: var(--up); }
+  .truth[data-t="stale"],
+  .truth[data-t="none"] { color: var(--checking); }
+  .truth[data-t="stale"] .truth-dot,
+  .truth[data-t="none"] .truth-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--checking); }
   .clock {
     color: var(--muted);
     font-family: var(--mono);
@@ -768,6 +791,10 @@
     </div>
     <section class="status-panel" aria-label="Host status">
       <div class="status-row"><span>Online</span><strong><b id="onCount">0</b>/<span id="totCount">0</span></strong></div>
+      <!-- HOSTD-8: say where these numbers come from. A dashboard that silently falls
+           back to guessing looks identical to one that knows, and that is the whole
+           bug being fixed. -->
+      <div class="truth" id="truthRow" data-t="none"><span class="truth-dot"></span><span id="truthLabel">checking…</span></div>
       <div class="clock" id="clock"></div>
     </section>
     <section class="controls" aria-label="Dashboard controls">
@@ -977,24 +1004,58 @@ const STATUS_URL = window.HOSTDASH_STATUS_URL || "./status/status.json";
 const STATUS_MAX_AGE_MS = 5 * 60 * 1000;
 
 let HOST_STATUS = null;
+let TRUTH = { state: "none", detail: "" }; // "live" | "stale" | "none"
 
 async function loadHostStatus() {
   try {
     const response = await fetch(STATUS_URL, { cache: "no-store" });
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (data.schema !== "inspr.hostdash.status.v1") return null;
-    const ageMs = Date.now() - (Number(data.generated) || 0) * 1000;
-    if (ageMs > STATUS_MAX_AGE_MS) {
-      console.warn(`[hostdash] status artifact is stale (${Math.round(ageMs / 1000)}s) — ignoring`);
+    if (!response.ok) {
+      TRUTH = { state: "none", detail: "no status artifact" };
       return null;
     }
+    const data = await response.json();
+    if (data.schema !== "inspr.hostdash.status.v1") {
+      TRUTH = { state: "none", detail: "unknown status schema" };
+      return null;
+    }
+    const ageSec = Math.max(0, Math.round(Date.now() / 1000 - (Number(data.generated) || 0)));
+
+    // STALE IS NOT HEALTHY. The generator runs every 60s; if the file has gone quiet,
+    // the states in it describe a host as it was, not as it is. Serving that as fact
+    // would leave the board reading green long after the host stopped answering — the
+    // exact bug this ticket exists to remove, reintroduced one layer down. So we drop
+    // it entirely and go back to guessing — but we SAY that we are guessing.
+    if (ageSec * 1000 > STATUS_MAX_AGE_MS) {
+      TRUTH = { state: "stale", detail: `status ${fmtAge(ageSec)} old — ignoring` };
+      console.warn(`[hostdash] status artifact is stale (${ageSec}s) — ignoring`);
+      return null;
+    }
+
+    TRUTH = { state: "live", detail: `host truth · ${fmtAge(ageSec)} ago` };
     return data;
   } catch {
-    // Absent or unreachable is FINE: we fall back to probe-only behaviour and simply
-    // know less. Degrading to ignorance is correct; degrading to green is not.
+    // Absent or unreachable is FINE — we fall back to probe-only and simply know less.
+    // Degrading to ignorance is correct. Degrading to green is not.
+    TRUTH = { state: "none", detail: "no status artifact — probes only" };
     return null;
   }
+}
+
+function fmtAge(sec) {
+  if (sec < 90) return `${sec}s`;
+  if (sec < 5400) return `${Math.round(sec / 60)}m`;
+  return `${Math.round(sec / 3600)}h`;
+}
+
+function renderTruth() {
+  const row = document.getElementById("truthRow");
+  if (!row) return;
+  row.dataset.t = TRUTH.state;
+  setText("truthLabel", TRUTH.detail || TRUTH.state);
+  row.title =
+    TRUTH.state === "live"
+      ? "The host itself reports which containers and units are running. States on this board are measured, not guessed."
+      : "No usable host status. Every state below is inferred from a browser probe, which cannot read a status code — a service may be running and still show as unreachable.";
 }
 
 // "running" | "stopped" | null (= no host truth for this service; do not guess)
@@ -1088,6 +1149,7 @@ function renderChips(target) {
   WINGS.forEach(wing => target.appendChild(makeChip(wing.id, wing.name, wing.color)));
 }
 renderHostInfo();
+renderTruth();
 renderChips(sideChips);
 
 WINGS.forEach(wing => {
