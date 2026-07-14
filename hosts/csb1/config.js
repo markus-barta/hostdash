@@ -37,7 +37,6 @@ window.HOSTDASH_CONFIG = {
     { wing: "platforms", name: "Janus", purpose: "Secret metadata control plane", icon: "key-round", url: "https://vault.barta.cm/", port: ":443", status: "protected", note: "SSO/CORP-protected; browser probes from HostDash are intentionally disabled" },
     { wing: "platforms", name: "MinIO", purpose: "Object storage console for app attachments", icon: "box", url: "https://minio.barta.cm/", port: ":443" },
     { wing: "platforms", name: "Pharos", purpose: "Fleet status dashboard and beacon receiver", icon: "radar", url: "https://pharos.barta.cm/", port: ":443" },
-    { wing: "platforms", name: "FleetCom", purpose: "Legacy fleet lifecycle dashboard", icon: "satellite-dish", url: "https://fleet.barta.cm/", port: ":443" },
     { wing: "platforms", name: "WEG Portal", purpose: "Multi-tenant house portal", icon: "house", url: "https://jhw22.hausv.org/", port: ":443" },
 
     { wing: "sites", name: "INSPR site", purpose: "Public INSPR web presence", icon: "globe", url: "https://inspr.at/", port: ":443", status: "external", note: "Public site sends CORP same-origin; browser probes from HostDash are intentionally disabled" },
@@ -55,7 +54,6 @@ window.HOSTDASH_CONFIG = {
     { wing: "housekeeping", name: "restic", purpose: "Nightly backup to Hetzner Storage Box", icon: "hard-drive-download", passive: true, foot: "01:30 daily · backup" },
     { wing: "housekeeping", name: "SMTP relay", purpose: "Outbound container mail", icon: "mail", passive: true, foot: ":25 internal · relay" },
     { wing: "housekeeping", name: "Watchtower", purpose: "Weekly updates for opted-in containers", icon: "refresh-cw", passive: true, foot: "Sat 08:00 · scheduled" },
-    { wing: "housekeeping", name: "FleetCom Bosun", purpose: "Heartbeats and lifecycle events to fleet.barta.cm", icon: "satellite-dish", passive: true, foot: "agent · outbound only" },
     { wing: "housekeeping", name: "pharos-beacon", purpose: "Host status to local pharosd", icon: "radar", passive: true, foot: "beacon · outbound only" },
   ],
 };

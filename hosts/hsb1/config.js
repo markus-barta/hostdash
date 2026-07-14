@@ -43,7 +43,6 @@ window.HOSTDASH_CONFIG = {
 
     { wing: "infra", name: "Watchtower", container: "watchtower-weekly", purpose: "Weekly container auto-updates", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
     { wing: "infra", name: "restic", container: "restic-cron-hetzner", purpose: "Nightly backup to Hetzner", icon: "hard-drive-download", passive: true, foot: "01:30 daily · backup" },
-    { wing: "infra", name: "FleetCom", unit: "nixfleet-agent.service", purpose: "Heartbeats to fleet.barta.cm", icon: "satellite-dish", passive: true, foot: "agent · no UI" },
     { wing: "infra", name: "pharos-beacon", container: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
     { wing: "infra", name: "claude-code", purpose: "Idle Claude Code shell", icon: "terminal", passive: true, foot: "shell · no UI" },
   ],

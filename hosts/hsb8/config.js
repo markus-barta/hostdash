@@ -27,7 +27,6 @@ window.HOSTDASH_CONFIG = {
     { wing: "home", name: "Home Assistant", purpose: "Parents' home automation hub", icon: "logo-ha", url: "http://hsb8.lan:8123/", sameHost: true, port: ":8123" },
     { wing: "home", name: "Mosquitto", purpose: "MQTT broker for local automations", icon: "logo-mqtt", passive: true, foot: ":1883 · broker" },
 
-    { wing: "ops", name: "FleetCom Bosun", purpose: "Heartbeats and lifecycle events to fleet.barta.cm", icon: "satellite-dish", passive: true, foot: "agent · outbound only" },
     { wing: "ops", name: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
 
     { wing: "housekeeping", name: "Watchtower", purpose: "Weekly updates for scoped containers", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
