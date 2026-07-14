@@ -567,6 +567,21 @@
   .state[data-s="stopped"] .dot { background: var(--down); }
   .state[data-s="unknown"] { color: var(--muted); border-color: rgba(120, 120, 120, 0.22); }
   .state[data-s="unknown"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+  /* HOSTD-10 — states for services that report their own health.
+
+     "muted": the babycam, deliberately silenced (bedroom door open, the boy audible
+     directly — a nightly habit). This is HEALTHY and CHOSEN, so it is NOT red and NOT
+     amber. Painting a deliberate choice as a problem is how a dashboard trains you to
+     ignore it, and an alarm you learn to ignore is not an alarm. Muted, calm, hollow —
+     visibly "off by intent", plainly not "broken".
+
+     "fault": the service itself says it is broken. Solid red, and the card NAMES the
+     failure ("audio dead", "video stale") instead of shrugging "Down". */
+  .state[data-s="muted"] { color: var(--muted); border-color: rgba(120, 120, 120, 0.28); }
+  .state[data-s="muted"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+  .state[data-s="fault"] { color: var(--down); border-color: rgba(186, 55, 45, 0.3); }
+  .state[data-s="fault"] .dot { background: var(--down); box-shadow: 0 0 0 4px rgba(186, 55, 45, 0.12); }
   .state[data-s="passive"] { color: var(--soft); }
   .state[data-s="passive"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--passive); }
 
@@ -1175,13 +1190,14 @@ WINGS.forEach(wing => {
     // This is what finally lights up the passive half of the board — Mosquitto,
     // restic, Watchtower, pharos-beacon and friends, which have no HTTP endpoint
     // and so were never checked at all, merely drawn.
-    const tracked = !!(service.container || service.unit);
+    const tracked = !!(service.container || service.unit || service.extra);
     const card = active ? el("a", "svc") : el("div", "svc passive");
     card.style.setProperty("--c", wing.color);
     card.dataset.name = `${service.name} ${service.purpose} ${service.port || service.foot || ""}`.toLowerCase();
 
     if (service.container) card.dataset.container = service.container;
     if (service.unit) card.dataset.unit = service.unit;
+    if (service.extra) card.dataset.extra = service.extra;
 
     if (active) {
       const targetUrl = serviceTargetUrl(service);
@@ -1241,6 +1257,8 @@ function statusText(state) {
   if (state === "running") return "Running"; // host says so; nothing here to open
   if (state === "unreachable") return "Unreachable"; // running — but not from THIS browser
   if (state === "stopped") return "Stopped"; // host says so. authoritative.
+  if (state === "muted") return "Muted"; // healthy and deliberately silent — NOT a fault
+  if (state === "fault") return "Fault"; // self-reported failure; the card names it
   if (state === "unknown") return "Unknown"; // no host truth, nothing probeable — say so
   if (state === "down") return "Down";
   if (state === "cert") return "TLS cert";
@@ -1263,7 +1281,11 @@ function counts() {
   // and `external` were counted as online without anything ever being verified — a
   // number inflated by services nobody had checked. They still count (a cert error and
   // an external link both imply something is answering), but nothing UNMEASURED does.
-  const ONLINE = new Set(["up", "running", "unreachable", "cert", "external", "protected"]);
+  // `muted` COUNTS as online: the babycam is healthy and deliberately silent. If a
+  // chosen state dented the tally every night, the number would be meaningless and the
+  // dashboard would be teaching you to disregard it. `fault` does not count — that one
+  // is the service itself saying it is broken.
+  const ONLINE = new Set(["up", "running", "unreachable", "muted", "cert", "external", "protected"]);
   cardIndex.forEach(card => {
     const state = card.querySelector(".state").dataset.s;
     if (ONLINE.has(state)) {
@@ -1378,10 +1400,12 @@ document.addEventListener("keydown", event => {
   }
 });
 
-function setStatus(card, state) {
+function setStatus(card, state, label) {
   const badge = card.querySelector(".state");
   badge.dataset.s = state;
-  badge.querySelector(".state-label").textContent = statusText(state);
+  // `label` lets a service that publishes real telemetry name its own condition —
+  // "audio dead" is a diagnosis; "Down" is a shrug.
+  badge.querySelector(".state-label").textContent = label || statusText(state);
 }
 
 // What the host says about this card: "running" | "stopped" | null.
@@ -1395,6 +1419,41 @@ function cardHostState(card) {
       : null;
   if (!entry) return null;
   return entry.running ? "running" : "stopped";
+}
+
+// ── EXTRAS: services that publish real health, not just a liveness bit (HOSTD-10) ──
+//
+// Some services know far more about themselves than "the process exists". The babycam
+// (NIX-151) publishes decoder counters proving frames and audio are genuinely MOVING,
+// plus the user's intended volume versus VLC's actual one. That is a better signal
+// than anything a socket poke could produce, and it should not be flattened into up/down.
+//
+// THE ONE RULE THAT MATTERS HERE: `desired_volume: 0` IS NOT A FAULT.
+//
+// The babycam is deliberately muted most nights — with the bedroom door open the boy is
+// audible directly, so the kiosk gets silenced from a button. Painting that red would
+// make the dashboard cry wolf every single night, and an alarm you learn to ignore is
+// not an alarm. It is reported as MUTED — a healthy, chosen state — and still counts as
+// online, because it is.
+//
+// The real fault is the opposite and far quieter: desired > 0 while actual is 0, i.e.
+// the parents believe the monitor is on and it is silent. That reads as a fault, loudly.
+function extraState(card) {
+  if (!HOST_STATUS) return null;
+  const key = card.dataset.extra;
+  if (!key) return null;
+  const x = HOST_STATUS.extras?.[key];
+  if (!x || typeof x !== "object") return { state: "unknown", label: "No telemetry" };
+
+  if (x.health && x.health !== "OK") {
+    // Show the actual failure mode (AUDIO_DEAD, VIDEO_STALE, VOLUME_DRIFT …) rather
+    // than a generic "Down". Naming the fault is most of the diagnosis.
+    return { state: "fault", label: String(x.health).replace(/_/g, " ").toLowerCase() };
+  }
+  if (typeof x.desired_volume === "number" && x.desired_volume === 0) {
+    return { state: "muted", label: "Muted (on purpose)" };
+  }
+  return { state: "up", label: "Listening" };
 }
 
 // The probe measures ONE thing: can THIS BROWSER reach it. It is no longer allowed
@@ -1431,6 +1490,16 @@ function sweep() {
     batch.forEach(card => {
       if (card.dataset.staticState) {
         setStatus(card, card.dataset.staticState);
+        counts();
+        return;
+      }
+
+      // A service that publishes its own health outranks everything else: it is the
+      // only signal here that reflects what the service is actually DOING, rather than
+      // merely that it exists.
+      const extra = extraState(card);
+      if (extra) {
+        setStatus(card, extra.state, extra.label);
         counts();
         return;
       }

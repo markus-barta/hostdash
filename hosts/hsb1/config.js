@@ -38,6 +38,11 @@ window.HOSTDASH_CONFIG = {
     { wing: "signals", name: "opus-stream-to-mqtt", container: "opus-stream-to-mqtt", purpose: "OPUS gateway to MQTT bridge", icon: "audio-waveform", passive: true, foot: "agent · no UI" },
     { wing: "signals", name: "SMTP relay", container: "docker-smtp-1", purpose: "Outbound container mail", icon: "mail", passive: true, foot: ":25 internal · relay" },
 
+    // The babycam kiosk has no HTTP endpoint and could never be probed by a browser.
+    // It publishes real health instead (NIX-151): decoder counters proving frames and
+    // audio are actually MOVING, plus the volume the user ASKED for vs what VLC is doing.
+    // `desired_volume: 0` is a deliberate nightly mute, NOT a fault — see extraState().
+    { wing: "safety", name: "Babycam", purpose: "Kiosk feed \u2014 audio + video watchdog", icon: "camera", passive: true, extra: "babycam", foot: "kiosk \u00b7 self-healing" },
     { wing: "safety", name: "Scrypted", container: "scrypted", purpose: "Camera/NVR hub to HomeKit/HA", icon: "logo-scrypted", url: "https://hsb1.lan:10443/", sameHost: true, scheme: "https:", port: ":10443", certIssue: true, note: "service answers with a self-signed localhost certificate" },
     { wing: "safety", name: "fritz-tripwire", container: "fritz-tripwire", purpose: "Snapshots mesh on device drop", icon: "shield-alert", url: "http://hsb1.lan:9000/", sameHost: true, port: ":9000", note: "plain-text status endpoint" },
 
