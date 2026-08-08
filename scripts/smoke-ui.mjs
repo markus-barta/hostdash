@@ -34,6 +34,8 @@ const defaults = {
     staticStates: {},
     truthContainer: "restic-cron-hetzner",
     truthCard: "restic",
+    httpContainer: "openclaw-gateway",
+    httpCard: "OpenClaw Gateway",
   },
   hsb1: {
     cards: 19,
@@ -47,6 +49,8 @@ const defaults = {
     staticStates: {},
     truthContainer: "mosquitto",
     truthCard: "Mosquitto",
+    httpContainer: "scrypted",
+    httpCard: "Scrypted",
   },
   hsb8: {
     cards: 5,
@@ -60,6 +64,8 @@ const defaults = {
     staticStates: {},
     truthContainer: null,
     truthCard: null,
+    httpContainer: null,
+    httpCard: null,
   },
   hsb9: {
     cards: 4,
@@ -73,6 +79,8 @@ const defaults = {
     staticStates: {},
     truthContainer: null,
     truthCard: null,
+    httpContainer: null,
+    httpCard: null,
   },
   csb0: {
     cards: 11,
@@ -86,6 +94,8 @@ const defaults = {
     staticStates: {},
     truthContainer: null,
     truthCard: null,
+    httpContainer: null,
+    httpCard: null,
   },
   csb1: {
     cards: 26,
@@ -102,6 +112,8 @@ const defaults = {
     },
     truthContainer: null,
     truthCard: null,
+    httpContainer: null,
+    httpCard: null,
   },
 };
 
@@ -231,7 +243,7 @@ async function localPageUrl() {
     url: server.url,
     // ageSec lets a test hand the board a deliberately old artifact and watch it
     // degrade to "stale" instead of trusting it.
-    writeStatus: async (containers, ageSec = 0) =>
+    writeStatus: async (containers, ageSec = 0, http = {}) =>
       writeFile(
         join(site, "status", "status.json"),
         JSON.stringify({
@@ -240,6 +252,7 @@ async function localPageUrl() {
           containers,
           units: {},
           extras: {},
+          http,
         }),
       ),
     cleanup: async () => {
@@ -349,21 +362,23 @@ try {
   await send("Page.navigate", { url: pageUrl });
   await new Promise(resolve => setTimeout(resolve, 2500));
 
-  // Let a few sweeps run, then read the tracked card. Reused after each status.json
-  // rewrite below.
-  const sampleTruth = async () => {
+  // Let a few sweeps run, then read one card. Reused after each status.json rewrite.
+  const sampleCard = async name => {
     await new Promise(resolve => setTimeout(resolve, sweepMs * 3));
     return value(`(() => {
-      const name = ${JSON.stringify(expected.truthCard)};
       const card = [...document.querySelectorAll(".svc")]
-        .find(item => item.querySelector("h3")?.textContent === name);
+        .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(name)});
       return {
         state: card?.querySelector(".state")?.dataset.s || null,
+        label: card?.querySelector(".state-label")?.textContent || null,
+        hostOk: card?.dataset.hostOk || null,
+        title: card?.title || null,
         truth: document.getElementById("truthRow")?.dataset.t || null,
         hostTruth: document.documentElement.dataset.hostTruth || null,
       };
     })()`);
   };
+  const sampleTruth = () => sampleCard(expected.truthCard);
 
   const initial = await value(`(() => {
     const certName = ${JSON.stringify(expected.certService)};
@@ -492,6 +507,51 @@ try {
     truthStates = { stopped, running, stale };
   }
 
+  // ── HOST-SIDE HTTP TRUTH (HOSTD-12) ─────────────────────────────────────────
+  //
+  // The browser probe is opaque: it resolves on a 500 exactly as it does on a 200, so a
+  // broken service read "Online". Only the host can see a status code. These fixtures
+  // feed the board codes it could never obtain client-side and assert it says the true
+  // thing — the first two deterministically, since both short-circuit before any probe.
+  let httpStates = null;
+  if (truthCheck && expected.httpContainer) {
+    const base = {
+      [expected.truthContainer]: { running: true },
+      [expected.httpContainer]: { running: true },
+    };
+    const withHttp = async code => {
+      await localPage.writeStatus(base, 0, { [expected.httpContainer]: { code, ms: 11 } });
+      return sampleCard(expected.httpCard);
+    };
+
+    // The service itself reports failure. Outranks the probe entirely.
+    const fault = await withHttp(503);
+    if (fault.state !== "fault" || fault.label !== "HTTP 503") {
+      throw new Error(`Expected ${expected.httpCard} to report HTTP 503, got ${JSON.stringify(fault)}`);
+    }
+
+    // Container up, nothing answering behind it — curl's 000. A service failure, not a
+    // routing one, and invisible to every other signal on the board.
+    const silent = await withHttp(0);
+    if (silent.state !== "fault" || silent.label !== "no answer") {
+      throw new Error(`Expected ${expected.httpCard} to report no answer, got ${JSON.stringify(silent)}`);
+    }
+
+    // Host gets a clean 200. Whether THIS browser can also reach it is a property of the
+    // machine running the test, so only the unreachable branch is asserted — that branch
+    // is the Scrypted case, and it must name the service as healthy rather than shrug.
+    const ok = await withHttp(200);
+    if (ok.state === "unreachable") {
+      if (ok.label !== "OK on host" || ok.hostOk !== "200" || !/HTTP 200/.test(ok.title || "")) {
+        throw new Error(`Host-confirmed service was not labelled as healthy: ${JSON.stringify(ok)}`);
+      }
+    } else if (ok.state !== "up") {
+      throw new Error(`Expected ${expected.httpCard} up or unreachable on HTTP 200, got ${JSON.stringify(ok)}`);
+    }
+
+    httpStates = { fault, silent, ok };
+  }
+
   await send("Emulation.setDeviceMetricsOverride", {
     width: 390,
     height: 844,
@@ -611,7 +671,9 @@ try {
     throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   }
 
-  console.log(JSON.stringify({ host, pageUrl, initial, truthStates, searchState, escapeState }, null, 2));
+  console.log(
+    JSON.stringify({ host, pageUrl, initial, truthStates, httpStates, searchState, escapeState }, null, 2),
+  );
   await send("Browser.close").catch(() => {});
 } finally {
   await cleanup();
