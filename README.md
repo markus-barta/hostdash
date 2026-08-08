@@ -54,10 +54,17 @@ HOSTDASH_HOST=hsb8 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 ```
 
 The test launches a temporary headless Chromium-compatible browser profile,
-assembles the same app/config shape as the package output, and verifies render
-counts, online counters, search hotkeys/filtering, Escape reset, zoom behavior,
-TLS-cert badges, and that search/zoom controls remain in the responsive sidebar.
-Set `BROWSER_PATH` to use a different Chromium-compatible browser.
+assembles the same app/config shape as the package output, serves it over HTTP,
+and verifies render counts, online counters, search hotkeys/filtering, Escape
+reset, zoom behavior, cert-flagged services, and that search/zoom controls remain
+in the responsive sidebar. Set `BROWSER_PATH` to use a different
+Chromium-compatible browser.
+
+For hosts whose services are bound to containers or units (`hsb0`, `hsb1`), it
+also serves a synthetic `status/status.json` and rewrites it mid-session to check
+that the board re-reads host truth on every sweep rather than once at load, and
+that an artifact older than `STATUS_MAX_AGE_MS` degrades to `unknown` instead of
+being trusted.
 
 ## QA Checklist
 

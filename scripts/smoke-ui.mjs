@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { copyFile, cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import vm from "node:vm";
 
 const browserPath =
@@ -14,10 +13,18 @@ const repoRoot = resolve(new URL("..", import.meta.url).pathname);
 const host = process.env.HOSTDASH_HOST || "hsb1";
 const configMode = process.env.HOSTDASH_CONFIG_MODE || "config";
 const manifestMode = configMode === "manifest";
+// `total` is `cardIndex.length` — every card the board claims to track, i.e. active
+// services PLUS passive ones the host can vouch for (container/unit/extra). It is not
+// the service count. These drifted badly once HOSTD-7 started tracking passive cards
+// and HOSTD-10 added extras; five of six hosts were asserting pre-HOSTD-7 numbers.
+//
+// `truthContainer`/`truthCard` name a PASSIVE, host-tracked service — no URL, so it is
+// never probed and its badge is a pure function of status.json. That makes the
+// host-truth assertions below deterministic and network-independent.
 const defaults = {
   hsb0: {
-    cards: 11,
-    total: 4,
+    cards: 9,
+    total: 9,
     searchName: "AdGuard Home",
     searchTerm: "adguard",
     certService: "OpenClaw Gateway",
@@ -25,10 +32,12 @@ const defaults = {
     sameHostPort: "3000",
     sameHostPath: "/",
     staticStates: {},
+    truthContainer: "restic-cron-hetzner",
+    truthCard: "restic",
   },
   hsb1: {
     cards: 19,
-    total: 10,
+    total: 18,
     searchName: "Plex",
     searchTerm: "plex",
     certService: "Scrypted",
@@ -36,9 +45,11 @@ const defaults = {
     sameHostPort: "32400",
     sameHostPath: "/web",
     staticStates: {},
+    truthContainer: "mosquitto",
+    truthCard: "Mosquitto",
   },
   hsb8: {
-    cards: 6,
+    cards: 5,
     total: 2,
     searchName: "Home Assistant",
     searchTerm: "assistant",
@@ -47,6 +58,8 @@ const defaults = {
     sameHostPort: "8123",
     sameHostPath: "/",
     staticStates: {},
+    truthContainer: null,
+    truthCard: null,
   },
   hsb9: {
     cards: 4,
@@ -58,9 +71,11 @@ const defaults = {
     sameHostPort: "8123",
     sameHostPath: "/",
     staticStates: {},
+    truthContainer: null,
+    truthCard: null,
   },
   csb0: {
-    cards: 12,
+    cards: 11,
     total: 5,
     searchName: "Node-RED",
     searchTerm: "node-red",
@@ -69,10 +84,12 @@ const defaults = {
     sameHostPort: null,
     sameHostPath: null,
     staticStates: {},
+    truthContainer: null,
+    truthCard: null,
   },
   csb1: {
-    cards: 28,
-    total: 15,
+    cards: 26,
+    total: 14,
     searchName: "Docmost",
     searchTerm: "knowledge",
     certService: null,
@@ -83,8 +100,14 @@ const defaults = {
       Janus: "protected",
       "INSPR site": "external",
     },
+    truthContainer: null,
+    truthCard: null,
   },
 };
+
+// Short enough that the test observes several sweeps, long enough that a sweep's
+// batches finish before the next begins. Read by index.html via window.HOSTDASH_SWEEP_MS.
+const sweepMs = Number(process.env.HOSTDASH_SWEEP_MS || 1200);
 const expectedString = (envName, key) =>
   process.env[envName] ??
   (Object.prototype.hasOwnProperty.call(defaults[host] || {}, key)
@@ -191,20 +214,36 @@ async function serveDirectory(root) {
   };
 }
 
+// Always over HTTP, never file://. The board reads host truth from a SAME-ORIGIN
+// ./status/status.json, and file:// has no usable origin — under it the fetch always
+// fails and every host-truth path in the app is silently untested.
 async function localPageUrl() {
   const site = await mkdtemp(join(tmpdir(), "hostdash-site-"));
   await cp(join(repoRoot, "public"), site, { recursive: true });
   await copyFile(join(repoRoot, "hosts", host, "config.js"), join(site, "config.js"));
-  let server = null;
+  await mkdir(join(site, "status"), { recursive: true });
   if (manifestMode) {
     const config = await readHostConfig(host);
     await writeFile(join(site, "manifest.json"), JSON.stringify(manifestFromConfig(config), null, 2));
-    server = await serveDirectory(site);
   }
+  const server = await serveDirectory(site);
   return {
-    url: server?.url || pathToFileURL(join(site, "index.html")).href,
+    url: server.url,
+    // ageSec lets a test hand the board a deliberately old artifact and watch it
+    // degrade to "stale" instead of trusting it.
+    writeStatus: async (containers, ageSec = 0) =>
+      writeFile(
+        join(site, "status", "status.json"),
+        JSON.stringify({
+          schema: "inspr.hostdash.status.v1",
+          generated: Math.floor(Date.now() / 1000) - ageSec,
+          containers,
+          units: {},
+          extras: {},
+        }),
+      ),
     cleanup: async () => {
-      await server?.cleanup?.();
+      await server.cleanup();
       await rm(site, { recursive: true, force: true });
     },
   };
@@ -212,6 +251,11 @@ async function localPageUrl() {
 
 const localPage = process.env.PAGE_URL ? null : await localPageUrl();
 const pageUrl = process.env.PAGE_URL || localPage.url;
+const truthCheck = Boolean(localPage?.writeStatus && expected.truthContainer);
+
+// Open with the host reporting the tracked service as STOPPED, so the first paint has
+// something unambiguous in it that no probe could have produced.
+if (truthCheck) await localPage.writeStatus({ [expected.truthContainer]: { running: false } });
 
 const profile = await mkdtemp(join(tmpdir(), "hostdash-smoke-"));
 const browser = spawn(browserPath, [
@@ -296,8 +340,30 @@ try {
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Input.setIgnoreInputEvents", { ignore: false });
+  // Must land before the page's own module script runs, hence addScriptToEvaluateOnNewDocument
+  // rather than an injected tag. Compresses the ~30s production sweep to something a test
+  // can sit through without making the app aware it is being tested.
+  await send("Page.addScriptToEvaluateOnNewDocument", {
+    source: `window.HOSTDASH_SWEEP_MS = ${sweepMs};`,
+  });
   await send("Page.navigate", { url: pageUrl });
   await new Promise(resolve => setTimeout(resolve, 2500));
+
+  // Let a few sweeps run, then read the tracked card. Reused after each status.json
+  // rewrite below.
+  const sampleTruth = async () => {
+    await new Promise(resolve => setTimeout(resolve, sweepMs * 3));
+    return value(`(() => {
+      const name = ${JSON.stringify(expected.truthCard)};
+      const card = [...document.querySelectorAll(".svc")]
+        .find(item => item.querySelector("h3")?.textContent === name);
+      return {
+        state: card?.querySelector(".state")?.dataset.s || null,
+        truth: document.getElementById("truthRow")?.dataset.t || null,
+        hostTruth: document.documentElement.dataset.hostTruth || null,
+      };
+    })()`);
+  };
 
   const initial = await value(`(() => {
     const certName = ${JSON.stringify(expected.certService)};
@@ -322,10 +388,11 @@ try {
       ),
       controlsInTopbar: Boolean(document.querySelector(".topbar #q, .topbar #zoomRange")),
       zoomNestedInSearch: Boolean(document.querySelector("label.search .zoom")),
-      certState: certName ? [...document.querySelectorAll(".svc")]
-        .find(card => card.querySelector("h3")?.textContent === certName)
-        ?.querySelector(".state")?.dataset.s
-        : null,
+      certFlagged: certName ? (() => {
+        const card = [...document.querySelectorAll(".svc")]
+          .find(item => item.querySelector("h3")?.textContent === certName);
+        return card ? { certIssue: card.dataset.certIssue || null, probed: Boolean(card.dataset.probe) } : null;
+      })() : null,
       staticStates: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticStates || {})}).map(name => {
         const card = [...document.querySelectorAll(".svc")]
           .find(item => item.querySelector("h3")?.textContent === name);
@@ -359,8 +426,18 @@ try {
   if (!initial.controlsInSidebar || initial.controlsInTopbar || initial.zoomNestedInSearch) {
     throw new Error(`Search and zoom controls are not in the sidebar control rail: ${JSON.stringify(initial)}`);
   }
-  if (expected.certService && initial.certState !== "cert") {
-    throw new Error(`Expected ${expected.certService} TLS-cert state, got ${JSON.stringify(initial)}`);
+  // HOSTD-7 deliberately stopped painting a self-signed cert as a static "cert" badge —
+  // that was a workaround for the probe's blindness, and it asserted a state nobody had
+  // measured. What must hold now is structural: the service still carries the cert hint
+  // AND is genuinely probed rather than given a hardcoded answer. Asserting the probe's
+  // OUTCOME here would be asserting the test machine's network, not the app.
+  if (expected.certService) {
+    if (!initial.certFlagged) {
+      throw new Error(`Cert-flagged service ${expected.certService} not found: ${JSON.stringify(initial)}`);
+    }
+    if (initial.certFlagged.certIssue !== "1" || !initial.certFlagged.probed) {
+      throw new Error(`Expected ${expected.certService} to be cert-flagged and probed, got ${JSON.stringify(initial)}`);
+    }
   }
   for (const [name, state] of Object.entries(expected.staticStates || {})) {
     if (initial.staticStates[name] !== state) {
@@ -377,6 +454,42 @@ try {
     ) {
       throw new Error(`Same-host URL resolution failed: ${JSON.stringify({ pageUrl, initial })}`);
     }
+  }
+
+  // ── HOST TRUTH REFRESH (HOSTD-11) ───────────────────────────────────────────
+  //
+  // The board exists to be left open for days. Before HOSTD-11 it read status.json once,
+  // at page load, so every "Running"/"Stopped" badge described the host as it was when
+  // the tab was opened — and STATUS_MAX_AGE_MS, the guard against a dead generator, could
+  // never fire, because it was only ever evaluated on data that was fresh by construction.
+  //
+  // All three states asserted here are pure functions of status.json: the tracked card is
+  // passive and has no URL, so nothing probes it and no network condition can flake it.
+  let truthStates = null;
+  if (truthCheck) {
+    const stopped = await sampleTruth();
+    if (stopped.state !== "stopped" || stopped.truth !== "live") {
+      throw new Error(
+        `Expected ${expected.truthCard} stopped under live host truth, got ${JSON.stringify(stopped)}`,
+      );
+    }
+
+    // Same tab, no reload: the host changes its mind and the board must follow.
+    await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
+    const running = await sampleTruth();
+    if (running.state !== "running" || running.truth !== "live") {
+      throw new Error(`Board did not pick up refreshed host truth, got ${JSON.stringify(running)}`);
+    }
+
+    // Generator has gone quiet. Trusting this file would leave the card reading "Running"
+    // indefinitely; the only honest answer is that the board no longer knows.
+    await localPage.writeStatus({ [expected.truthContainer]: { running: true } }, 600);
+    const stale = await sampleTruth();
+    if (stale.state !== "unknown" || stale.truth !== "stale" || stale.hostTruth !== "absent") {
+      throw new Error(`Stale host truth was not discarded, got ${JSON.stringify(stale)}`);
+    }
+
+    truthStates = { stopped, running, stale };
   }
 
   await send("Emulation.setDeviceMetricsOverride", {
@@ -498,7 +611,7 @@ try {
     throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   }
 
-  console.log(JSON.stringify({ host, pageUrl, initial, searchState, escapeState }, null, 2));
+  console.log(JSON.stringify({ host, pageUrl, initial, truthStates, searchState, escapeState }, null, 2));
   await send("Browser.close").catch(() => {});
 } finally {
   await cleanup();
