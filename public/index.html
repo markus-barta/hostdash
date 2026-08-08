@@ -1018,12 +1018,23 @@ const STATUS_URL = window.HOSTDASH_STATUS_URL || "./status/status.json";
 // one layer down. Staleness must degrade to honest ignorance.
 const STATUS_MAX_AGE_MS = 5 * 60 * 1000;
 
+// How often the board re-reads host truth and re-probes. Jittered so a rack of open
+// dashboards does not stampede the host in lockstep. Overridable for tests, same
+// convention as HOSTDASH_STATUS_URL above.
+const SWEEP_MS = Number(window.HOSTDASH_SWEEP_MS) || 25000 + Math.random() * 10000;
+
 let HOST_STATUS = null;
 let TRUTH = { state: "none", detail: "" }; // "live" | "stale" | "none"
 
 async function loadHostStatus() {
+  // Bounded, because this now runs on every sweep rather than once. A same-origin
+  // read of a small file should be instant; a half-open connection that never
+  // settles would otherwise stall every subsequent sweep and freeze the board on
+  // the states it happened to be showing — a new way to display stale data as fact.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
   try {
-    const response = await fetch(STATUS_URL, { cache: "no-store" });
+    const response = await fetch(STATUS_URL, { cache: "no-store", signal: controller.signal });
     if (!response.ok) {
       TRUTH = { state: "none", detail: "no status artifact" };
       return null;
@@ -1053,7 +1064,27 @@ async function loadHostStatus() {
     // Degrading to ignorance is correct. Degrading to green is not.
     TRUTH = { state: "none", detail: "no status artifact — probes only" };
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
+}
+
+// Re-read host truth and re-render everything derived from it. Called before every
+// sweep, NOT once at load (HOSTD-11).
+//
+// This board's whole job is to be left open — on a wall, on a spare monitor, on a tab
+// nobody closes for a fortnight. Reading the artifact once at page load meant every
+// "Running" and "Stopped" badge described the host as it was when the tab was opened,
+// while the header cheerfully read "host truth · 12s ago" — a timestamp frozen at t=0.
+//
+// Worse, STATUS_MAX_AGE_MS could never fire. The guard written to stop a dead generator
+// showing green forever was itself evaluated exactly once, at the only moment the data
+// was guaranteed fresh. The protection existed and could not engage, which is the most
+// expensive kind of safety code: it buys confidence and delivers nothing.
+async function refreshHostStatus() {
+  HOST_STATUS = await loadHostStatus();
+  document.documentElement.dataset.hostTruth = HOST_STATUS ? "live" : "absent";
+  renderTruth();
 }
 
 function fmtAge(sec) {
@@ -1090,9 +1121,7 @@ function hostStateFor(service) {
 }
 
 const CONFIG = await loadHostdashConfig();
-HOST_STATUS = await loadHostStatus();
 document.documentElement.dataset.configSource = CONFIG.__source || "unknown";
-document.documentElement.dataset.hostTruth = HOST_STATUS ? "live" : "absent";
 applyPalette(CONFIG);
 
 const WINGS = CONFIG.wings || [];
@@ -1164,7 +1193,6 @@ function renderChips(target) {
   WINGS.forEach(wing => target.appendChild(makeChip(wing.id, wing.name, wing.color)));
 }
 renderHostInfo();
-renderTruth();
 renderChips(sideChips);
 
 WINGS.forEach(wing => {
@@ -1480,7 +1508,12 @@ function probe(card, hostState) {
     });
 }
 
-function sweep() {
+async function sweep() {
+  // Host truth first, every time. The probes below are refinements of it, so reading a
+  // snapshot from whenever the tab was opened would make each sweep re-decorate a fact
+  // that expired days ago.
+  await refreshHostStatus();
+
   let index = 0;
   const queue = [...cardIndex];
   (function next() {
@@ -1544,7 +1577,7 @@ counts();
 tick();
 sweep();
 setInterval(tick, 60000);
-setInterval(sweep, 25000 + Math.random() * 10000);
+setInterval(sweep, SWEEP_MS);
 </script>
 </body>
 </html>
