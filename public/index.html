@@ -582,6 +582,10 @@
   .state[data-s="muted"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
   .state[data-s="fault"] { color: var(--down); border-color: rgba(186, 55, 45, 0.3); }
   .state[data-s="fault"] .dot { background: var(--down); box-shadow: 0 0 0 4px rgba(186, 55, 45, 0.12); }
+  /* Host-confirmed unreachable (HOSTD-12): the service answered the HOST, so the hollow
+     ring fills in. A plain "unreachable" means nothing was ever established; this one
+     means the service is proven healthy and only your path to it is broken. */
+  .svc[data-host-ok] .state[data-s="unreachable"] .dot { background: var(--checking); }
   .state[data-s="passive"] { color: var(--soft); }
   .state[data-s="passive"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--passive); }
 
@@ -1241,7 +1245,10 @@ WINGS.forEach(wing => {
       // running, but the browser cannot reach it. The flag survives as a hint below.
       if (service.certIssue) card.dataset.certIssue = "1";
     }
-    if (service.note) card.title = service.note;
+    if (service.note) {
+      card.title = service.note;
+      card.dataset.note = service.note; // kept so HOSTD-12 can compose, not clobber
+    }
 
     const status = service.status || (active || tracked ? "checking" : "passive");
     const statusLabel = statusText(status);
@@ -1484,6 +1491,46 @@ function extraState(card) {
   return { state: "up", label: "Listening" };
 }
 
+// ── HOST-SIDE HTTP TRUTH (HOSTD-12) ─────────────────────────────────────────
+//
+// HOSTD-7 fixed "is it running?". It did NOT fix "is it WORKING?", though the header
+// comment above has claimed that scalp since day one: a service returning HTTP 500 has
+// a running container and a browser fetch that RESOLVES — `no-cors` rejects only on a
+// network error, never on a status code — so it still reads "Online". The one failure
+// the original ticket named first is the one that survived it.
+//
+// A status code cannot be read client-side. Ever. Same reason as `running`. So the host
+// curls each service over loopback and writes the code into status.json, where it is
+// same-origin and therefore legible. `-k` on loopback also makes the self-signed
+// certificate a non-issue, which is what finally lets the board separate the two things
+// that look identical from a browser:
+//
+//   the service is broken            -> HTTP 500 from the host        -> Fault
+//   the service is fine, YOUR path isn't -> HTTP 200 from the host    -> "OK on host"
+//
+// That second line is the Scrypted card, and it is the whole reason this exists: a
+// camera hub visibly serving video while the board called it unreachable.
+//
+// Shape: http: { "<key>": { code: <int>, ms: <int> } }, keyed by container/unit name.
+// Absent key, absent section, or an old generator that writes neither -> null, and every
+// path below falls back to exactly the pre-HOSTD-12 behaviour. Nothing here is required.
+function hostHttpFor(card) {
+  if (!HOST_STATUS) return null;
+  const key = card.dataset.httpKey || card.dataset.container || card.dataset.unit;
+  if (!key) return null;
+  const entry = HOST_STATUS.http?.[key];
+  if (!entry || typeof entry !== "object") return null;
+
+  const code = Number(entry.code);
+  if (!Number.isFinite(code)) return null;
+  // curl writes 000 when it never got an HTTP response at all. The container is up and
+  // the host still got nothing back from it — that is the service failing, not the
+  // network, and it is invisible to every other signal on this board.
+  if (code === 0) return { kind: "silent", code };
+  if (code >= 500) return { kind: "fault", code };
+  return { kind: "ok", code };
+}
+
 // The probe measures ONE thing: can THIS BROWSER reach it. It is no longer allowed
 // to pronounce on whether the service is running — it never could, it just did.
 //
@@ -1496,12 +1543,28 @@ function extraState(card) {
 //                                Emphatically NOT "Down". The service is fine.
 //   no host truth + probe ok   -> "up"          — legacy behaviour, all we can say
 //   no host truth + probe fail -> "down"        — legacy behaviour, honestly ambiguous
-function probe(card, hostState) {
+//
+// HOSTD-12 sharpens only the middle case. When the host's own HTTP check got a real
+// answer, "Unreachable" is an understatement bordering on a lie — the service is proven
+// healthy and the fault is entirely in this browser's path to it. Say that instead.
+function probe(card, hostState, hostHttp) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
   fetch(card.dataset.probe, { mode: "no-cors", signal: controller.signal })
     .then(() => setStatus(card, "up"))
-    .catch(() => setStatus(card, hostState === "running" ? "unreachable" : "down"))
+    .catch(() => {
+      if (hostState !== "running") return setStatus(card, "down");
+      if (hostHttp?.kind === "ok") {
+        card.dataset.hostOk = String(hostHttp.code);
+        const note = card.dataset.note;
+        card.title =
+          `Running, and the host itself gets HTTP ${hostHttp.code} from it. Only this browser ` +
+          `cannot reach it — self-signed certificate, wrong network, or VPN.` +
+          (note ? ` (${note})` : "");
+        return setStatus(card, "unreachable", "OK on host");
+      }
+      setStatus(card, "unreachable");
+    })
     .finally(() => {
       clearTimeout(timeout);
       counts();
@@ -1548,6 +1611,25 @@ async function sweep() {
         return;
       }
 
+      // The host asked the service directly and it answered badly. That outranks the
+      // browser probe entirely: a 500 is the service telling you it is broken, and no
+      // amount of client-side reachability changes that. This is the case the original
+      // host-truth ticket named first and never actually caught — a fetch resolves on a
+      // 500 exactly as it does on a 200, so the board called it "Online".
+      const hostHttp = hostHttpFor(card);
+      if (host === "running" && hostHttp?.kind === "fault") {
+        setStatus(card, "fault", `HTTP ${hostHttp.code}`);
+        counts();
+        return;
+      }
+      // Running, and the host got nothing back at all. Not a routing problem — there is
+      // simply nothing answering behind a container that claims to be up.
+      if (host === "running" && hostHttp?.kind === "silent") {
+        setStatus(card, "fault", "no answer");
+        counts();
+        return;
+      }
+
       // Nothing to probe (no HTTP endpoint). Previously these were drawn as inert
       // "Passive" chips and excluded from the counts entirely. Now the host can
       // actually answer for them.
@@ -1558,7 +1640,7 @@ async function sweep() {
       }
 
       setStatus(card, "checking");
-      probe(card, host);
+      probe(card, host, hostHttp);
     });
     setTimeout(next, 300);
   })();

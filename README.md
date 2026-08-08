@@ -62,9 +62,33 @@ Chromium-compatible browser.
 
 For hosts whose services are bound to containers or units (`hsb0`, `hsb1`), it
 also serves a synthetic `status/status.json` and rewrites it mid-session to check
-that the board re-reads host truth on every sweep rather than once at load, and
-that an artifact older than `STATUS_MAX_AGE_MS` degrades to `unknown` instead of
-being trusted.
+that the board re-reads host truth on every sweep rather than once at load, that
+an artifact older than `STATUS_MAX_AGE_MS` degrades to `unknown` instead of being
+trusted, and that host-side HTTP codes render as `Fault`/`OK on host`.
+
+## Host Status Artifact
+
+The board reads `./status/status.json` from the same origin, written on the host
+by `services.hostdash.status` in nixcfg. Schema `inspr.hostdash.status.v1`:
+
+```json
+{
+  "schema": "inspr.hostdash.status.v1",
+  "generated": 1786208496,
+  "containers": { "scrypted": { "running": true, "health": null } },
+  "units":      { "adguardhome.service": { "running": true } },
+  "extras":     { "babycam": { "health": "OK", "desired_volume": 0 } },
+  "http":       { "scrypted": { "code": 200, "ms": 11 } }
+}
+```
+
+`http` is optional and keyed by container/unit name (or a service's `httpKey`).
+It exists because a browser cannot read a status code — a `no-cors` fetch resolves
+on a 500 exactly as on a 200 — so only the host can distinguish a broken service
+from an unreachable one. `code >= 500` renders as `Fault`, `code: 0` (curl got no
+response at all) as `Fault · no answer`, and a good code paired with a failing
+browser probe as `OK on host`: running and answering, just not reachable from
+here. Omit the section entirely and every card falls back to probe-only behavior.
 
 ## QA Checklist
 
