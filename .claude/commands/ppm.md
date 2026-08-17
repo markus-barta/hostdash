@@ -1,0 +1,1 @@
+../../doctrine-private/commands/ppm.md
