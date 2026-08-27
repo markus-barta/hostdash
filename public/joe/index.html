@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Joes statischer Paper-Drill: ein Setup, feste Regeln, kein Live-Trading.">
+<title>Joe · Paper-Drill</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f6f4;
+    --surface: #ffffff;
+    --surface-2: #f9faf8;
+    --surface-3: #eef2ec;
+    --line: #dce3da;
+    --line-strong: #c6d1c3;
+    --ink: #172016;
+    --muted: #62705f;
+    --soft: #84907f;
+    --home: #d45c3f;
+    --up: #267a53;
+    --checking: #d49324;
+    --down: #ba372d;
+    --sans: Inter, "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Code", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { min-height: 100%; background: var(--bg); }
+  body {
+    min-height: 100vh;
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    background:
+      linear-gradient(180deg, rgba(238, 242, 236, 0.86), rgba(244, 246, 244, 0) 320px),
+      var(--bg);
+  }
+
+  .shell {
+    width: min(1120px, calc(100% - 36px));
+    margin: 0 auto;
+    padding: 28px 0 56px;
+  }
+
+  .paper-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 12px 14px;
+    border: 1px solid rgba(212, 147, 36, 0.28);
+    border-radius: 8px;
+    color: #765113;
+    background: #fff9ea;
+    font-size: 13px;
+  }
+  .paper-banner strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .paper-banner strong::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--checking);
+    box-shadow: 0 0 0 4px rgba(212, 147, 36, 0.14);
+  }
+  .paper-banner span { color: var(--muted); }
+
+  header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    align-items: end;
+    margin-bottom: 26px;
+  }
+  .eyebrow {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(32px, 6vw, 54px);
+    line-height: 1;
+    letter-spacing: -0.035em;
+    font-weight: 780;
+  }
+  .subtitle {
+    max-width: 720px;
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .account {
+    min-width: 220px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
+  }
+  .account span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .account strong {
+    display: block;
+    margin-top: 3px;
+    font-family: var(--mono);
+    font-size: 15px;
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px;
+    font-size: 12px;
+    font-weight: 760;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .section-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(212, 92, 63, 0.44), transparent);
+  }
+
+  .tldr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .fact,
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
+  }
+  .fact { padding: 15px; }
+  .fact span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .fact strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    line-height: 1.25;
+  }
+  .fact small {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(310px, 0.65fr);
+    gap: 14px;
+    align-items: start;
+  }
+  .panel { padding: 18px; }
+  .panel + .panel { margin-top: 14px; }
+  .panel h2 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.2;
+  }
+  .panel-intro {
+    margin: 6px 0 16px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .timeline {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .timeline li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 14px;
+    padding: 0 0 18px 20px;
+  }
+  .timeline li:last-child { padding-bottom: 0; }
+  .timeline li::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 6px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--home);
+    box-shadow: 0 0 0 4px rgba(212, 92, 63, 0.10);
+  }
+  .timeline li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 17px;
+    bottom: 2px;
+    width: 1px;
+    background: var(--line);
+  }
+  .time {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .timeline p {
+    margin: 0;
+    font-size: 14px;
+  }
+  .timeline strong { font-weight: 760; }
+
+  .session {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 14px 0 16px;
+    padding: 13px;
+    border: 1px solid rgba(38, 122, 83, 0.25);
+    border-radius: 8px;
+    background: rgba(38, 122, 83, 0.06);
+  }
+  .session span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .session strong {
+    color: var(--up);
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 0.04em;
+  }
+  .end-states {
+    margin: -7px 0 16px;
+    color: var(--muted);
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+  }
+  .metric {
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-2);
+  }
+  .metric dt {
+    overflow-wrap: anywhere;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .metric dd {
+    margin: 5px 0 0;
+    font-family: var(--mono);
+    font-size: 17px;
+    font-weight: 760;
+  }
+  .metric small {
+    display: block;
+    margin-top: 3px;
+    color: var(--soft);
+    font-family: var(--sans);
+    font-size: 10px;
+  }
+
+  .series {
+    display: grid;
+    gap: 9px;
+    margin: 16px 0 0;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--line);
+  }
+  .series-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .series-row strong {
+    color: var(--ink);
+    font-family: var(--mono);
+  }
+  .guardrails {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .guardrail {
+    padding: 7px 5px;
+    border: 1px solid rgba(38, 122, 83, 0.22);
+    border-radius: 8px;
+    color: var(--up);
+    background: rgba(38, 122, 83, 0.05);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .gateway {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .gateway::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px var(--muted);
+  }
+  .gateway strong { color: var(--ink); }
+
+  .out {
+    border-color: rgba(186, 55, 45, 0.24);
+    background: linear-gradient(180deg, var(--surface), rgba(186, 55, 45, 0.025));
+  }
+  .out-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 14px;
+  }
+  .out-list span {
+    padding: 5px 8px;
+    border: 1px solid rgba(186, 55, 45, 0.22);
+    border-radius: 999px;
+    color: var(--down);
+    background: rgba(186, 55, 45, 0.04);
+    font-size: 11px;
+    font-weight: 720;
+  }
+
+  footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 20px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 11px;
+  }
+  footer strong { color: var(--ink); }
+
+  @media (max-width: 840px) {
+    header { grid-template-columns: 1fr; }
+    .account { width: fit-content; }
+    .tldr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .shell { width: min(100% - 24px, 1120px); padding-top: 12px; }
+    .paper-banner { align-items: flex-start; }
+    .tldr { grid-template-columns: 1fr; }
+    .panel { padding: 15px; }
+    .timeline li { grid-template-columns: 60px minmax(0, 1fr); gap: 8px; }
+    .guardrails { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="paper-banner" role="status" aria-label="Paper-Modus">
+    <strong>Paper · kein Live-Trading</strong>
+    <span>Delayed 15–20 Min · Paper-Fills können täuschen</span>
+  </div>
+
+  <header>
+    <div>
+      <p class="eyebrow">Joe · ein Drill · eine Entscheidung</p>
+      <h1>15-Min ORB Retest</h1>
+      <p class="subtitle">Long only auf US Large-Cap Aktien. Bis 16:20 kein Klick; um 17:00 ist Joes A flat. Ein sauberer NO-CLICK ist ein gutes Ergebnis.</p>
+    </div>
+    <div class="account" aria-label="Board-Lock">
+      <span>US-A</span>
+      <strong>LOCKED</strong>
+    </div>
+  </header>
+
+  <section aria-labelledby="tldr-title">
+    <h2 class="section-label" id="tldr-title">TL;DR</h2>
+    <div class="tldr">
+      <article class="fact">
+        <span>Setup</span>
+        <strong>15-Min ORB Retest</strong>
+        <small>Close über Box, Retest hält</small>
+      </article>
+      <article class="fact">
+        <span>Fenster</span>
+        <strong>16:20–16:50</strong>
+        <small>Vienna · 17:00 flat</small>
+      </article>
+      <article class="fact">
+        <span>Risiko</span>
+        <strong>300 € fest</strong>
+        <small>Stop ≥ 0,5 % · Ziel 2R</small>
+      </article>
+      <article class="fact">
+        <span>Universum</span>
+        <strong>0–2 US-Aktien</strong>
+        <small>Large-Cap · long only</small>
+      </article>
+    </div>
+  </section>
+
+  <div class="layout">
+    <section aria-labelledby="plan-title">
+      <h2 class="section-label" id="plan-title">ELI10 · der Plan</h2>
+      <article class="panel">
+        <h2>Paper, nicht echtes Geld.</h2>
+        <p class="panel-intro">Ein Versuch pro Tag. Nur US-Aktien, die das Ticket öffnet.</p>
+        <ol class="timeline">
+          <li>
+            <span class="time">15:25</span>
+            <p>Banner Paper. 0–2 Namen. Daily-Level schreiben. Joel-TSLA nicht anfassen.</p>
+          </li>
+          <li>
+            <span class="time">bis 16:20</span>
+            <p>nichts klicken.</p>
+          </li>
+          <li>
+            <span class="time">16:20–16:50</span>
+            <p>zwei fertige 5-Min-Kerzen: erst über die Morgen-Box, dann hält der Retest. Limit an die Kante. 300 € Risiko. Ziel 2× Risiko.</p>
+          </li>
+          <li>
+            <span class="time">17:00</span>
+            <p>Joes Trade zu. Fremde Stück bleiben.</p>
+          </li>
+          <li>
+            <span class="time">Heute</span>
+            <p>Schluss bei −2× Risiko oder wenn die Hälfte eines Gewinns weg ist. Kein Trade ist ein guter Tag.</p>
+          </li>
+          <li>
+            <span class="time">Nicht:</span>
+            <p>SPY/QQQ, SXR8, Short, Europa-Session (erst nach 10 US-Tagen), Live.</p>
+          </li>
+        </ol>
+      </article>
+    </section>
+
+    <aside aria-label="KPI und Grenzen">
+      <section class="panel" aria-labelledby="kpi-title">
+        <h2 id="kpi-title">KPI · heute</h2>
+        <div class="session">
+          <span>Session heute</span>
+          <strong>NO-CLICK</strong>
+        </div>
+        <p class="end-states">Endstand: NO-CLICK / A-fill / KILL</p>
+        <dl class="metrics">
+          <div class="metric"><dt>delay_min</dt><dd>—</dd></div>
+          <div class="metric"><dt>shares</dt><dd>—</dd></div>
+          <div class="metric"><dt>spread</dt><dd>—</dd></div>
+          <div class="metric"><dt>R_raw</dt><dd>—</dd></div>
+          <div class="metric"><dt>R_haircut</dt><dd>—</dd><small>Platzhalter · Paper-Fills lügen</small></div>
+        </dl>
+
+        <div class="series" aria-label="10-Session-Serie">
+          <div class="series-row"><span>10-Session-Serie · Journal-Zeilen</span><strong>—</strong></div>
+          <div class="series-row"><span>NO-CLICK</span><strong>—</strong></div>
+        </div>
+        <div class="guardrails" aria-label="Grenzen der 10-Session-Serie">
+          <span class="guardrail">0 Live</span>
+          <span class="guardrail">0 SXR8</span>
+          <span class="guardrail">0 Short</span>
+          <span class="guardrail">0 US-ETF</span>
+        </div>
+        <div class="gateway"><strong>Gateway 4002:</strong> unbekannt · nur Anzeige, nicht geprüft</div>
+      </section>
+
+      <section class="panel out" aria-labelledby="out-title">
+        <h2 id="out-title">Raus-Liste</h2>
+        <p class="panel-intro">Live U28240205 bleibt geschlossen.</p>
+        <div class="out-list" aria-label="Nicht erlaubt">
+          <span>SPY/QQQ</span>
+          <span>SXR8</span>
+          <span>Short</span>
+          <span>Europa (erst nach 10 US)</span>
+          <span>Live</span>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <footer>
+    <span><strong>Statische Übungsseite.</strong> Keine Kurse, Orders oder Kontrollen.</span>
+    <span>Paper-Fills lügen · R_haircut bleibt ein Platzhalter</span>
+  </footer>
+</main>
+</body>
+</html>
