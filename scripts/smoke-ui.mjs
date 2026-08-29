@@ -55,7 +55,7 @@ const defaults = {
   },
   hsb8: {
     cards: 5,
-    total: 2,
+    total: 5,
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
@@ -63,14 +63,21 @@ const defaults = {
     sameHostPort: "8123",
     sameHostPath: "/",
     staticStates: {},
-    truthContainer: null,
-    truthCard: null,
-    httpContainer: null,
-    httpCard: null,
+    truthContainer: "mosquitto",
+    truthCard: "Mosquitto",
+    httpContainer: "homeassistant",
+    httpCard: "Home Assistant",
+    bindings: {
+      "AdGuard Home": { unit: "adguardhome.service" },
+      "Home Assistant": { container: "homeassistant" },
+      Mosquitto: { container: "mosquitto" },
+      "pharos-beacon": { container: "pharos-beacon" },
+      "Container updates": { unit: "compose-hsb8-update.timer" },
+    },
   },
   hsb9: {
     cards: 4,
-    total: 1,
+    total: 4,
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
@@ -78,14 +85,20 @@ const defaults = {
     sameHostPort: "8123",
     sameHostPath: "/",
     staticStates: {},
-    truthContainer: null,
-    truthCard: null,
-    httpContainer: null,
-    httpCard: null,
+    truthContainer: "mosquitto",
+    truthCard: "Mosquitto",
+    httpContainer: "homeassistant",
+    httpCard: "Home Assistant",
+    bindings: {
+      "Home Assistant": { container: "homeassistant" },
+      Mosquitto: { container: "mosquitto" },
+      "pharos-beacon": { container: "pharos-beacon" },
+      "Container updates": { unit: "compose-hsb9-update.timer" },
+    },
   },
   csb0: {
     cards: 11,
-    total: 5,
+    total: 10,
     searchName: "Node-RED",
     searchTerm: "node-red",
     certService: null,
@@ -93,14 +106,26 @@ const defaults = {
     sameHostPort: null,
     sameHostPath: null,
     staticStates: {},
-    truthContainer: null,
-    truthCard: null,
-    httpContainer: null,
-    httpCard: null,
+    truthContainer: "csb0-mosquitto-1",
+    truthCard: "Mosquitto",
+    httpContainer: "csb0-nodered-1",
+    httpCard: "Node-RED",
+    bindings: {
+      "Traefik API": { container: "csb0-traefik-1" },
+      Headscale: { container: "headscale" },
+      "Tesla Fleet Key": { container: "csb0-tesla-fleet-key-1" },
+      "docker socket proxy": { container: "csb0-docker-proxy-traefik-1" },
+      "Node-RED": { container: "csb0-nodered-1" },
+      Mosquitto: { container: "csb0-mosquitto-1" },
+      "Uptime Kuma": { container: "csb0-uptime-kuma-1" },
+      "pharos-beacon": { container: "pharos-beacon" },
+      restic: { container: "csb0-restic-cron-hetzner-1" },
+      "Container updates": { unit: "compose-csb0-update.timer" },
+    },
   },
   csb1: {
     cards: 26,
-    total: 14,
+    total: 26,
     searchName: "Docmost",
     searchTerm: "knowledge",
     certService: null,
@@ -111,10 +136,38 @@ const defaults = {
       Janus: "protected",
       "INSPR site": "external",
     },
-    truthContainer: null,
-    truthCard: null,
-    httpContainer: null,
-    httpCard: null,
+    truthContainer: "csb1-docmost-db-1",
+    truthCard: "Docmost Postgres",
+    httpContainer: "csb1-docmost-1",
+    httpCard: "Docmost",
+    bindings: {
+      "Traefik API": { container: "csb1-traefik-1" },
+      Zitadel: { container: "zitadel" },
+      "inspr-auth": { container: "inspr-auth" },
+      "docker socket proxy": { container: "csb1-docker-proxy-traefik-1" },
+      Docmost: { container: "csb1-docmost-1" },
+      Paperless: { container: "csb1-paperless-1" },
+      Excalidraw: { container: "csb1-excalidraw-1" },
+      PPM: { container: "ppm" },
+      Janus: { container: "janus" },
+      MinIO: { container: "minio" },
+      Pharos: { container: "pharosd" },
+      "WEG Portal": { container: "hausv-org" },
+      "INSPR site": { container: "inspr-www" },
+      "PAIMOS site": { container: "paimos-www" },
+      "jobs.at": { container: "csb1-jobs-at-1" },
+      "Docmost Postgres": { container: "csb1-docmost-db-1" },
+      "Docmost Redis": { container: "csb1-docmost-redis-1" },
+      "Paperless Postgres": { container: "csb1-paperless-db-1" },
+      "Paperless Redis": { container: "csb1-paperless-redis-1" },
+      "Paperless Tika": { container: "csb1-paperless-tika-1" },
+      "Paperless Gotenberg": { container: "csb1-paperless-gotenberg-1" },
+      "Zitadel Postgres": { container: "zitadel-postgres" },
+      restic: { container: "csb1-restic-cron-hetzner-1" },
+      "SMTP relay": { container: "csb1-smtp-1" },
+      "Container updates": { unit: "compose-csb1-update.timer" },
+      "pharos-beacon": { container: "pharos-beacon" },
+    },
   },
 };
 
@@ -463,6 +516,15 @@ try {
           } : null,
         };
       })()` : "null"},
+      hostBindings: Object.fromEntries([...document.querySelectorAll(".svc")].flatMap(card => {
+        const binding = {
+          ...(card.dataset.container ? { container: card.dataset.container } : {}),
+          ...(card.dataset.unit ? { unit: card.dataset.unit } : {}),
+          ...(card.dataset.extra ? { extra: card.dataset.extra } : {}),
+        };
+        const name = card.querySelector("h3")?.textContent;
+        return name && Object.keys(binding).length ? [[name, binding]] : [];
+      })),
       sameHostHref: sameHostCard?.href || null
     };
   })()`);
@@ -492,6 +554,20 @@ try {
   }
   if (initial.total !== String(expected.total)) {
     throw new Error(`Expected ${expected.total} active services, got ${JSON.stringify(initial)}`);
+  }
+  if (expected.bindings) {
+    const actualNames = Object.keys(initial.hostBindings).sort();
+    const expectedNames = Object.keys(expected.bindings).sort();
+    if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames)) {
+      throw new Error(`Host binding inventory drifted: ${JSON.stringify({ actualNames, expectedNames })}`);
+    }
+    for (const [name, binding] of Object.entries(expected.bindings)) {
+      if (JSON.stringify(initial.hostBindings[name]) !== JSON.stringify(binding)) {
+        throw new Error(
+          `Host binding for ${name} drifted: ${JSON.stringify({ actual: initial.hostBindings[name], expected: binding })}`,
+        );
+      }
+    }
   }
   if (!/^\d+$/.test(initial.online)) {
     throw new Error(`Online count is not numeric: ${JSON.stringify(initial)}`);

@@ -66,8 +66,8 @@ bindings and explicit `passive: false`. It also runs the same refresh assertions
 as config mode against hsb1's real Mosquitto binding, so manifest sanitization
 cannot silently fall back to browser-only truth.
 
-For hosts whose services are bound to containers or units (`hsb0`, `hsb1`), it
-also serves a synthetic `status/status.json` and rewrites it mid-session to check
+For every host, the smoke test also serves a synthetic `status/status.json` and
+rewrites it mid-session to check
 that the board re-reads host truth on every sweep rather than once at load, that
 an artifact older than `STATUS_MAX_AGE_MS` degrades to `unknown` instead of being
 trusted, and that host-side HTTP codes render as `Fault`/`OK on host`.

@@ -22,13 +22,13 @@ window.HOSTDASH_CONFIG = {
     { id: "housekeeping", name: "Housekeeping", color: "var(--infra)", icon: "refresh-cw" },
   ],
   services: [
-    { wing: "network", name: "AdGuard Home", purpose: "Local DNS, DHCP, filtering, and leases", icon: "logo-adguard", url: "http://hsb8.lan:3000/", sameHost: true, port: ":3000" },
+    { wing: "network", name: "AdGuard Home", unit: "adguardhome.service", purpose: "Local DNS, DHCP, filtering, and leases", icon: "logo-adguard", url: "http://hsb8.lan:3000/", sameHost: true, port: ":3000" },
 
-    { wing: "home", name: "Home Assistant", purpose: "Parents' home automation hub", icon: "logo-ha", url: "http://hsb8.lan:8123/", sameHost: true, port: ":8123" },
-    { wing: "home", name: "Mosquitto", purpose: "MQTT broker for local automations", icon: "logo-mqtt", passive: true, foot: ":1883 · broker" },
+    { wing: "home", name: "Home Assistant", container: "homeassistant", purpose: "Parents' home automation hub", icon: "logo-ha", url: "http://hsb8.lan:8123/", sameHost: true, port: ":8123" },
+    { wing: "home", name: "Mosquitto", container: "mosquitto", purpose: "MQTT broker for local automations", icon: "logo-mqtt", passive: true, foot: ":1883 · broker" },
 
-    { wing: "ops", name: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
+    { wing: "ops", name: "pharos-beacon", container: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
 
-    { wing: "housekeeping", name: "Watchtower", purpose: "Weekly updates for scoped containers", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
+    { wing: "housekeeping", name: "Container updates", unit: "compose-hsb8-update.timer", purpose: "Weekly updates for the compose stack", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
   ],
 };
