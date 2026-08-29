@@ -50,6 +50,7 @@ HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb9 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb1 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb8 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 ```
 
@@ -59,6 +60,11 @@ and verifies render counts, online counters, search hotkeys/filtering, Escape
 reset, zoom behavior, cert-flagged services, and that search/zoom controls remain
 in the responsive sidebar. Set `BROWSER_PATH` to use a different
 Chromium-compatible browser.
+
+The `hsb1` manifest run adds test-local sentinels for all three host-truth
+bindings and explicit `passive: false`. It also runs the same refresh assertions
+as config mode against hsb1's real Mosquitto binding, so manifest sanitization
+cannot silently fall back to browser-only truth.
 
 For hosts whose services are bound to containers or units (`hsb0`, `hsb1`), it
 also serves a synthetic `status/status.json` and rewrites it mid-session to check
@@ -102,6 +108,7 @@ HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb9 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=csb1 node scripts/smoke-ui.mjs
+HOSTDASH_HOST=hsb1 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb8 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 nix build .#hsb1 --no-link
 nix build .#hsb0 --no-link

@@ -13,6 +13,7 @@ const repoRoot = resolve(new URL("..", import.meta.url).pathname);
 const host = process.env.HOSTDASH_HOST || "hsb1";
 const configMode = process.env.HOSTDASH_CONFIG_MODE || "config";
 const manifestMode = configMode === "manifest";
+const manifestContractMode = manifestMode && host === "hsb1";
 // `total` is `cardIndex.length` — every card the board claims to track, i.e. active
 // services PLUS passive ones the host can vouch for (container/unit/extra). It is not
 // the service count. These drifted badly once HOSTD-7 started tracking passive cards
@@ -127,8 +128,14 @@ const expectedString = (envName, key) =>
     : defaults.hsb1[key]);
 const expected = {
   ...(defaults[host] || defaults.hsb1),
-  cards: Number(process.env.EXPECTED_CARDS || defaults[host]?.cards || defaults.hsb1.cards),
-  total: Number(process.env.EXPECTED_TOTAL || defaults[host]?.total || defaults.hsb1.total),
+  cards: Number(
+    process.env.EXPECTED_CARDS ||
+      (defaults[host]?.cards || defaults.hsb1.cards) + (manifestContractMode ? 2 : 0),
+  ),
+  total: Number(
+    process.env.EXPECTED_TOTAL ||
+      (defaults[host]?.total || defaults.hsb1.total) + (manifestContractMode ? 2 : 0),
+  ),
   searchName: expectedString("EXPECTED_SEARCH_NAME", "searchName"),
   searchTerm: expectedString("EXPECTED_SEARCH_TERM", "searchTerm"),
   certService: expectedString("EXPECTED_CERT_SERVICE", "certService"),
@@ -150,6 +157,28 @@ async function readHostConfig(hostName) {
 }
 
 function manifestFromConfig(config) {
+  const contractSentinels = config.slug === "hsb1"
+    ? [
+        {
+          wing: config.wings[0].id,
+          name: "Manifest binding sentinel",
+          purpose: "Exercises every host-truth binding",
+          icon: "server",
+          passive: true,
+          container: "manifest-container",
+          unit: "manifest-unit.service",
+          extra: "manifest-extra",
+        },
+        {
+          wing: config.wings[0].id,
+          name: "Manifest passive sentinel",
+          purpose: "Pins explicit passive false without a URL",
+          icon: "server",
+          passive: false,
+          status: "external",
+        },
+      ]
+    : [];
   return {
     schema: "inspr.hostdash.config.v1",
     version: 1,
@@ -177,9 +206,12 @@ function manifestFromConfig(config) {
       zellij: {},
     },
     wings: config.wings.map((wing, index) => index === 0 ? { ...wing, color: 42 } : wing),
-    services: config.services.map((service, index) =>
-      index === 0 ? { ...service, urls: "invalid optional field", note: 42 } : service
-    ),
+    services: [
+      ...config.services.map((service, index) =>
+        index === 0 ? { ...service, urls: "invalid optional field", note: 42 } : service
+      ),
+      ...contractSentinels,
+    ],
     policy: {
       declaredOnly: true,
       runtimeStateOwner: "pharos",
@@ -413,6 +445,24 @@ try {
           .find(item => item.querySelector("h3")?.textContent === name);
         return [name, card?.querySelector(".state")?.dataset.s || null];
       })),
+      manifestContract: ${manifestContractMode ? `(() => {
+        const byName = name => [...document.querySelectorAll(".svc")]
+          .find(card => card.querySelector("h3")?.textContent === name);
+        const binding = byName("Manifest binding sentinel");
+        const explicitActive = byName("Manifest passive sentinel");
+        return {
+          binding: binding ? {
+            container: binding.dataset.container || null,
+            unit: binding.dataset.unit || null,
+            extra: binding.dataset.extra || null,
+            passive: binding.classList.contains("passive"),
+          } : null,
+          explicitActive: explicitActive ? {
+            tag: explicitActive.tagName,
+            passive: explicitActive.classList.contains("passive"),
+          } : null,
+        };
+      })()` : "null"},
       sameHostHref: sameHostCard?.href || null
     };
   })()`);
@@ -425,6 +475,20 @@ try {
   }
   if (manifestMode && initial.manifestAccent.toLowerCase() !== "#e09051") {
     throw new Error(`Manifest palette was not applied: ${JSON.stringify(initial)}`);
+  }
+  if (manifestContractMode) {
+    const contract = initial.manifestContract;
+    if (
+      contract?.binding?.container !== "manifest-container" ||
+      contract.binding.unit !== "manifest-unit.service" ||
+      contract.binding.extra !== "manifest-extra" ||
+      contract.binding.passive !== true
+    ) {
+      throw new Error(`Manifest host-truth bindings were not preserved: ${JSON.stringify(initial)}`);
+    }
+    if (contract?.explicitActive?.tag !== "A" || contract.explicitActive.passive !== false) {
+      throw new Error(`Manifest passive derivation disagrees with config.js: ${JSON.stringify(initial)}`);
+    }
   }
   if (initial.total !== String(expected.total)) {
     throw new Error(`Expected ${expected.total} active services, got ${JSON.stringify(initial)}`);
