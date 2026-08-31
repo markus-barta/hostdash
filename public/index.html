@@ -1454,6 +1454,13 @@ document.addEventListener("keydown", event => {
 });
 
 function setStatus(card, state, label) {
+  // Reachability decoration belongs to one host-truth revision. Every status
+  // transition first restores the card's stable presentation so an old host HTTP
+  // success cannot survive as a contradictory tooltip or data attribute after the
+  // service becomes Unknown/Stopped (or after a live artifact omits HTTP evidence).
+  delete card.dataset.hostOk;
+  if (card.dataset.note) card.title = card.dataset.note;
+  else card.removeAttribute("title");
   const badge = card.querySelector(".state");
   badge.dataset.s = state;
   // `label` lets a service that publishes real telemetry name its own condition —
@@ -1581,13 +1588,14 @@ function probe(card, hostState, hostHttp, truthRevision) {
       if (truthRevision !== TRUTH_REVISION) return;
       if (hostState !== "running") return setStatus(card, "down");
       if (hostHttp?.kind === "ok") {
+        setStatus(card, "unreachable", "OK on host");
         card.dataset.hostOk = String(hostHttp.code);
         const note = card.dataset.note;
         card.title =
           `Running, and the host itself gets HTTP ${hostHttp.code} from it. Only this browser ` +
           `cannot reach it — self-signed certificate, wrong network, or VPN.` +
           (note ? ` (${note})` : "");
-        return setStatus(card, "unreachable", "OK on host");
+        return;
       }
       setStatus(card, "unreachable");
     })

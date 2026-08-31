@@ -497,6 +497,7 @@ try {
       window.HOSTDASH_SWEEP_MS = ${sweepMs};
       window.__hostdashProbeCalls = [];
       window.__hostdashProbeDelayMs = 0;
+      window.__hostdashProbeReject = false;
       const hostdashRealSetInterval = window.setInterval.bind(window);
       window.setInterval = (callback, delay, ...args) => {
         const timer = hostdashRealSetInterval(callback, delay, ...args);
@@ -510,8 +511,10 @@ try {
       window.fetch = (input, init = {}) => {
         if (init.mode === "no-cors") {
           window.__hostdashProbeCalls.push(String(input));
-          return new Promise(resolve => setTimeout(
-            () => resolve(new Response("", { status: 200 })),
+          return new Promise((resolve, reject) => setTimeout(
+            () => window.__hostdashProbeReject
+              ? reject(new TypeError("synthetic reachability failure"))
+              : resolve(new Response("", { status: 200 })),
             window.__hostdashProbeDelayMs,
           ));
         }
@@ -791,7 +794,64 @@ try {
       throw new Error(`Expected ${expected.httpCard} up or unreachable on HTTP 200, got ${JSON.stringify(ok)}`);
     }
 
-    httpStates = { fault, silent, ok };
+    const stablePresentation = await value(`(() => {
+      const card = [...document.querySelectorAll(".svc")]
+        .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(expected.httpCard)});
+      return { note: card?.dataset.note || null, title: card?.title || null };
+    })()`);
+    await value("window.__hostdashProbeReject = true; true");
+    const decorated = await withHttp(200);
+    if (
+      decorated.state !== "unreachable" ||
+      decorated.hostOk !== "200" ||
+      !/HTTP 200/.test(decorated.title || "")
+    ) {
+      throw new Error(`Host-confirmed unreachable decoration missing: ${JSON.stringify(decorated)}`);
+    }
+
+    await localPage.writeStatus({});
+    const unknownAfterHttp = await sampleCard(expected.httpCard);
+    if (
+      unknownAfterHttp.state !== "unknown" ||
+      unknownAfterHttp.hostOk !== null ||
+      unknownAfterHttp.title !== stablePresentation.title
+    ) {
+      throw new Error(
+        `Unknown state retained stale HTTP decoration: ${JSON.stringify({ stablePresentation, unknownAfterHttp })}`,
+      );
+    }
+
+    await withHttp(200);
+    await localPage.writeStatus({
+      [expected.truthContainer]: { running: true },
+      [expected.httpContainer]: { running: false },
+    });
+    const stoppedAfterHttp = await sampleCard(expected.httpCard);
+    if (
+      stoppedAfterHttp.state !== "stopped" ||
+      stoppedAfterHttp.hostOk !== null ||
+      stoppedAfterHttp.title !== stablePresentation.title
+    ) {
+      throw new Error(
+        `Stopped state retained stale HTTP decoration: ${JSON.stringify({ stablePresentation, stoppedAfterHttp })}`,
+      );
+    }
+
+    await withHttp(200);
+    await localPage.writeStatus(base);
+    const omittedHttp = await sampleCard(expected.httpCard);
+    await value("window.__hostdashProbeReject = false; true");
+    if (
+      omittedHttp.state !== "unreachable" ||
+      omittedHttp.hostOk !== null ||
+      omittedHttp.title !== stablePresentation.title
+    ) {
+      throw new Error(
+        `Live truth without HTTP inherited stale decoration: ${JSON.stringify({ stablePresentation, omittedHttp })}`,
+      );
+    }
+
+    httpStates = { fault, silent, ok, decorated, unknownAfterHttp, stoppedAfterHttp, omittedHttp };
   }
 
   // ── AUTHORITATIVE BINDING CONTRACT (HOSTD-17) ─────────────────────────────
