@@ -847,6 +847,12 @@ try {
       "unknown",
       "stale",
     );
+    const future = await assertCase(
+      "Future-dated",
+      () => localPage.writeStatus(running.containers, -86400, {}, running.units, running.extras),
+      "unknown",
+      "none",
+    );
     const absent = await assertCase(
       "Absent",
       () => localPage.removeStatus(),
@@ -865,7 +871,7 @@ try {
       binding => (binding.extra ? "fault" : "stopped"),
       "live",
     );
-    bindingTruth = { missing, stale, absent, invalid, stopped: stoppedState };
+    bindingTruth = { missing, stale, future, absent, invalid, stopped: stoppedState };
 
     if (host === "csb1" && !manifestMode) {
       // Two refreshes may overlap because setInterval does not await the previous sweep.

@@ -1063,7 +1063,15 @@ async function loadHostStatus() {
     ) {
       return { status: null, truth: { state: "none", detail: "invalid status artifact" } };
     }
-    const ageSec = Math.max(0, Math.round(Date.now() / 1000 - generated));
+    const nowSec = Date.now() / 1000;
+    // A future timestamp cannot be evidence about the current host. Clamping a
+    // negative age to zero made a clock-corrupt artifact look freshly measured and
+    // allowed it to remain trusted until wall time caught up—potentially for days.
+    // Fail closed instead; the next correctly dated generator run recovers normally.
+    if (generated > nowSec) {
+      return { status: null, truth: { state: "none", detail: "invalid status artifact" } };
+    }
+    const ageSec = Math.round(nowSec - generated);
 
     // STALE IS NOT HEALTHY. The generator runs every 60s; if the file has gone quiet,
     // the states in it describe a host as it was, not as it is. Serving that as fact
