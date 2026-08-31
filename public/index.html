@@ -1033,6 +1033,7 @@ const SWEEP_MS = Number(window.HOSTDASH_SWEEP_MS) || 25000 + Math.random() * 100
 let HOST_STATUS = null;
 let TRUTH = { state: "none", detail: "" }; // "live" | "stale" | "none"
 let TRUTH_REVISION = 0;
+let STATUS_REQUEST_REVISION = 0;
 
 async function loadHostStatus() {
   // Bounded, because this now runs on every sweep rather than once. A same-origin
@@ -1044,13 +1045,11 @@ async function loadHostStatus() {
   try {
     const response = await fetch(STATUS_URL, { cache: "no-store", signal: controller.signal });
     if (!response.ok) {
-      TRUTH = { state: "none", detail: "no status artifact" };
-      return null;
+      return { status: null, truth: { state: "none", detail: "no status artifact" } };
     }
     const data = await response.json();
     if (!isObject(data)) {
-      TRUTH = { state: "none", detail: "invalid status artifact" };
-      return null;
+      return { status: null, truth: { state: "none", detail: "invalid status artifact" } };
     }
     const generated = data.generated;
     if (
@@ -1062,8 +1061,7 @@ async function loadHostStatus() {
       !isObject(data.extras) ||
       (data.http !== undefined && !isObject(data.http))
     ) {
-      TRUTH = { state: "none", detail: "invalid status artifact" };
-      return null;
+      return { status: null, truth: { state: "none", detail: "invalid status artifact" } };
     }
     const ageSec = Math.max(0, Math.round(Date.now() / 1000 - generated));
 
@@ -1073,19 +1071,22 @@ async function loadHostStatus() {
     // exact bug this ticket exists to remove, reintroduced one layer down. So we drop
     // it entirely and go back to guessing — but we SAY that we are guessing.
     if (ageSec * 1000 > STATUS_MAX_AGE_MS) {
-      TRUTH = { state: "stale", detail: `status ${fmtAge(ageSec)} old — ignoring` };
-      console.warn(`[hostdash] status artifact is stale (${ageSec}s) — ignoring`);
-      return null;
+      return {
+        status: null,
+        truth: { state: "stale", detail: `status ${fmtAge(ageSec)} old — ignoring` },
+        warning: `[hostdash] status artifact is stale (${ageSec}s) — ignoring`,
+      };
     }
 
-    TRUTH = { state: "live", detail: `host truth · ${fmtAge(ageSec)} ago` };
-    return data;
+    return {
+      status: data,
+      truth: { state: "live", detail: `host truth · ${fmtAge(ageSec)} ago` },
+    };
   } catch {
     // Bound cards must stop at Unknown when their authoritative artifact is absent.
     // Unbound legacy cards may still use browser reachability, but it can never
     // substitute for a declared container, unit, or telemetry binding.
-    TRUTH = { state: "none", detail: "no status artifact" };
-    return null;
+    return { status: null, truth: { state: "none", detail: "no status artifact" } };
   } finally {
     clearTimeout(timeout);
   }
@@ -1103,10 +1104,17 @@ async function loadHostStatus() {
 // showing green forever was itself evaluated exactly once, at the only moment the data
 // was guaranteed fresh. The protection existed and could not engage, which is the most
 // expensive kind of safety code: it buys confidence and delivers nothing.
-async function refreshHostStatus() {
-  HOST_STATUS = await loadHostStatus();
+async function refreshHostStatus(requestRevision) {
+  const result = await loadHostStatus();
+  if (requestRevision !== STATUS_REQUEST_REVISION) return false;
+
+  HOST_STATUS = result.status;
+  TRUTH = result.truth;
+  TRUTH_REVISION = requestRevision;
+  if (result.warning) console.warn(result.warning);
   document.documentElement.dataset.hostTruth = HOST_STATUS ? "live" : "absent";
   renderTruth();
+  return true;
 }
 
 function fmtAge(sec) {
@@ -1585,8 +1593,9 @@ async function sweep() {
   // Host truth first, every time. The probes below are refinements of it, so reading a
   // snapshot from whenever the tab was opened would make each sweep re-decorate a fact
   // that expired days ago.
-  await refreshHostStatus();
-  const truthRevision = ++TRUTH_REVISION;
+  const requestRevision = ++STATUS_REQUEST_REVISION;
+  if (!(await refreshHostStatus(requestRevision))) return;
+  const truthRevision = TRUTH_REVISION;
 
   let index = 0;
   const queue = [...cardIndex];

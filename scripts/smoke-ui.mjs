@@ -298,6 +298,7 @@ function manifestFromConfig(config) {
 }
 
 async function serveDirectory(root) {
+  const statusResponses = [];
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://127.0.0.1");
     const name = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
@@ -308,6 +309,13 @@ async function serveDirectory(root) {
     }
 
     try {
+      if (name === "status/status.json" && statusResponses.length > 0) {
+        const planned = statusResponses.shift();
+        await new Promise(resolve => setTimeout(resolve, planned.delayMs));
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify(planned.artifact));
+        return;
+      }
       const file = await readFile(join(root, name));
       const type = name.endsWith(".html")
         ? "text/html; charset=utf-8"
@@ -328,6 +336,7 @@ async function serveDirectory(root) {
   const address = server.address();
   return {
     url: `http://127.0.0.1:${address.port}/index.html`,
+    queueStatusResponses: responses => statusResponses.push(...responses),
     cleanup: () => new Promise(resolve => server.close(resolve)),
   };
 }
@@ -346,6 +355,14 @@ async function localPageUrl() {
   }
   const server = await serveDirectory(site);
   const statusPath = join(site, "status", "status.json");
+  const statusArtifact = (containers, ageSec = 0, http = {}, units = {}, extras = {}) => ({
+    schema: "inspr.hostdash.status.v1",
+    generated: Math.floor(Date.now() / 1000) - ageSec,
+    containers,
+    units,
+    extras,
+    http,
+  });
   return {
     url: server.url,
     // ageSec lets a test hand the board a deliberately old artifact and watch it
@@ -353,14 +370,7 @@ async function localPageUrl() {
     writeStatus: async (containers, ageSec = 0, http = {}, units = {}, extras = {}) =>
       writeFile(
         statusPath,
-        JSON.stringify({
-          schema: "inspr.hostdash.status.v1",
-          generated: Math.floor(Date.now() / 1000) - ageSec,
-          containers,
-          units,
-          extras,
-          http,
-        }),
+        JSON.stringify(statusArtifact(containers, ageSec, http, units, extras)),
       ),
     writeInvalidStatus: async () =>
       writeFile(
@@ -374,6 +384,13 @@ async function localPageUrl() {
         }),
       ),
     removeStatus: async () => rm(statusPath, { force: true }),
+    queueStatusResponses: responses =>
+      server.queueStatusResponses(
+        responses.map(({ delayMs, containers, units = {}, extras = {}, http = {} }) => ({
+          delayMs,
+          artifact: statusArtifact(containers, 0, http, units, extras),
+        })),
+      ),
     cleanup: async () => {
       await server.cleanup();
       await rm(site, { recursive: true, force: true });
@@ -479,11 +496,24 @@ try {
     source: `
       window.HOSTDASH_SWEEP_MS = ${sweepMs};
       window.__hostdashProbeCalls = [];
+      window.__hostdashProbeDelayMs = 0;
+      const hostdashRealSetInterval = window.setInterval.bind(window);
+      window.setInterval = (callback, delay, ...args) => {
+        const timer = hostdashRealSetInterval(callback, delay, ...args);
+        if (delay === window.HOSTDASH_SWEEP_MS) {
+          window.__hostdashSweep = callback;
+          window.__hostdashSweepTimer = timer;
+        }
+        return timer;
+      };
       const hostdashRealFetch = window.fetch.bind(window);
       window.fetch = (input, init = {}) => {
         if (init.mode === "no-cors") {
           window.__hostdashProbeCalls.push(String(input));
-          return Promise.resolve(new Response("", { status: 200 }));
+          return new Promise(resolve => setTimeout(
+            () => resolve(new Response("", { status: 200 })),
+            window.__hostdashProbeDelayMs,
+          ));
         }
         return hostdashRealFetch(input, init);
       };
@@ -509,6 +539,21 @@ try {
     })()`);
   };
   const sampleTruth = () => sampleCard(expected.truthCard);
+  const readCardState = name =>
+    value(`(() => {
+      const card = [...document.querySelectorAll(".svc")]
+        .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(name)});
+      return card?.querySelector(".state")?.dataset.s || null;
+    })()`);
+  const waitForCardState = async (name, wanted, timeoutMs = sweepMs * 8) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const actual = await readCardState(name);
+      if (actual === wanted) return actual;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error(`${name} did not reach ${wanted}; final state ${await readCardState(name)}`);
+  };
 
   const initial = await value(`(() => {
     const certName = ${JSON.stringify(expected.certService)};
@@ -821,6 +866,104 @@ try {
       "live",
     );
     bindingTruth = { missing, stale, absent, invalid, stopped: stoppedState };
+
+    if (host === "csb1" && !manifestMode) {
+      // Two refreshes may overlap because setInterval does not await the previous sweep.
+      // The first response is deliberately older and slower. Once the second response
+      // has committed "running", the delayed "stopped" answer must never paint the card.
+      await localPage.writeStatus(running.containers, 0, {}, running.units, running.extras);
+      await value(`(() => {
+        clearInterval(window.__hostdashSweepTimer);
+        const card = [...document.querySelectorAll(".svc")]
+          .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(expected.truthCard)});
+        window.__hostdashStateHistory = [];
+        window.__hostdashStateObserver?.disconnect();
+        window.__hostdashStateObserver = new MutationObserver(() => {
+          window.__hostdashStateHistory.push(card?.querySelector(".state")?.dataset.s || null);
+        });
+        window.__hostdashStateObserver.observe(card.querySelector(".state"), {
+          attributes: true,
+          attributeFilter: ["data-s"],
+        });
+        return true;
+      })()`);
+      localPage.queueStatusResponses([
+        { delayMs: sweepMs * 3, ...stopped },
+        { delayMs: 0, ...running },
+      ]);
+      await value(`
+        window.__hostdashRefreshRace = (async () => {
+          const older = window.__hostdashSweep();
+          await new Promise(resolve => setTimeout(resolve, 50));
+          const newer = window.__hostdashSweep();
+          await Promise.all([older, newer]);
+        })();
+        true
+      `);
+      await waitForCardState(expected.truthCard, "running", sweepMs * 4);
+      await value("window.__hostdashStateHistory = []; true");
+      await value("window.__hostdashRefreshRace");
+      await new Promise(resolve => setTimeout(resolve, sweepMs * 2));
+      const refreshRace = await value(`({
+        state: (() => {
+          const card = [...document.querySelectorAll(".svc")]
+            .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(expected.truthCard)});
+          return card?.querySelector(".state")?.dataset.s || null;
+        })(),
+        history: window.__hostdashStateHistory,
+      })`);
+      if (refreshRace.state !== "running" || refreshRace.history.includes("stopped")) {
+        throw new Error(`Older host truth overwrote newer truth: ${JSON.stringify(refreshRace)}`);
+      }
+
+      // A reachability probe may also resolve after fresher host truth. It may not
+      // repaint a stopped bound service Online once the new truth has committed.
+      await value(`
+        window.__hostdashProbeDelayMs = ${sweepMs * 5};
+        window.__hostdashProbeCalls = [];
+        true
+      `);
+      await localPage.writeStatus(running.containers, 0, {}, running.units, running.extras);
+      await value("window.__hostdashSweep()");
+      const probeDeadline = Date.now() + sweepMs * 4;
+      while (Date.now() < probeDeadline) {
+        if (await value("window.__hostdashProbeCalls.length > 0")) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      if (!(await value("window.__hostdashProbeCalls.length > 0"))) {
+        throw new Error("Expected a delayed browser probe before replacing host truth");
+      }
+      await localPage.writeStatus(stopped.containers, 0, {}, stopped.units, stopped.extras);
+      await value("window.__hostdashSweep()");
+      await waitForCardState(expected.httpCard, "stopped", sweepMs * 4);
+      await value(`(() => {
+        const card = [...document.querySelectorAll(".svc")]
+          .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(expected.httpCard)});
+        window.__hostdashStateHistory = [];
+        window.__hostdashStateObserver?.disconnect();
+        window.__hostdashStateObserver = new MutationObserver(() => {
+          window.__hostdashStateHistory.push(card?.querySelector(".state")?.dataset.s || null);
+        });
+        window.__hostdashStateObserver.observe(card.querySelector(".state"), {
+          attributes: true,
+          attributeFilter: ["data-s"],
+        });
+        return true;
+      })()`);
+      await new Promise(resolve => setTimeout(resolve, sweepMs * 6));
+      const staleProbe = await value(`({
+        state: (() => {
+          const card = [...document.querySelectorAll(".svc")]
+            .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(expected.httpCard)});
+          return card?.querySelector(".state")?.dataset.s || null;
+        })(),
+        history: window.__hostdashStateHistory,
+      })`);
+      await value("window.__hostdashProbeDelayMs = 0; true");
+      if (staleProbe.state !== "stopped" || staleProbe.history.includes("up")) {
+        throw new Error(`Stale browser probe overwrote newer host truth: ${JSON.stringify(staleProbe)}`);
+      }
+    }
   }
 
   await send("Emulation.setDeviceMetricsOverride", {
