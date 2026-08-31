@@ -94,7 +94,15 @@ on a 500 exactly as on a 200 — so only the host can distinguish a broken servi
 from an unreachable one. `code >= 500` renders as `Fault`, `code: 0` (curl got no
 response at all) as `Fault · no answer`, and a good code paired with a failing
 browser probe as `OK on host`: running and answering, just not reachable from
-here. Omit the section entirely and every card falls back to probe-only behavior.
+here. If `http` is omitted, a running active card retains the pre-HOSTD-12
+reachability refinement; the runtime binding remains authoritative.
+
+A declared `container`, `unit`, or `extra` binding is authoritative. If its entry
+is missing, malformed, stale, or unavailable, the card reads `Unknown` and does
+not fall back to a browser probe. Presentation states such as `protected` and
+`external` still preserve their link, note, and no-probe policy, but they cannot
+override runtime truth on a bound card. Unbound legacy cards retain their static
+or browser-reachability behavior.
 
 ## QA Checklist
 
