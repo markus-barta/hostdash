@@ -1032,6 +1032,7 @@ const SWEEP_MS = Number(window.HOSTDASH_SWEEP_MS) || 25000 + Math.random() * 100
 
 let HOST_STATUS = null;
 let TRUTH = { state: "none", detail: "" }; // "live" | "stale" | "none"
+let TRUTH_REVISION = 0;
 
 async function loadHostStatus() {
   // Bounded, because this now runs on every sweep rather than once. A same-origin
@@ -1047,11 +1048,24 @@ async function loadHostStatus() {
       return null;
     }
     const data = await response.json();
-    if (data.schema !== "inspr.hostdash.status.v1") {
-      TRUTH = { state: "none", detail: "unknown status schema" };
+    if (!isObject(data)) {
+      TRUTH = { state: "none", detail: "invalid status artifact" };
       return null;
     }
-    const ageSec = Math.max(0, Math.round(Date.now() / 1000 - (Number(data.generated) || 0)));
+    const generated = data.generated;
+    if (
+      data.schema !== "inspr.hostdash.status.v1" ||
+      typeof generated !== "number" ||
+      !Number.isFinite(generated) ||
+      !isObject(data.containers) ||
+      !isObject(data.units) ||
+      !isObject(data.extras) ||
+      (data.http !== undefined && !isObject(data.http))
+    ) {
+      TRUTH = { state: "none", detail: "invalid status artifact" };
+      return null;
+    }
+    const ageSec = Math.max(0, Math.round(Date.now() / 1000 - generated));
 
     // STALE IS NOT HEALTHY. The generator runs every 60s; if the file has gone quiet,
     // the states in it describe a host as it was, not as it is. Serving that as fact
@@ -1067,9 +1081,10 @@ async function loadHostStatus() {
     TRUTH = { state: "live", detail: `host truth · ${fmtAge(ageSec)} ago` };
     return data;
   } catch {
-    // Absent or unreachable is FINE — we fall back to probe-only and simply know less.
-    // Degrading to ignorance is correct. Degrading to green is not.
-    TRUTH = { state: "none", detail: "no status artifact — probes only" };
+    // Bound cards must stop at Unknown when their authoritative artifact is absent.
+    // Unbound legacy cards may still use browser reachability, but it can never
+    // substitute for a declared container, unit, or telemetry binding.
+    TRUTH = { state: "none", detail: "no status artifact" };
     return null;
   } finally {
     clearTimeout(timeout);
@@ -1108,23 +1123,7 @@ function renderTruth() {
   row.title =
     TRUTH.state === "live"
       ? "The host itself reports which containers and units are running. States on this board are measured, not guessed."
-      : "No usable host status. Every state below is inferred from a browser probe, which cannot read a status code — a service may be running and still show as unreachable.";
-}
-
-// "running" | "stopped" | null (= no host truth for this service; do not guess)
-function hostStateFor(service) {
-  if (!HOST_STATUS) return null;
-  if (service.container) {
-    const entry = HOST_STATUS.containers?.[service.container];
-    if (!entry) return null;
-    return entry.running ? "running" : "stopped";
-  }
-  if (service.unit) {
-    const entry = HOST_STATUS.units?.[service.unit];
-    if (!entry) return null;
-    return entry.running ? "running" : "stopped";
-  }
-  return null;
+      : "No usable host status. Bound services stay Unknown; only unbound legacy cards may use browser reachability.";
 }
 
 const CONFIG = await loadHostdashConfig();
@@ -1253,7 +1252,7 @@ WINGS.forEach(wing => {
       card.dataset.note = service.note; // kept so HOSTD-12 can compose, not clobber
     }
 
-    const status = service.status || (active || tracked ? "checking" : "passive");
+    const status = tracked ? "checking" : service.status || (active ? "checking" : "passive");
     const statusLabel = statusText(status);
     const foot = active
       ? `<span class="port">${service.port}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
@@ -1446,16 +1445,20 @@ function setStatus(card, state, label) {
   badge.querySelector(".state-label").textContent = label || statusText(state);
 }
 
-// What the host says about this card: "running" | "stopped" | null.
+// What the host says about this card: "running" | "stopped" | "unknown".
+// Null means the card has no container/unit binding at all. Once a binding is
+// declared, absent/invalid truth is authoritative ignorance and must never fall
+// through to a browser probe.
 function cardHostState(card) {
-  if (!HOST_STATUS) return null;
   const { container, unit } = card.dataset;
+  if (!container && !unit) return null;
+  if (!HOST_STATUS) return "unknown";
   const entry = container
     ? HOST_STATUS.containers?.[container]
     : unit
       ? HOST_STATUS.units?.[unit]
       : null;
-  if (!entry) return null;
+  if (!isObject(entry) || typeof entry.running !== "boolean") return "unknown";
   return entry.running ? "running" : "stopped";
 }
 
@@ -1477,13 +1480,14 @@ function cardHostState(card) {
 // The real fault is the opposite and far quieter: desired > 0 while actual is 0, i.e.
 // the parents believe the monitor is on and it is silent. That reads as a fault, loudly.
 function extraState(card) {
-  if (!HOST_STATUS) return null;
   const key = card.dataset.extra;
   if (!key) return null;
+  if (!HOST_STATUS) return { state: "unknown", label: "No telemetry" };
   const x = HOST_STATUS.extras?.[key];
   if (!x || typeof x !== "object") return { state: "unknown", label: "No telemetry" };
 
-  if (x.health && x.health !== "OK") {
+  if (typeof x.health !== "string") return { state: "unknown", label: "Invalid telemetry" };
+  if (x.health !== "OK") {
     // Show the actual failure mode (AUDIO_DEAD, VIDEO_STALE, VOLUME_DRIFT …) rather
     // than a generic "Down". Naming the fault is most of the diagnosis.
     return { state: "fault", label: String(x.health).replace(/_/g, " ").toLowerCase() };
@@ -1544,18 +1548,21 @@ function hostHttpFor(card) {
 //   host running + probe fail -> "unreachable"  — running; YOUR path to it is broken
 //                                (self-signed cert, wrong network, Tailscale, CORP).
 //                                Emphatically NOT "Down". The service is fine.
-//   no host truth + probe ok   -> "up"          — legacy behaviour, all we can say
-//   no host truth + probe fail -> "down"        — legacy behaviour, honestly ambiguous
+//   unbound + probe ok         -> "up"          — legacy behaviour, all we can say
+//   unbound + probe fail       -> "down"        — legacy behaviour, honestly ambiguous
 //
 // HOSTD-12 sharpens only the middle case. When the host's own HTTP check got a real
 // answer, "Unreachable" is an understatement bordering on a lie — the service is proven
 // healthy and the fault is entirely in this browser's path to it. Say that instead.
-function probe(card, hostState, hostHttp) {
+function probe(card, hostState, hostHttp, truthRevision) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
   fetch(card.dataset.probe, { mode: "no-cors", signal: controller.signal })
-    .then(() => setStatus(card, "up"))
+    .then(() => {
+      if (truthRevision === TRUTH_REVISION) setStatus(card, "up");
+    })
     .catch(() => {
+      if (truthRevision !== TRUTH_REVISION) return;
       if (hostState !== "running") return setStatus(card, "down");
       if (hostHttp?.kind === "ok") {
         card.dataset.hostOk = String(hostHttp.code);
@@ -1570,7 +1577,7 @@ function probe(card, hostState, hostHttp) {
     })
     .finally(() => {
       clearTimeout(timeout);
-      counts();
+      if (truthRevision === TRUTH_REVISION) counts();
     });
 }
 
@@ -1579,6 +1586,7 @@ async function sweep() {
   // snapshot from whenever the tab was opened would make each sweep re-decorate a fact
   // that expired days ago.
   await refreshHostStatus();
+  const truthRevision = ++TRUTH_REVISION;
 
   let index = 0;
   const queue = [...cardIndex];
@@ -1587,12 +1595,6 @@ async function sweep() {
     const batch = queue.slice(index, index + 5);
     index += 5;
     batch.forEach(card => {
-      if (card.dataset.staticState) {
-        setStatus(card, card.dataset.staticState);
-        counts();
-        return;
-      }
-
       // A service that publishes its own health outranks everything else: it is the
       // only signal here that reflects what the service is actually DOING, rather than
       // merely that it exists.
@@ -1604,6 +1606,15 @@ async function sweep() {
       }
 
       const host = cardHostState(card);
+
+      // A declared binding is authoritative even when its answer is "I do not know".
+      // Falling through here would let a reachable login page paint a missing/stale
+      // runtime process Online, defeating the entire host-truth contract.
+      if (host === "unknown") {
+        setStatus(card, "unknown");
+        counts();
+        return;
+      }
 
       // The host says it is NOT running. That is authoritative and needs no probe —
       // and it is the one thing the old dashboard could never tell you, because an
@@ -1633,6 +1644,15 @@ async function sweep() {
         return;
       }
 
+      // Static states describe presentation for cards without runtime bindings.
+      // Bound cards (including protected Janus and external INSPR) keep their link,
+      // note, and probe policy, but their badge is driven by the host verdict above.
+      if (host === null && card.dataset.staticState) {
+        setStatus(card, card.dataset.staticState);
+        counts();
+        return;
+      }
+
       // Nothing to probe (no HTTP endpoint). Previously these were drawn as inert
       // "Passive" chips and excluded from the counts entirely. Now the host can
       // actually answer for them.
@@ -1643,7 +1663,7 @@ async function sweep() {
       }
 
       setStatus(card, "checking");
-      probe(card, host, hostHttp);
+      probe(card, host, hostHttp, truthRevision);
     });
     setTimeout(next, 300);
   })();

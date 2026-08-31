@@ -198,6 +198,27 @@ const expected = {
   configSource: process.env.EXPECTED_CONFIG_SOURCE || (manifestMode ? "manifest-json" : "config-js"),
 };
 
+function artifactForBindings(bindings, running) {
+  const containers = [];
+  const units = [];
+  const extras = [];
+  for (const binding of Object.values(bindings || {})) {
+    if (binding.container) containers.push([binding.container, { running }]);
+    if (binding.unit) units.push([binding.unit, { running }]);
+    if (binding.extra) {
+      extras.push([
+        binding.extra,
+        running ? { health: "OK" } : { health: "STOPPED" },
+      ]);
+    }
+  }
+  return {
+    containers: Object.fromEntries(containers),
+    units: Object.fromEntries(units),
+    extras: Object.fromEntries(extras),
+  };
+}
+
 async function readHostConfig(hostName) {
   const configPath = join(repoRoot, "hosts", hostName, "config.js");
   const source = await readFile(configPath, "utf8");
@@ -324,22 +345,35 @@ async function localPageUrl() {
     await writeFile(join(site, "manifest.json"), JSON.stringify(manifestFromConfig(config), null, 2));
   }
   const server = await serveDirectory(site);
+  const statusPath = join(site, "status", "status.json");
   return {
     url: server.url,
     // ageSec lets a test hand the board a deliberately old artifact and watch it
     // degrade to "stale" instead of trusting it.
-    writeStatus: async (containers, ageSec = 0, http = {}) =>
+    writeStatus: async (containers, ageSec = 0, http = {}, units = {}, extras = {}) =>
       writeFile(
-        join(site, "status", "status.json"),
+        statusPath,
         JSON.stringify({
           schema: "inspr.hostdash.status.v1",
           generated: Math.floor(Date.now() / 1000) - ageSec,
           containers,
-          units: {},
-          extras: {},
+          units,
+          extras,
           http,
         }),
       ),
+    writeInvalidStatus: async () =>
+      writeFile(
+        statusPath,
+        JSON.stringify({
+          schema: "inspr.hostdash.status.v1",
+          generated: Math.floor(Date.now() / 1000),
+          containers: [],
+          units: {},
+          extras: {},
+        }),
+      ),
+    removeStatus: async () => rm(statusPath, { force: true }),
     cleanup: async () => {
       await server.cleanup();
       await rm(site, { recursive: true, force: true });
@@ -442,7 +476,18 @@ try {
   // rather than an injected tag. Compresses the ~30s production sweep to something a test
   // can sit through without making the app aware it is being tested.
   await send("Page.addScriptToEvaluateOnNewDocument", {
-    source: `window.HOSTDASH_SWEEP_MS = ${sweepMs};`,
+    source: `
+      window.HOSTDASH_SWEEP_MS = ${sweepMs};
+      window.__hostdashProbeCalls = [];
+      const hostdashRealFetch = window.fetch.bind(window);
+      window.fetch = (input, init = {}) => {
+        if (init.mode === "no-cors") {
+          window.__hostdashProbeCalls.push(String(input));
+          return Promise.resolve(new Response("", { status: 200 }));
+        }
+        return hostdashRealFetch(input, init);
+      };
+    `,
   });
   await send("Page.navigate", { url: pageUrl });
   await new Promise(resolve => setTimeout(resolve, 2500));
@@ -496,7 +541,13 @@ try {
       staticStates: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticStates || {})}).map(name => {
         const card = [...document.querySelectorAll(".svc")]
           .find(item => item.querySelector("h3")?.textContent === name);
-        return [name, card?.querySelector(".state")?.dataset.s || null];
+        return [name, {
+          state: card?.querySelector(".state")?.dataset.s || null,
+          staticState: card?.dataset.staticState || null,
+          href: card?.href || null,
+          note: card?.dataset.note || null,
+          probed: Boolean(card?.dataset.probe),
+        }];
       })),
       manifestContract: ${manifestContractMode ? `(() => {
         const byName = name => [...document.querySelectorAll(".svc")]
@@ -595,7 +646,13 @@ try {
     }
   }
   for (const [name, state] of Object.entries(expected.staticStates || {})) {
-    if (initial.staticStates[name] !== state) {
+    const presentation = initial.staticStates[name];
+    if (
+      presentation?.staticState !== state ||
+      !presentation.href ||
+      !presentation.note ||
+      presentation.probed
+    ) {
       throw new Error(`Expected ${name} state ${state}, got ${JSON.stringify(initial)}`);
     }
   }
@@ -690,6 +747,80 @@ try {
     }
 
     httpStates = { fault, silent, ok };
+  }
+
+  // ── AUTHORITATIVE BINDING CONTRACT (HOSTD-17) ─────────────────────────────
+  //
+  // A declared runtime binding is a promise that host truth drives the badge.
+  // Missing, stale, absent, or malformed truth must therefore stop at Unknown;
+  // falling through to a browser no-cors probe would turn ignorance into Online.
+  // A stopped artifact then proves every declared key actually changes its card.
+  let bindingTruth = null;
+  if (truthCheck && expected.bindings) {
+    const names = Object.keys(expected.bindings);
+    const sampleBindings = async () => {
+      await new Promise(resolve => setTimeout(resolve, sweepMs * 3));
+      return value(`(() => ({
+        cards: Object.fromEntries(${JSON.stringify(names)}.map(name => {
+          const card = [...document.querySelectorAll(".svc")]
+            .find(item => item.querySelector("h3")?.textContent === name);
+          return [name, card?.querySelector(".state")?.dataset.s || null];
+        })),
+        probeCalls: window.__hostdashProbeCalls.length,
+        truth: document.getElementById("truthRow")?.dataset.t || null,
+      }))()`);
+    };
+    const resetProbes = () => value("window.__hostdashProbeCalls = []; true");
+    const assertCase = async (label, prepare, expectedState, expectedTruth) => {
+      await resetProbes();
+      await prepare();
+      const sample = await sampleBindings();
+      const wrong = names.filter(name => {
+        const binding = expected.bindings[name];
+        const wanted = typeof expectedState === "function" ? expectedState(binding) : expectedState;
+        return sample.cards[name] !== wanted;
+      });
+      if (wrong.length || sample.probeCalls !== 0 || sample.truth !== expectedTruth) {
+        throw new Error(
+          `${label} host truth did not fail closed: ${JSON.stringify({ wrong, sample })}`,
+        );
+      }
+      return { count: names.length, states: [...new Set(Object.values(sample.cards))] };
+    };
+
+    const running = artifactForBindings(expected.bindings, true);
+    const stopped = artifactForBindings(expected.bindings, false);
+    const missing = await assertCase(
+      "Missing",
+      () => localPage.writeStatus({}),
+      "unknown",
+      "live",
+    );
+    const stale = await assertCase(
+      "Stale",
+      () => localPage.writeStatus(running.containers, 600, {}, running.units, running.extras),
+      "unknown",
+      "stale",
+    );
+    const absent = await assertCase(
+      "Absent",
+      () => localPage.removeStatus(),
+      "unknown",
+      "none",
+    );
+    const invalid = await assertCase(
+      "Invalid",
+      () => localPage.writeInvalidStatus(),
+      "unknown",
+      "none",
+    );
+    const stoppedState = await assertCase(
+      "Stopped",
+      () => localPage.writeStatus(stopped.containers, 0, {}, stopped.units, stopped.extras),
+      binding => (binding.extra ? "fault" : "stopped"),
+      "live",
+    );
+    bindingTruth = { missing, stale, absent, invalid, stopped: stoppedState };
   }
 
   await send("Emulation.setDeviceMetricsOverride", {
@@ -812,7 +943,11 @@ try {
   }
 
   console.log(
-    JSON.stringify({ host, pageUrl, initial, truthStates, httpStates, searchState, escapeState }, null, 2),
+    JSON.stringify(
+      { host, pageUrl, initial, truthStates, httpStates, bindingTruth, searchState, escapeState },
+      null,
+      2,
+    ),
   );
   await send("Browser.close").catch(() => {});
 } finally {
