@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Joes statischer Paper-Drill: ein Setup, feste Regeln, kein Live-Trading.">
+<meta name="description" content="Joe household paper money page: how much we have, where it sits, what the names are. Practice account only. Not live trading.">
 <meta name="robots" content="noindex, nofollow">
-<title>Joe · Paper-Drill</title>
+<title>Joe · Household paper money</title>
 <style>
   :root {
     color-scheme: light;
@@ -22,8 +22,10 @@
     --up: #267a53;
     --checking: #d49324;
     --down: #ba372d;
+    --hands: #8a5a12;
     --sans: Inter, "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Code", monospace;
+    --shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
   }
 
   * { box-sizing: border-box; }
@@ -36,351 +38,283 @@
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     background:
-      linear-gradient(180deg, rgba(238, 242, 236, 0.86), rgba(244, 246, 244, 0) 320px),
+      linear-gradient(180deg, rgba(238, 242, 236, 0.86), rgba(244, 246, 244, 0) 280px),
       var(--bg);
   }
+  button { font: inherit; color: inherit; }
 
   .shell {
-    width: min(1120px, calc(100% - 36px));
+    width: min(920px, calc(100% - 36px));
     margin: 0 auto;
-    padding: 28px 0 56px;
+    padding: 24px 0 64px;
   }
 
-  .paper-banner {
+  .banner {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 24px;
+    gap: 10px 16px;
+    margin-bottom: 22px;
     padding: 12px 14px;
-    border: 1px solid rgba(212, 147, 36, 0.28);
-    border-radius: 8px;
-    color: #765113;
+    border: 1px solid rgba(212, 147, 36, 0.32);
+    border-radius: 10px;
     background: #fff9ea;
-    font-size: 13px;
+    color: #6b4b12;
+    font-size: 14px;
   }
-  .paper-banner strong {
+  .banner strong {
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    font-size: 13px;
   }
-  .paper-banner strong::before {
+  .banner strong::before {
     content: "";
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--checking);
-    box-shadow: 0 0 0 4px rgba(212, 147, 36, 0.14);
+    box-shadow: 0 0 0 4px rgba(212, 147, 36, 0.16);
   }
-  .paper-banner span { color: var(--muted); }
 
-  header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 24px;
-    align-items: end;
-    margin-bottom: 26px;
-  }
   .eyebrow {
     margin: 0 0 8px;
     color: var(--muted);
     font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-  }
-  h1 {
-    margin: 0;
-    font-size: clamp(32px, 6vw, 54px);
-    line-height: 1;
-    letter-spacing: -0.035em;
-    font-weight: 780;
-  }
-  .subtitle {
-    max-width: 720px;
-    margin: 12px 0 0;
-    color: var(--muted);
-    font-size: 15px;
-  }
-  .account {
-    min-width: 220px;
-    padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface);
-    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
-  }
-  .account span {
-    display: block;
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .account strong {
-    display: block;
-    margin-top: 3px;
-    font-family: var(--mono);
-    font-size: 15px;
-  }
-
-  .section-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 0 12px;
-    font-size: 12px;
-    font-weight: 760;
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
-  .section-label::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(212, 92, 63, 0.44), transparent);
+  h1, h2 { margin: 0; }
+  h1 {
+    font-size: clamp(22px, 3.4vw, 28px);
+    letter-spacing: -0.03em;
+    font-weight: 750;
+  }
+  h2 {
+    margin-bottom: 8px;
+    font-size: clamp(20px, 3vw, 24px);
+    letter-spacing: -0.03em;
+  }
+  .lede {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 46em;
   }
 
-  .tldr {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 28px;
-  }
-  .fact,
-  .panel {
+  .money {
+    margin: 18px 0 22px;
+    padding: 22px 22px 18px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: 14px;
     background: var(--surface);
-    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
+    box-shadow: var(--shadow);
   }
-  .fact { padding: 15px; }
-  .fact span {
-    display: block;
+  .amount {
+    margin: 4px 0 0;
+    font-size: clamp(44px, 10vw, 84px);
+    line-height: 0.95;
+    letter-spacing: -0.045em;
+    font-weight: 780;
+    font-variant-numeric: tabular-nums;
+  }
+  .amount small {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 0.38em;
+    font-weight: 650;
+    letter-spacing: -0.02em;
     color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    vertical-align: 0.28em;
   }
-  .fact strong {
-    display: block;
-    margin-top: 6px;
-    font-size: 18px;
-    line-height: 1.25;
-  }
-  .fact small {
-    display: block;
-    margin-top: 5px;
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(310px, 0.65fr);
-    gap: 14px;
-    align-items: start;
-  }
-  .panel { padding: 18px; }
-  .panel + .panel { margin-top: 14px; }
-  .panel h2 {
-    margin: 0;
-    font-size: 18px;
-    line-height: 1.2;
-  }
-  .panel-intro {
-    margin: 6px 0 16px;
+  .stamp {
+    margin: 12px 0 0;
     color: var(--muted);
     font-size: 13px;
   }
-
-  .timeline {
-    display: grid;
-    gap: 0;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .timeline li {
-    position: relative;
-    display: grid;
-    grid-template-columns: 74px minmax(0, 1fr);
-    gap: 14px;
-    padding: 0 0 18px 20px;
-  }
-  .timeline li:last-child { padding-bottom: 0; }
-  .timeline li::before {
-    content: "";
-    position: absolute;
-    left: 3px;
-    top: 6px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--home);
-    box-shadow: 0 0 0 4px rgba(212, 92, 63, 0.10);
-  }
-  .timeline li:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    left: 6px;
-    top: 17px;
-    bottom: 2px;
-    width: 1px;
-    background: var(--line);
-  }
-  .time {
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  .timeline p {
-    margin: 0;
-    font-size: 14px;
-  }
-  .timeline strong { font-weight: 760; }
-
-  .session {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    margin: 14px 0 16px;
-    padding: 13px;
-    border: 1px solid rgba(38, 122, 83, 0.25);
-    border-radius: 8px;
-    background: rgba(38, 122, 83, 0.06);
-  }
-  .session span {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .session strong {
-    color: var(--up);
-    font-family: var(--mono);
-    font-size: 14px;
-    letter-spacing: 0.04em;
-  }
-  .end-states {
-    margin: -7px 0 16px;
-    color: var(--muted);
-    font-size: 11px;
-    text-align: right;
-  }
-
-  .metrics {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin: 0;
-  }
-  .metric {
-    min-width: 0;
-    padding: 10px 11px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface-2);
-  }
-  .metric dt {
-    overflow-wrap: anywhere;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 11px;
-  }
-  .metric dd {
-    margin: 5px 0 0;
-    font-family: var(--mono);
-    font-size: 17px;
-    font-weight: 760;
-  }
-  .metric small {
-    display: block;
-    margin-top: 3px;
-    color: var(--soft);
-    font-family: var(--sans);
-    font-size: 10px;
-  }
-
-  .series {
-    display: grid;
-    gap: 9px;
-    margin: 16px 0 0;
-    padding: 14px 0 0;
-    border-top: 1px solid var(--line);
-  }
-  .series-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 14px;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .series-row strong {
+  .cash {
+    margin: 6px 0 0;
     color: var(--ink);
-    font-family: var(--mono);
-  }
-  .guardrails {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    margin-top: 12px;
-  }
-  .guardrail {
-    padding: 7px 5px;
-    border: 1px solid rgba(38, 122, 83, 0.22);
-    border-radius: 8px;
-    color: var(--up);
-    background: rgba(38, 122, 83, 0.05);
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 700;
-    text-align: center;
+    font-size: 15px;
   }
 
-  .gateway {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .gateway::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 1.5px var(--muted);
-  }
-  .gateway strong { color: var(--ink); }
-
-  .out {
-    border-color: rgba(186, 55, 45, 0.24);
-    background: linear-gradient(180deg, var(--surface), rgba(186, 55, 45, 0.025));
-  }
-  .out-list {
+  .desk {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
-    margin-top: 14px;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin: 0 0 22px;
+    padding: 14px 16px;
+    border: 1px solid rgba(38, 122, 83, 0.22);
+    border-radius: 12px;
+    background: rgba(38, 122, 83, 0.06);
   }
-  .out-list span {
-    padding: 5px 8px;
-    border: 1px solid rgba(186, 55, 45, 0.22);
+  .desk p { margin: 0; font-size: 18px; font-weight: 650; }
+  .desk span { color: var(--muted); font-size: 13px; }
+
+  .stack { display: grid; gap: 12px; }
+
+  .holding {
+    padding: 16px 18px 18px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .holding.hands {
+    border-color: rgba(212, 147, 36, 0.4);
+    background: linear-gradient(180deg, #fffdf6, var(--surface));
+  }
+  .holding.empty {
+    background: var(--surface-2);
+  }
+  .who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .who span {
+    padding: 3px 8px;
     border-radius: 999px;
-    color: var(--down);
-    background: rgba(186, 55, 45, 0.04);
+    background: var(--surface-3);
+    color: var(--muted);
     font-size: 11px;
-    font-weight: 720;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .who .off {
+    background: #fff3d6;
+    color: var(--hands);
+  }
+  .who .joe {
+    background: rgba(38, 122, 83, 0.12);
+    color: var(--up);
+  }
+  .holding h3 {
+    margin: 0;
+    font-size: clamp(22px, 4vw, 30px);
+    letter-spacing: -0.03em;
+  }
+  .qty {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .what {
+    margin: 10px 0 0;
+    font-size: 16px;
+    max-width: 46em;
+  }
+  .made {
+    margin: 10px 0 0;
+    font-size: 15px;
+  }
+  .made strong { font-size: 22px; letter-spacing: -0.03em; }
+
+  .rule {
+    margin-top: 8px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--home);
+    border-radius: 0 10px 10px 0;
+    background: var(--surface);
+    font-size: 16px;
+  }
+
+  .explain-box {
+    margin-top: 22px;
+    padding: 16px 18px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 14px;
+    background: var(--surface-2);
+  }
+  .explain-box h2 { font-size: 18px; }
+  .explain-box p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .term {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-bottom: 1.5px dotted var(--home);
+    background: transparent;
+    color: inherit;
+    cursor: help;
+    font: inherit;
+    font-weight: 650;
+  }
+  .term:hover, .term:focus-visible {
+    color: var(--home);
+    outline: none;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .chip:hover, .chip:focus-visible { border-color: var(--home); }
+
+  .popover {
+    position: fixed;
+    z-index: 40;
+    width: min(34rem, calc(100vw - 28px));
+    max-height: min(70vh, 28rem);
+    overflow: auto;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 18px 50px rgba(23, 32, 22, 0.18);
+    color: var(--ink);
+  }
+  .popover[hidden] { display: none !important; }
+  .popover h3 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    letter-spacing: -0.03em;
+  }
+  .letters {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--surface-3);
+    font-size: 15px;
+  }
+  .letters b { font-family: var(--mono); }
+  .origin, .eli {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+  .eli strong { display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .popover-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--surface-3);
+    cursor: pointer;
   }
 
   footer {
@@ -388,166 +322,217 @@
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 8px 20px;
-    margin-top: 24px;
+    margin-top: 28px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12px;
   }
-  footer strong { color: var(--ink); }
 
-  @media (max-width: 840px) {
-    header { grid-template-columns: 1fr; }
-    .account { width: fit-content; }
-    .tldr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .layout { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 520px) {
-    .shell { width: min(100% - 24px, 1120px); padding-top: 12px; }
-    .paper-banner { align-items: flex-start; }
-    .tldr { grid-template-columns: 1fr; }
-    .panel { padding: 15px; }
-    .timeline li { grid-template-columns: 60px minmax(0, 1fr); gap: 8px; }
-    .guardrails { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 560px) {
+    .shell { width: min(100% - 24px, 920px); padding-top: 14px; }
+    .money { padding: 16px; }
+    .amount { font-size: clamp(40px, 14vw, 64px); }
   }
 </style>
 </head>
 <body>
 <main class="shell">
-  <div class="paper-banner" role="status" aria-label="Paper-Modus">
-    <strong>Paper · kein Live-Trading</strong>
-    <span>Delayed 15–20 Min · Paper-Fills können täuschen</span>
+  <div class="banner" role="status">
+    <strong><button class="term" type="button" data-term="paper" aria-expanded="false">Paper</button> · not live</strong>
+    <span>Practice money on <button class="term" type="button" data-term="gateway" aria-expanded="false">gateway 4002</button>. This is not the live household account.</span>
   </div>
 
-  <header>
-    <div>
-      <p class="eyebrow">Joe · ein Drill · eine Entscheidung</p>
-      <h1>15-Min ORB Retest</h1>
-      <p class="subtitle">Long only auf US Large-Cap Aktien. Bis 16:20 kein Klick; um 17:00 ist Joes A flat. Ein sauberer NO-CLICK ist ein gutes Ergebnis.</p>
-    </div>
-    <div class="account" aria-label="Board-Lock">
-      <span>US-A</span>
-      <strong>LOCKED</strong>
-    </div>
-  </header>
+  <p class="eyebrow">Joe · household view</p>
+  <h1>How much money do we have?</h1>
+  <p class="lede">Four household questions. No scoreboard. Tesla leftover is Joel’s and stays untouched.</p>
 
-  <section aria-labelledby="tldr-title">
-    <h2 class="section-label" id="tldr-title">TL;DR</h2>
-    <div class="tldr">
-      <article class="fact">
-        <span>Setup</span>
-        <strong>15-Min ORB Retest</strong>
-        <small>Close über Box, Retest hält</small>
+  <section class="money" aria-labelledby="money-q">
+    <p class="eyebrow" id="money-q"><button class="term" type="button" data-term="paper" aria-expanded="false">Paper</button> practice account · <button class="term" type="button" data-term="dur" aria-expanded="false">DUR970597</button></p>
+    <p class="amount">€1,001,403<small>.20</small></p>
+    <p class="cash">About €5,200 is sitting as cash. The rest is invested.</p>
+    <p class="stamp">As of 2 Sep 2026, 15:36 Vienna, read from the paper <button class="term" type="button" data-term="gateway" aria-expanded="false">gateway</button>. A snapshot, not a live ticking number.</p>
+  </section>
+
+  <section class="desk" aria-label="Today’s Joe desk">
+    <p>Today: watching <button class="term" type="button" data-term="dell" aria-expanded="false">Dell</button>. No click yet.</p>
+    <span>Do not buy before <button class="term" type="button" data-term="sixteen" aria-expanded="false">16:20 Vienna</button></span>
+  </section>
+
+  <section aria-labelledby="invested-q">
+    <h2 id="invested-q">Where are we invested?</h2>
+    <p class="lede" style="margin-bottom:14px">Who owns the line matters. Joel’s leftover Tesla is hands-off. Joe’s day-trade is a separate line — empty today.</p>
+
+    <div class="stack">
+      <article class="holding hands">
+        <div class="who">
+          <span>Joel leftover</span>
+          <span class="off">Hands-off · do not touch</span>
+        </div>
+        <h3>Tesla <button class="term" type="button" data-term="tsla" aria-expanded="false">TSLA</button></h3>
+        <p class="qty">1 share · bought around $352.89</p>
+        <p class="what"><strong>What is this company?</strong> Tesla makes electric cars, home batteries, and related software. It is a US company.</p>
+        <p class="made"><strong>Made or lost:</strong> — not on this page</p>
       </article>
-      <article class="fact">
-        <span>Fenster</span>
-        <strong>16:20–16:50</strong>
-        <small>Vienna · 17:00 flat</small>
+
+      <article class="holding">
+        <div class="who"><span>Joel</span></div>
+        <h3>iShares Core <button class="term" type="button" data-term="sp500" aria-expanded="false">S&amp;P 500</button> EUR <button class="term" type="button" data-term="sxr8" aria-expanded="false">SXR8</button></h3>
+        <p class="qty">1,401 shares · filled 1 Sep 2026 · about €709.85 each</p>
+        <p class="what"><strong>What is this company?</strong> Not a single company. It is a fund that owns a thin slice of the <button class="term" type="button" data-term="sp500" aria-expanded="false">500 biggest US companies</button>, priced in euros.</p>
+        <p class="made"><strong>Made or lost:</strong> — not on this page</p>
       </article>
-      <article class="fact">
-        <span>Risiko</span>
-        <strong>300 € fest</strong>
-        <small>Stop ≥ 0,5 % · Ziel 2R</small>
-      </article>
-      <article class="fact">
-        <span>Universum</span>
-        <strong>0–2 US-Aktien</strong>
-        <small>Large-Cap · long only</small>
+
+      <article class="holding empty">
+        <div class="who"><span class="joe">Joe</span></div>
+        <h3>Joe’s day trade</h3>
+        <p class="qty">Nothing bought today</p>
+        <p class="what"><strong>What is this?</strong> Joe may buy 0–2 US company names on a practice day. Today that line is empty.</p>
+        <p class="made"><strong>Made or lost:</strong> no Joe day-trade yet</p>
       </article>
     </div>
   </section>
 
-  <div class="layout">
-    <section aria-labelledby="plan-title">
-      <h2 class="section-label" id="plan-title">ELI10 · der Plan</h2>
-      <article class="panel">
-        <h2>Paper, nicht echtes Geld.</h2>
-        <p class="panel-intro">Ein Versuch pro Tag. Nur US-Aktien, die das Ticket öffnet.</p>
-        <ol class="timeline">
-          <li>
-            <span class="time">15:25</span>
-            <p>Banner Paper. 0–2 Namen. Daily-Level schreiben. Fremde TSLA-Position nicht anfassen.</p>
-          </li>
-          <li>
-            <span class="time">bis 16:20</span>
-            <p>nichts klicken.</p>
-          </li>
-          <li>
-            <span class="time">16:20–16:50</span>
-            <p>zwei fertige 5-Min-Kerzen: erst über die Morgen-Box, dann hält der Retest. Limit an die Kante. 300 € Risiko. Stop mindestens 0,5 % vom Preis. Ziel 2× Risiko.</p>
-          </li>
-          <li>
-            <span class="time">10 Min</span>
-            <p>Kein Fill: Order löschen. Nicht hinterherlaufen.</p>
-          </li>
-          <li>
-            <span class="time">40 Min</span>
-            <p>Noch nicht +1× Risiko: Trade schließen.</p>
-          </li>
-          <li>
-            <span class="time">17:00</span>
-            <p>Joes Trade zu. Fremde Stück bleiben.</p>
-          </li>
-          <li>
-            <span class="time">Heute</span>
-            <p>Schluss bei −2× Risiko oder wenn die Hälfte eines Gewinns weg ist. Kein Trade ist ein guter Tag.</p>
-          </li>
-          <li>
-            <span class="time">Nicht:</span>
-            <p>SPY/QQQ/IWM, SXR8, Short, Ross, Europa-Session (erst nach 10 US-Tagen), Live.</p>
-          </li>
-        </ol>
-      </article>
-    </section>
+  <p class="rule"><strong>17:00 Vienna.</strong> Close Joe’s trade. Leave Joel’s leftover Tesla shares as they are.</p>
 
-    <aside aria-label="KPI und Grenzen">
-      <section class="panel" aria-labelledby="kpi-title">
-        <h2 id="kpi-title">KPI · heute</h2>
-        <div class="session">
-          <span>Session heute</span>
-          <strong>NO-CLICK</strong>
-        </div>
-        <p class="end-states">Endstand: NO-CLICK / A-fill / KILL</p>
-        <dl class="metrics">
-          <div class="metric"><dt>delay_min</dt><dd>—</dd></div>
-          <div class="metric"><dt>shares</dt><dd>—</dd></div>
-          <div class="metric"><dt>spread</dt><dd>—</dd></div>
-          <div class="metric"><dt>R_raw</dt><dd>—</dd></div>
-          <div class="metric"><dt>R_haircut</dt><dd>—</dd><small>Platzhalter · Paper-Fills lügen</small></div>
-        </dl>
-
-        <div class="series" aria-label="10-Session-Serie">
-          <div class="series-row"><span>10-Session-Serie · Journal-Zeilen</span><strong>—</strong></div>
-          <div class="series-row"><span>NO-CLICK</span><strong>—</strong></div>
-        </div>
-        <div class="guardrails" aria-label="Grenzen der 10-Session-Serie">
-          <span class="guardrail">0 Live</span>
-          <span class="guardrail">0 Short</span>
-          <span class="guardrail">0 US-ETF</span>
-          <span class="guardrail">0 Chase</span>
-        </div>
-        <div class="gateway"><strong>Gateway 4002:</strong> unbekannt · nur Anzeige, nicht geprüft</div>
-      </section>
-
-      <section class="panel out" aria-labelledby="out-title">
-        <h2 id="out-title">Raus-Liste</h2>
-        <p class="panel-intro">Live bleibt geschlossen.</p>
-        <div class="out-list" aria-label="Nicht erlaubt">
-          <span>SPY/QQQ/IWM</span>
-          <span>SXR8</span>
-          <span>Short</span>
-          <span>Ross</span>
-          <span>Europa (erst nach 10 US)</span>
-          <span>Live</span>
-        </div>
-      </section>
-    </aside>
-  </div>
+  <section class="explain-box" aria-labelledby="words-q">
+    <h2 id="words-q">Words we still use</h2>
+    <p>Tap or hover a dotted word. A large note opens: full words, letter-by-letter if it is an acronym, where the word comes from, then a plain explanation.</p>
+    <div class="chips">
+      <button class="chip" type="button" data-term="paper">Paper</button>
+      <button class="chip" type="button" data-term="gateway">Gateway</button>
+      <button class="chip" type="button" data-term="sxr8">SXR8</button>
+      <button class="chip" type="button" data-term="tsla">TSLA</button>
+      <button class="chip" type="button" data-term="sp500">S&amp;P 500</button>
+      <button class="chip" type="button" data-term="dell">Dell</button>
+      <button class="chip" type="button" data-term="dur">DUR970597</button>
+      <button class="chip" type="button" data-term="sixteen">16:20</button>
+    </div>
+  </section>
 
   <footer>
-    <span><strong>Statische Übungsseite.</strong> Keine Kurse, Orders oder Kontrollen.</span>
-    <span>Paper-Fills lügen · R_haircut bleibt ein Platzhalter</span>
+    <span>Static household page. No orders, no live account, no German drill card.</span>
+    <span>Money snapshot 2026-09-02 15:36 CEST · paper DUR970597</span>
   </footer>
 </main>
+
+<div class="popover" id="popover" hidden role="dialog" aria-modal="true" aria-labelledby="pop-title">
+  <button class="popover-close" type="button" aria-label="Close explanation">×</button>
+  <h3 id="pop-title"></h3>
+  <p class="letters" id="pop-letters"></p>
+  <p class="origin" id="pop-origin"></p>
+  <p class="eli" id="pop-eli"></p>
+</div>
+
+<script>
+const TERMS = {
+  paper: {
+    title: "Paper",
+    letters: "<b>Paper</b> here is a word, not an acronym. It means a practice account with fake money.",
+    origin: "Traders say “paper trading” the way kids keep score on paper instead of using real cash.",
+    eli: "<strong>Explain like I’m 10</strong>This page is a dress rehearsal. The €1,001,403 is practice money at Interactive Brokers. It is not the family’s live account."
+  },
+  gateway: {
+    title: "Gateway 4002",
+    letters: "<b>Gateway</b> is a door. <b>4002</b> is the door number for the practice connection. It is not an acronym.",
+    origin: "Interactive Brokers’ software listens on numbered doors (ports). 4002 is the paper door we use here.",
+    eli: "<strong>Explain like I’m 10</strong>Imagine two doors into the same building. Door 4002 is the practice room. The live room is a different door and we are not using it."
+  },
+  sxr8: {
+    title: "SXR8",
+    letters: "<b>SXR8</b> is a ticker — a short market nickname — not four words. Full name: iShares Core S&amp;P 500 EUR.",
+    origin: "Exchanges give funds a short code so they fit on a price board. iShares is BlackRock’s fund brand. S&amp;P 500 is a list of 500 big US companies.",
+    eli: "<strong>Explain like I’m 10</strong>Instead of buying one company, Joel bought a ready-made basket that already holds tiny pieces of 500 big US companies, priced in euros."
+  },
+  tsla: {
+    title: "TSLA",
+    letters: "<b>T S L A</b> is Tesla’s ticker, chopped from the company name. Not an acronym for four other words.",
+    origin: "US stock short names are often a squeezed company name. Tesla’s is TSLA.",
+    eli: "<strong>Explain like I’m 10</strong>This is one leftover Tesla share that belongs to Joel. Do not sell it for Joe’s practice day. Leave it as it is."
+  },
+  dell: {
+    title: "Dell",
+    letters: "<b>Dell</b> is the company name (the listing short name is also DELL). Not an acronym.",
+    origin: "Named after Michael Dell. The company makes computers and sells them to people and to other companies.",
+    eli: "<strong>Explain like I’m 10</strong>Joe is only watching Dell today. Watching is not buying. There is no Joe day-trade yet."
+  },
+  dur: {
+    title: "DUR970597",
+    letters: "<b>DUR970597</b> is an account number, not a word made of letters with meanings. DUR is Interactive Brokers’ prefix for this paper account.",
+    origin: "Brokers stamp every account with a code so money does not get mixed up. This code is the practice account only.",
+    eli: "<strong>Explain like I’m 10</strong>Think of it as the name on a practice piggy bank. It is not the live household account."
+  },
+  sixteen: {
+    title: "16:20 Vienna",
+    letters: "<b>16:20</b> is a clock time in Vienna. Not an acronym.",
+    origin: "US stocks have been open for a while by then (morning in New York). Joe waits so he is not buying in the noisy first minutes.",
+    eli: "<strong>Explain like I’m 10</strong>Before 16:20 Joe looks, and does not buy. After that he may try one practice buy. At 17:00 he must stop. Joel’s Tesla is never part of this."
+  },
+  sp500: {
+    title: "S&P 500",
+    letters: "<b>S</b> = Standard, <b>P</b> = Poor’s, <b>500</b> = five hundred companies. Full words: Standard &amp; Poor’s 500.",
+    origin: "A US ratings firm (Standard &amp; Poor’s, now S&amp;P Global) keeps a list of 500 large US companies. People use the list as a snapshot of the US stock market.",
+    eli: "<strong>Explain like I’m 10</strong>It is a class photo of 500 big US companies. The fund Joel bought tries to own a little bit of each face in that photo."
+  }
+};
+
+const pop = document.getElementById("popover");
+const title = document.getElementById("pop-title");
+const letters = document.getElementById("pop-letters");
+const origin = document.getElementById("pop-origin");
+const eli = document.getElementById("pop-eli");
+let lastBtn = null;
+
+function closePop() {
+  pop.hidden = true;
+  if (lastBtn) lastBtn.setAttribute("aria-expanded", "false");
+  lastBtn = null;
+}
+
+function placePop(btn) {
+  const r = btn.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  let left = Math.min(Math.max(14, r.left), window.innerWidth - w - 14);
+  let top = r.bottom + 10;
+  if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 10);
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+}
+
+function openTerm(key, btn) {
+  const t = TERMS[key];
+  if (!t) return;
+  title.textContent = t.title;
+  letters.innerHTML = t.letters;
+  origin.textContent = t.origin;
+  eli.innerHTML = t.eli;
+  pop.hidden = false;
+  if (lastBtn && lastBtn !== btn) lastBtn.setAttribute("aria-expanded", "false");
+  lastBtn = btn || lastBtn;
+  if (lastBtn) lastBtn.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => placePop(btn || lastBtn || document.body));
+}
+
+document.querySelectorAll("[data-term]").forEach((btn) => {
+  const key = btn.getAttribute("data-term");
+  const go = (e) => { e.preventDefault(); e.stopPropagation(); openTerm(key, btn); };
+  btn.addEventListener("click", go);
+  btn.addEventListener("mouseenter", () => openTerm(key, btn));
+});
+document.querySelector(".popover-close").addEventListener("click", (e) => { e.stopPropagation(); closePop(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(); });
+const boot = (location.hash || "").replace("#", "");
+if (boot && TERMS[boot]) {
+  const btn = document.querySelector('[data-term="' + boot + '"]');
+  openTerm(boot, btn || document.querySelector(".chip"));
+}
+document.addEventListener("click", (e) => {
+  if (pop.hidden) return;
+  if (pop.contains(e.target)) return;
+  if (e.target.closest("[data-term]")) return;
+  closePop();
+});
+</script>
 </body>
 </html>
