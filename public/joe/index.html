@@ -1,553 +1,896 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Joes statischer Paper-Drill: ein Setup, feste Regeln, kein Live-Trading.">
+<meta name="description" content="Joe household paper money page: how much we have, where it sits, what the names are. Practice account only. Not live trading.">
 <meta name="robots" content="noindex, nofollow">
-<title>Joe · Paper-Drill</title>
+<meta name="theme-color" content="#f7f4ee">
+<title>Joe · Household paper money</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: light;
-    --bg: #f4f6f4;
-    --surface: #ffffff;
-    --surface-2: #f9faf8;
-    --surface-3: #eef2ec;
-    --line: #dce3da;
-    --line-strong: #c6d1c3;
-    --ink: #172016;
-    --muted: #62705f;
-    --soft: #84907f;
-    --home: #d45c3f;
-    --up: #267a53;
-    --checking: #d49324;
-    --down: #ba372d;
-    --sans: Inter, "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, sans-serif;
-    --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Code", monospace;
+    --paper: #f7f4ee;
+    --paper-deep: #eee8db;
+    --paper-glass: #fdfbf7;
+    --ink: #1b1a17;
+    --ink-2: #47433c;
+    --muted: #736d61;
+    --faint: #aaa295;
+    --rule: #dcd5c6;
+    --rule-ink: #1b1a17;
+    --accent: #2b5c46;
+    --accent-deep: #1e4634;
+    --accent-wash: rgba(43, 92, 70, 0.08);
+    --keep: #f1ece1;
+    --serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
   }
 
   * { box-sizing: border-box; }
-  html { min-height: 100%; background: var(--bg); }
+  html { background: var(--paper); }
   body {
-    min-height: 100vh;
     margin: 0;
+    min-height: 100vh;
     color: var(--ink);
     font-family: var(--sans);
-    line-height: 1.45;
+    font-size: 16px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    background:
-      linear-gradient(180deg, rgba(238, 242, 236, 0.86), rgba(244, 246, 244, 0) 320px),
-      var(--bg);
+    text-rendering: optimizeLegibility;
   }
+  button { font: inherit; color: inherit; }
+  h1, h2, h3, p, dl, dd { margin: 0; }
 
-  .shell {
-    width: min(1120px, calc(100% - 36px));
-    margin: 0 auto;
-    padding: 28px 0 56px;
+  .wrap { width: min(1080px, 100% - 48px); margin: 0 auto; }
+
+  /* ── Paper band ─────────────────────────────── */
+  .band {
+    background: var(--paper-deep);
+    border-bottom: 1px solid var(--rule);
   }
-
-  .paper-banner {
+  .band .wrap {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 24px;
-    padding: 12px 14px;
-    border: 1px solid rgba(212, 147, 36, 0.28);
-    border-radius: 8px;
-    color: #765113;
-    background: #fff9ea;
-    font-size: 13px;
+    gap: 16px;
+    padding: 10px 0;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-2);
   }
-  .paper-banner strong {
+  .band .mark {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .paper-banner strong::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--checking);
-    box-shadow: 0 0 0 4px rgba(212, 147, 36, 0.14);
-  }
-  .paper-banner span { color: var(--muted); }
-
-  header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 24px;
-    align-items: end;
-    margin-bottom: 26px;
-  }
-  .eyebrow {
-    margin: 0 0 8px;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-  }
-  h1 {
-    margin: 0;
-    font-size: clamp(32px, 6vw, 54px);
-    line-height: 1;
-    letter-spacing: -0.035em;
-    font-weight: 780;
-  }
-  .subtitle {
-    max-width: 720px;
-    margin: 12px 0 0;
-    color: var(--muted);
-    font-size: 15px;
-  }
-  .account {
-    min-width: 220px;
-    padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface);
-    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
-  }
-  .account span {
-    display: block;
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .account strong {
-    display: block;
-    margin-top: 3px;
-    font-family: var(--mono);
-    font-size: 15px;
-  }
-
-  .section-label {
-    display: flex;
-    align-items: center;
     gap: 10px;
-    margin: 0 0 12px;
-    font-size: 12px;
-    font-weight: 760;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
   }
-  .section-label::after {
+  .band .mark::before {
     content: "";
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(212, 92, 63, 0.44), transparent);
-  }
-
-  .tldr {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 28px;
-  }
-  .fact,
-  .panel {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface);
-    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
-  }
-  .fact { padding: 15px; }
-  .fact span {
-    display: block;
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .fact strong {
-    display: block;
-    margin-top: 6px;
-    font-size: 18px;
-    line-height: 1.25;
-  }
-  .fact small {
-    display: block;
-    margin-top: 5px;
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(310px, 0.65fr);
-    gap: 14px;
-    align-items: start;
-  }
-  .panel { padding: 18px; }
-  .panel + .panel { margin-top: 14px; }
-  .panel h2 {
-    margin: 0;
-    font-size: 18px;
-    line-height: 1.2;
-  }
-  .panel-intro {
-    margin: 6px 0 16px;
-    color: var(--muted);
-    font-size: 13px;
-  }
-
-  .timeline {
-    display: grid;
-    gap: 0;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .timeline li {
-    position: relative;
-    display: grid;
-    grid-template-columns: 74px minmax(0, 1fr);
-    gap: 14px;
-    padding: 0 0 18px 20px;
-  }
-  .timeline li:last-child { padding-bottom: 0; }
-  .timeline li::before {
-    content: "";
-    position: absolute;
-    left: 3px;
-    top: 6px;
     width: 7px;
     height: 7px;
+    border: 1.5px solid currentColor;
     border-radius: 50%;
-    background: var(--home);
-    box-shadow: 0 0 0 4px rgba(212, 92, 63, 0.10);
   }
-  .timeline li:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    left: 6px;
-    top: 17px;
-    bottom: 2px;
-    width: 1px;
-    background: var(--line);
-  }
-  .time {
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  .timeline p {
-    margin: 0;
-    font-size: 14px;
-  }
-  .timeline strong { font-weight: 760; }
+  .band .aside { font-weight: 500; color: var(--muted); }
 
-  .session {
+  /* ── Masthead ───────────────────────────────── */
+  .masthead {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: baseline;
     justify-content: space-between;
-    gap: 14px;
-    margin: 14px 0 16px;
-    padding: 13px;
-    border: 1px solid rgba(38, 122, 83, 0.25);
-    border-radius: 8px;
-    background: rgba(38, 122, 83, 0.06);
+    gap: 6px 24px;
+    padding: 30px 0 14px;
+    border-bottom: 2px solid var(--rule-ink);
   }
-  .session span {
+  .brand {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .brand em { font-style: italic; font-weight: 400; color: var(--muted); }
+  .dateline {
+    font-size: 13px;
     color: var(--muted);
-    font-size: 12px;
-  }
-  .session strong {
-    color: var(--up);
-    font-family: var(--mono);
-    font-size: 14px;
     letter-spacing: 0.04em;
   }
-  .end-states {
-    margin: -7px 0 16px;
-    color: var(--muted);
-    font-size: 11px;
-    text-align: right;
+
+  /* ── Question heads ─────────────────────────── */
+  .qhead {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 6px 14px;
+    align-items: baseline;
+  }
+  .roman {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 20px;
+    color: var(--accent);
+  }
+  h1, h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+  }
+  h1 { font-size: clamp(30px, 4.4vw, 46px); }
+  h2 { font-size: clamp(26px, 3.4vw, 36px); }
+  .lede {
+    grid-column: 2;
+    max-width: 62ch;
+    color: var(--ink-2);
+    font-size: 16.5px;
+    line-height: 1.55;
   }
 
-  .metrics {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin: 0;
+  /* ── I · Money ──────────────────────────────── */
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--rule); }
+  .figure {
+    margin: 26px 0 0;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(52px, 12.5vw, 150px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap;
   }
-  .metric {
-    min-width: 0;
-    padding: 10px 11px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface-2);
-  }
-  .metric dt {
-    overflow-wrap: anywhere;
+  .figure .cur {
+    margin-right: 0.06em;
+    font-size: 0.42em;
+    font-weight: 300;
     color: var(--muted);
-    font-family: var(--mono);
-    font-size: 11px;
+    vertical-align: 0.78em;
   }
-  .metric dd {
-    margin: 5px 0 0;
-    font-family: var(--mono);
-    font-size: 17px;
-    font-weight: 760;
+  .figure .cents {
+    font-size: 0.42em;
+    font-weight: 300;
+    color: var(--muted);
   }
-  .metric small {
+  .broker {
+    margin-top: 18px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink-2);
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px 40px;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+  }
+  .facts dt {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .facts dd { margin-top: 6px; font-size: 16px; }
+  .facts dd b {
     display: block;
-    margin-top: 3px;
-    color: var(--soft);
+    margin-bottom: 2px;
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .facts dd span { color: var(--ink-2); }
+
+  /* ── Today strip ────────────────────────────── */
+  .today {
+    display: grid;
+    grid-template-columns: 150px repeat(3, minmax(0, 1fr));
+    gap: 20px 32px;
+    padding: 26px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .today .label {
+    padding-top: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .slot time {
+    display: block;
+    font-family: var(--serif);
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .slot time small {
+    margin-left: 8px;
     font-family: var(--sans);
-    font-size: 10px;
-  }
-
-  .series {
-    display: grid;
-    gap: 9px;
-    margin: 16px 0 0;
-    padding: 14px 0 0;
-    border-top: 1px solid var(--line);
-  }
-  .series-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 14px;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
     color: var(--muted);
-    font-size: 12px;
   }
-  .series-row strong {
-    color: var(--ink);
-    font-family: var(--mono);
-  }
-  .guardrails {
+  .slot p { margin-top: 10px; max-width: 32ch; color: var(--ink-2); font-size: 15.5px; }
+  .slot.now time { color: var(--accent-deep); }
+  .slot.now p { color: var(--ink); font-weight: 500; }
+  .slot.close p strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Sections ───────────────────────────────── */
+  .sec { padding: 52px 0; border-bottom: 1px solid var(--rule); }
+  .sec .qhead { margin-bottom: 34px; }
+
+  /* ── II · Holdings ──────────────────────────── */
+  .holdings {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    margin-top: 12px;
+    grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr);
+    gap: 40px 64px;
+    align-items: start;
   }
-  .guardrail {
-    padding: 7px 5px;
-    border: 1px solid rgba(38, 122, 83, 0.22);
-    border-radius: 8px;
-    color: var(--up);
-    background: rgba(38, 122, 83, 0.05);
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 700;
-    text-align: center;
+  .owner {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .owner b { color: var(--ink); font-weight: 600; }
+  h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    line-height: 1.12;
+  }
+  .tick {
+    margin-left: 0.5em;
+    font-family: var(--sans);
+    font-size: 0.4em;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    vertical-align: 0.42em;
   }
 
-  .gateway {
-    display: flex;
+  .fund h3 { margin-top: 10px; font-size: clamp(28px, 3.6vw, 40px); }
+  .fund .count {
+    margin: 22px 0 0;
+    font-family: var(--serif);
+    font-size: clamp(64px, 9vw, 108px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .fund .count small {
+    margin-left: 0.18em;
+    font-family: var(--sans);
+    font-size: 0.2em;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    vertical-align: 0.5em;
+  }
+  .fund .details {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    justify-content: start;
+    gap: 14px 40px;
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+  }
+  .fund .details dt {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .fund .details dd { margin-top: 4px; font-size: 16px; }
+  .fund .story { margin-top: 22px; max-width: 48ch; font-size: 17px; color: var(--ink-2); }
+
+  .side { display: grid; gap: 36px; }
+
+  .keep {
+    position: relative;
+    padding: 22px 24px 24px;
+    background: var(--keep);
+    border: 1px solid var(--rule);
+    box-shadow: 0 0 0 5px var(--paper), 0 0 0 6px var(--rule);
+  }
+  .keep .seal {
+    display: inline-flex;
     align-items: center;
-    gap: 9px;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 12px;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 5px 10px 4px;
+    border: 1px solid var(--accent);
+    color: var(--accent-deep);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
   }
-  .gateway::before {
+  .keep .seal::before {
     content: "";
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+  .keep h3 { margin-top: 8px; font-size: 30px; }
+  .keep .qty { margin-top: 8px; font-size: 15.5px; color: var(--ink-2); }
+  .keep .note { margin-top: 14px; font-family: var(--serif); font-style: italic; font-size: 17px; color: var(--ink-2); }
+
+  .empty { padding-top: 4px; }
+  .empty h3 { margin-top: 8px; font-size: 28px; font-style: italic; color: var(--muted); }
+  .ledger { list-style: none; margin: 16px 0 0; padding: 0; }
+  .ledger li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 15.5px;
+  }
+  .ledger .name { flex: 0 1 auto; color: var(--ink-2); }
+  .ledger .lead {
+    flex: 1 1 24px;
+    min-width: 24px;
+    border-bottom: 1px dotted var(--faint);
+    transform: translateY(-0.32em);
+  }
+  .ledger .val {
+    flex: 0 0 auto;
+    font-family: var(--serif);
+    font-size: 19px;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap;
+  }
+  .ledger .val small {
+    margin-left: 8px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .empty .desk {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .empty .desk::before {
+    content: "";
+    flex: 0 0 auto;
     width: 8px;
     height: 8px;
+    border: 1.5px solid var(--accent);
     border-radius: 50%;
-    box-shadow: inset 0 0 0 1.5px var(--muted);
+    transform: translateY(-1px);
   }
-  .gateway strong { color: var(--ink); }
+  .empty .note { margin-top: 8px; font-size: 15px; color: var(--muted); }
 
-  .out {
-    border-color: rgba(186, 55, 45, 0.24);
-    background: linear-gradient(180deg, var(--surface), rgba(186, 55, 45, 0.025));
+  /* ── III · Names ────────────────────────────── */
+  .names {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 32px 40px;
   }
-  .out-list {
+  .name { padding-top: 16px; border-top: 1px solid var(--rule-ink); }
+  .name .status {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .name .status.owned { color: var(--accent-deep); }
+  .name h3 { margin-top: 10px; font-size: 26px; }
+  .name p { margin-top: 12px; font-size: 16px; color: var(--ink-2); max-width: 36ch; }
+
+  /* ── IV · Made or lost ──────────────────────── */
+  .pnl { max-width: 720px; }
+  .pnl .ledger li { padding: 14px 0; font-size: 17px; }
+  .pnl .ledger .name b { display: block; color: var(--ink); font-weight: 500; }
+  .pnl .ledger .name small { display: block; font-size: 13px; color: var(--muted); }
+  .pnl .ledger .val { font-size: 24px; }
+  .pnl .foot {
+    margin-top: 22px;
+    max-width: 62ch;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink-2);
+  }
+
+  /* ── Colophon ───────────────────────────────── */
+  .colophon { padding: 44px 0 64px; }
+  .colophon .head {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .colophon .how {
+    margin-top: 10px;
+    max-width: 62ch;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink-2);
+  }
+  .lexicon {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
-    margin-top: 14px;
+    align-items: baseline;
+    gap: 8px 0;
+    margin-top: 22px;
+    font-family: var(--serif);
+    font-size: 21px;
+    letter-spacing: -0.005em;
   }
-  .out-list span {
-    padding: 5px 8px;
-    border: 1px solid rgba(186, 55, 45, 0.22);
-    border-radius: 999px;
-    color: var(--down);
-    background: rgba(186, 55, 45, 0.04);
-    font-size: 11px;
-    font-weight: 720;
-  }
-
-  footer {
+  .lexicon .term { font-weight: 400; }
+  .lexicon .dot { margin: 0 14px; color: var(--faint); }
+  .fine {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: 8px 20px;
-    margin-top: 24px;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
+    gap: 6px 24px;
+    margin-top: 40px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px;
     color: var(--muted);
-    font-size: 11px;
   }
-  footer strong { color: var(--ink); }
 
-  @media (max-width: 840px) {
-    header { grid-template-columns: 1fr; }
-    .account { width: fit-content; }
-    .tldr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .layout { grid-template-columns: 1fr; }
+  /* ── Terms + popover ────────────────────────── */
+  .term {
+    display: inline;
+    margin: 0;
+    padding: 0 0 1px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: help;
+    font: inherit;
+    font-weight: 500;
+    text-decoration: underline dotted var(--accent);
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.2em;
+    border-radius: 2px;
+    transition: background-color .15s ease, color .15s ease;
   }
-  @media (max-width: 520px) {
-    .shell { width: min(100% - 24px, 1120px); padding-top: 12px; }
-    .paper-banner { align-items: flex-start; }
-    .tldr { grid-template-columns: 1fr; }
-    .panel { padding: 15px; }
-    .timeline li { grid-template-columns: 60px minmax(0, 1fr); gap: 8px; }
-    .guardrails { grid-template-columns: repeat(2, 1fr); }
+  .term:hover, .term:focus-visible, .term[aria-expanded="true"] {
+    color: var(--accent-deep);
+    background: var(--accent-wash);
+    box-shadow: 0 0 0 3px var(--accent-wash);
+    outline: none;
+  }
+
+  .popover {
+    position: fixed;
+    z-index: 40;
+    width: min(37rem, calc(100vw - 32px));
+    max-height: min(74vh, 34rem);
+    overflow: auto;
+    padding: 26px 30px 26px;
+    background: var(--paper-glass);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--accent);
+    border-radius: 6px;
+    box-shadow: 0 30px 70px rgba(27, 26, 23, 0.20), 0 2px 8px rgba(27, 26, 23, 0.08);
+    color: var(--ink);
+  }
+  .popover[hidden] { display: none !important; }
+  .popover .kicker {
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+  }
+  .popover h3 {
+    margin: 0 0 14px;
+    padding-right: 40px;
+    font-size: 32px;
+  }
+  .letters {
+    margin: 0 0 16px;
+    padding: 14px 18px;
+    background: var(--paper-deep);
+    border-left: 2px solid var(--accent);
+    font-size: 17px;
+    line-height: 1.5;
+  }
+  .letters b { font-family: var(--serif); font-size: 1.1em; font-weight: 500; }
+  .origin { margin: 0 0 16px; font-size: 16px; line-height: 1.55; color: var(--ink-2); }
+  .eli { margin: 0; font-size: 17px; line-height: 1.55; }
+  .eli strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .popover-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    background: var(--paper);
+    color: var(--ink-2);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .popover-close:hover { border-color: var(--ink-2); }
+
+  /* ── Motion ─────────────────────────────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .rise { animation: rise .8s cubic-bezier(.2, .7, .2, 1) both; }
+    .rise.d1 { animation-delay: .06s; }
+    .rise.d2 { animation-delay: .14s; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: none; }
+    }
+    .popover:not([hidden]) { animation: pop .18s ease-out both; }
+    @keyframes pop {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+  }
+
+  /* ── Responsive ─────────────────────────────── */
+  @media (max-width: 900px) {
+    .holdings { grid-template-columns: 1fr; gap: 44px; }
+    .names { grid-template-columns: 1fr; gap: 28px; }
+    .today { grid-template-columns: 1fr; gap: 22px; }
+    .today .label { padding-top: 0; }
+  }
+  @media (max-width: 640px) {
+    html, body { overflow-x: hidden; }
+    .wrap { width: min(100% - 32px, 1080px); overflow-x: clip; }
+    .band .aside { display: none; }
+    .masthead { padding-top: 22px; }
+    .hero { padding: 40px 0 32px; }
+    .qhead { grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
+    h1, h2, .lede, .broker, .facts dd span { overflow-wrap: break-word; word-break: break-word; max-width: 100%; }
+    h1 { font-size: clamp(24px, 7vw, 32px); }
+    .figure {
+      font-size: min(10.6vw, 48px);
+      letter-spacing: -0.05em;
+      max-width: 100%;
+    }
+    .lede { grid-column: 1; }
+    .facts { grid-template-columns: 1fr; gap: 18px; }
+    .fund .details { grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+    .sec { padding: 40px 0; }
+    .keep { box-shadow: 0 0 0 4px var(--paper), 0 0 0 5px var(--rule); }
+    .lexicon { font-size: 19px; }
+    .lexicon .dot { margin: 0 10px; }
+    .popover {
+      top: auto !important;
+      left: 12px !important;
+      right: 12px;
+      bottom: 12px;
+      width: auto;
+      max-height: 72vh;
+      padding: 22px 22px 24px;
+      border-radius: 14px;
+    }
+    .popover h3 { font-size: 28px; }
   }
 </style>
 </head>
 <body>
-<main class="shell">
-  <div class="paper-banner" role="status" aria-label="Paper-Modus">
-    <strong>Paper · kein Live-Trading</strong>
-    <span>Delayed 15–20 Min · Paper-Fills können täuschen</span>
-  </div>
 
-  <header>
-    <div>
-      <p class="eyebrow">Joe · ein Drill · eine Entscheidung</p>
-      <h1>15-Min ORB Retest</h1>
-      <p class="subtitle">Long only auf US Large-Cap Aktien. Bis 16:20 kein Klick; um 17:00 ist Joes A flat. Ein sauberer NO-CLICK ist ein gutes Ergebnis.</p>
-    </div>
-    <div class="account" aria-label="Board-Lock">
-      <span>US-A</span>
-      <strong>LOCKED</strong>
-    </div>
+<div class="band" role="status">
+  <div class="wrap">
+    <span class="mark"><button class="term" type="button" data-term="paper" aria-expanded="false">Paper</button>&nbsp;· practice money · not live</span>
+    <span class="aside">Read once through <button class="term" type="button" data-term="gateway" aria-expanded="false">gateway 4002</button></span>
+  </div>
+</div>
+
+<main class="wrap">
+  <header class="masthead">
+    <p class="brand">Joe <em>· household money</em></p>
+    <p class="dateline">Wednesday, 2 September 2026 · Vienna</p>
   </header>
 
-  <section aria-labelledby="tldr-title">
-    <h2 class="section-label" id="tldr-title">TL;DR</h2>
-    <div class="tldr">
-      <article class="fact">
-        <span>Setup</span>
-        <strong>15-Min ORB Retest</strong>
-        <small>Close über Box, Retest hält</small>
+  <section class="hero" aria-labelledby="q1">
+    <div class="qhead rise">
+      <span class="roman" aria-hidden="true">I.</span>
+      <h1 id="q1">How much money do we have?</h1>
+    </div>
+    <p class="figure rise d1"><span class="cur">€</span>1,001,403<span class="cents">.20</span></p>
+    <p class="broker rise d2">The broker’s word for this figure is <button class="term" type="button" data-term="nlv" aria-expanded="false">NLV</button>. Ours is the question above.</p>
+
+    <dl class="facts rise d2">
+      <div>
+        <dt>Cash on hand</dt>
+        <dd><b>€5,199.97</b><span>Sitting uninvested. The rest is in the two holdings below.</span></dd>
+      </div>
+      <div>
+        <dt>Account</dt>
+        <dd><b><button class="term" type="button" data-term="paper" aria-expanded="false">Paper</button> · <button class="term" type="button" data-term="dur" aria-expanded="false">DUR970597</button></b><span>Practice money at the broker. Not the live household account.</span></dd>
+      </div>
+      <div>
+        <dt>Read at</dt>
+        <dd><b>15:36 Vienna</b><span>One read through <button class="term" type="button" data-term="gateway" aria-expanded="false">gateway 4002</button> on 2 September 2026. A snapshot, not a live tick.</span></dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="today" aria-label="Today at Joe’s desk">
+    <p class="label">Today at Joe’s desk</p>
+    <div class="slot now">
+      <time datetime="2026-09-02T15:36+02:00">15:36 <small>snapshot</small></time>
+      <p>Watching <button class="term" type="button" data-term="dell" aria-expanded="false">Dell</button>. No click yet.</p>
+    </div>
+    <div class="slot">
+      <time datetime="2026-09-02T16:20+02:00"><button class="term" type="button" data-term="sixteen" aria-expanded="false">16:20</button></time>
+      <p>Earliest Joe may click. Until then he stays still.</p>
+    </div>
+    <div class="slot close">
+      <time datetime="2026-09-02T17:00+02:00">17:00</time>
+      <p>If the plan still holds: <strong>close Joe’s trade. Leave Joel’s leftover Tesla shares as they are.</strong></p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="q2">
+    <div class="qhead">
+      <span class="roman" aria-hidden="true">II.</span>
+      <h2 id="q2">Where are we invested?</h2>
+      <p class="lede">Three lines, three voices. Joel’s fund carries the weight. Joel’s leftover Tesla share is kept under glass. Joe’s day-trade line is a separate ledger, and it is empty today.</p>
+    </div>
+
+    <div class="holdings">
+      <article class="fund" aria-label="Joel’s fund">
+        <p class="owner"><b>Joel</b> · the fund</p>
+        <h3>iShares Core <button class="term" type="button" data-term="sp500" aria-expanded="false">S&amp;P 500</button> EUR<button class="term tick" type="button" data-term="sxr8" aria-expanded="false">SXR8</button></h3>
+        <p class="count">1,401<small>shares</small></p>
+        <dl class="details">
+          <div><dt>Filled</dt><dd>1 September 2026</dd></div>
+          <div><dt>Average cost</dt><dd>about €709.85 a share</dd></div>
+          <div><dt>Priced in</dt><dd>euros</dd></div>
+        </dl>
+        <p class="story">Not one company. A ready-made basket holding a thin slice of the 500 biggest US companies.</p>
       </article>
-      <article class="fact">
-        <span>Fenster</span>
-        <strong>16:20–16:50</strong>
-        <small>Vienna · 17:00 flat</small>
+
+      <div class="side">
+        <article class="keep" aria-label="Joel’s leftover Tesla share, hands-off">
+          <span class="seal">Kept · hands-off</span>
+          <p class="owner"><b>Joel’s leftover</b></p>
+          <h3>Tesla<button class="term tick" type="button" data-term="tsla" aria-expanded="false">TSLA</button></h3>
+          <p class="qty">1 share · bought around $352.89</p>
+          <p class="note">Stays exactly as it is. Not part of Joe’s practice day, and not for sale from this page.</p>
+        </article>
+
+        <article class="empty" aria-label="Joe’s day trade">
+          <p class="owner"><b>Joe</b> · day trade</p>
+          <h3>Nothing bought today</h3>
+          <ul class="ledger">
+            <li><span class="name">Fills today</span><span class="lead"></span><span class="val">none</span></li>
+          </ul>
+          <p class="desk">Watching <button class="term" type="button" data-term="dell" aria-expanded="false">Dell</button>. No click yet.</p>
+          <p class="note">Whatever Joe buys on a practice day shows up on this line and is closed by 17:00.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="q3">
+    <div class="qhead">
+      <span class="roman" aria-hidden="true">III.</span>
+      <h2 id="q3">What is this company?</h2>
+      <p class="lede">One plain sentence for each name on this page.</p>
+    </div>
+
+    <div class="names">
+      <article class="name">
+        <p class="status owned">Owned · Joel’s leftover · 1 share</p>
+        <h3>Tesla</h3>
+        <p>Tesla makes electric cars, energy products, and the software that runs them. It is a US company.</p>
       </article>
-      <article class="fact">
-        <span>Risiko</span>
-        <strong>300 € fest</strong>
-        <small>Stop ≥ 0,5 % · Ziel 2R</small>
+      <article class="name">
+        <p class="status owned">Owned · Joel · 1,401 shares</p>
+        <h3>iShares Core S&amp;P 500 EUR</h3>
+        <p>Not a company but a fund: it owns a slice of the 500 biggest US companies and is priced in euros.</p>
       </article>
-      <article class="fact">
-        <span>Universum</span>
-        <strong>0–2 US-Aktien</strong>
-        <small>Large-Cap · long only</small>
+      <article class="name">
+        <p class="status">Watching only · not owned</p>
+        <h3>Dell</h3>
+        <p>Dell makes computers and sells them to companies and to people. Joe is watching it today; nothing has been bought.</p>
       </article>
     </div>
   </section>
 
-  <div class="layout">
-    <section aria-labelledby="plan-title">
-      <h2 class="section-label" id="plan-title">ELI10 · der Plan</h2>
-      <article class="panel">
-        <h2>Paper, nicht echtes Geld.</h2>
-        <p class="panel-intro">Ein Versuch pro Tag. Nur US-Aktien, die das Ticket öffnet.</p>
-        <ol class="timeline">
-          <li>
-            <span class="time">15:25</span>
-            <p>Banner Paper. 0–2 Namen. Daily-Level schreiben. Fremde TSLA-Position nicht anfassen.</p>
-          </li>
-          <li>
-            <span class="time">bis 16:20</span>
-            <p>nichts klicken.</p>
-          </li>
-          <li>
-            <span class="time">16:20–16:50</span>
-            <p>zwei fertige 5-Min-Kerzen: erst über die Morgen-Box, dann hält der Retest. Limit an die Kante. 300 € Risiko. Stop mindestens 0,5 % vom Preis. Ziel 2× Risiko.</p>
-          </li>
-          <li>
-            <span class="time">10 Min</span>
-            <p>Kein Fill: Order löschen. Nicht hinterherlaufen.</p>
-          </li>
-          <li>
-            <span class="time">40 Min</span>
-            <p>Noch nicht +1× Risiko: Trade schließen.</p>
-          </li>
-          <li>
-            <span class="time">17:00</span>
-            <p>Joes Trade zu. Fremde Stück bleiben.</p>
-          </li>
-          <li>
-            <span class="time">Heute</span>
-            <p>Schluss bei −2× Risiko oder wenn die Hälfte eines Gewinns weg ist. Kein Trade ist ein guter Tag.</p>
-          </li>
-          <li>
-            <span class="time">Nicht:</span>
-            <p>SPY/QQQ/IWM, SXR8, Short, Ross, Europa-Session (erst nach 10 US-Tagen), Live.</p>
-          </li>
-        </ol>
-      </article>
-    </section>
+  <section class="sec" aria-labelledby="q4">
+    <div class="qhead">
+      <span class="roman" aria-hidden="true">IV.</span>
+      <h2 id="q4">How much did we make with what?</h2>
+      <p class="lede">Per-name profit is not in this snapshot. The gateway read gives the household total, and we do not guess the rest.</p>
+    </div>
 
-    <aside aria-label="KPI und Grenzen">
-      <section class="panel" aria-labelledby="kpi-title">
-        <h2 id="kpi-title">KPI · heute</h2>
-        <div class="session">
-          <span>Session heute</span>
-          <strong>NO-CLICK</strong>
-        </div>
-        <p class="end-states">Endstand: NO-CLICK / A-fill / KILL</p>
-        <dl class="metrics">
-          <div class="metric"><dt>delay_min</dt><dd>—</dd></div>
-          <div class="metric"><dt>shares</dt><dd>—</dd></div>
-          <div class="metric"><dt>spread</dt><dd>—</dd></div>
-          <div class="metric"><dt>R_raw</dt><dd>—</dd></div>
-          <div class="metric"><dt>R_haircut</dt><dd>—</dd><small>Platzhalter · Paper-Fills lügen</small></div>
-        </dl>
+    <div class="pnl">
+      <ul class="ledger">
+        <li><span class="name"><b>Tesla</b><small>Joel’s leftover · 1 share</small></span><span class="lead"></span><span class="val">—<small>not on this page</small></span></li>
+        <li><span class="name"><b>iShares Core S&amp;P 500 EUR</b><small>Joel · 1,401 shares</small></span><span class="lead"></span><span class="val">—<small>not on this page</small></span></li>
+        <li><span class="name"><b>Joe’s day trade</b><small>Joe · practice line</small></span><span class="lead"></span><span class="val"><small style="margin:0">no Joe day-trade yet</small></span></li>
+      </ul>
+      <p class="foot">The household total at the top is real paper money as of 15:36. What each line has made or lost since purchase is a separate read this page does not do yet.</p>
+    </div>
+  </section>
 
-        <div class="series" aria-label="10-Session-Serie">
-          <div class="series-row"><span>10-Session-Serie · Journal-Zeilen</span><strong>—</strong></div>
-          <div class="series-row"><span>NO-CLICK</span><strong>—</strong></div>
-        </div>
-        <div class="guardrails" aria-label="Grenzen der 10-Session-Serie">
-          <span class="guardrail">0 Live</span>
-          <span class="guardrail">0 Short</span>
-          <span class="guardrail">0 US-ETF</span>
-          <span class="guardrail">0 Chase</span>
-        </div>
-        <div class="gateway"><strong>Gateway 4002:</strong> unbekannt · nur Anzeige, nicht geprüft</div>
-      </section>
-
-      <section class="panel out" aria-labelledby="out-title">
-        <h2 id="out-title">Raus-Liste</h2>
-        <p class="panel-intro">Live bleibt geschlossen.</p>
-        <div class="out-list" aria-label="Nicht erlaubt">
-          <span>SPY/QQQ/IWM</span>
-          <span>SXR8</span>
-          <span>Short</span>
-          <span>Ross</span>
-          <span>Europa (erst nach 10 US)</span>
-          <span>Live</span>
-        </div>
-      </section>
-    </aside>
-  </div>
-
-  <footer>
-    <span><strong>Statische Übungsseite.</strong> Keine Kurse, Orders oder Kontrollen.</span>
-    <span>Paper-Fills lügen · R_haircut bleibt ein Platzhalter</span>
+  <footer class="colophon">
+    <p class="head">Words we still use</p>
+    <p class="how">Every short name on this page opens a note when tapped or hovered: the full words, the letters if it is an acronym, where the word comes from, and a plain explanation.</p>
+    <p class="lexicon">
+      <button class="term" type="button" data-term="paper" aria-expanded="false">Paper</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="gateway" aria-expanded="false">Gateway 4002</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="dur" aria-expanded="false">DUR970597</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="nlv" aria-expanded="false">NLV</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="sxr8" aria-expanded="false">SXR8</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="tsla" aria-expanded="false">TSLA</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="sp500" aria-expanded="false">S&amp;P 500</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="dell" aria-expanded="false">Dell</button><span class="dot">·</span>
+      <button class="term" type="button" data-term="sixteen" aria-expanded="false">16:20 Vienna</button>
+    </p>
+    <p class="fine">
+      <span>Static household page. No orders are placed from here. Not the live account.</span>
+      <span>Snapshot 2026-09-02 15:36 CEST · paper DUR970597</span>
+    </p>
   </footer>
 </main>
+
+<div class="popover" id="popover" hidden role="dialog" aria-labelledby="pop-title">
+  <button class="popover-close" type="button" aria-label="Close explanation">×</button>
+  <p class="kicker">Words we still use</p>
+  <h3 id="pop-title"></h3>
+  <p class="letters" id="pop-letters"></p>
+  <p class="origin" id="pop-origin"></p>
+  <p class="eli" id="pop-eli"></p>
+</div>
+
+<script>
+const TERMS = {
+  paper: {
+    title: "Paper",
+    letters: "<b>Paper</b> is a word here, not an acronym. It means a practice account filled with pretend money.",
+    origin: "Traders say “paper trading” the way children keep score on paper instead of playing for real coins.",
+    eli: "<strong>Explain like I’m 10</strong>This whole page is a dress rehearsal. The €1,001,403 is practice money at the broker, Interactive Brokers. It is not the family’s live account."
+  },
+  gateway: {
+    title: "Gateway 4002",
+    letters: "<b>Gateway</b> is a door. <b>4002</b> is the door number for the practice connection. Neither is an acronym.",
+    origin: "The broker’s software listens on numbered doors, called ports. 4002 is the paper door. The live door has a different number, and this page never knocks on it.",
+    eli: "<strong>Explain like I’m 10</strong>Imagine two doors into the same building. Door 4002 opens into the practice room. We looked through it once at 15:36 and wrote down what we saw."
+  },
+  dur: {
+    title: "DUR970597",
+    letters: "<b>DUR970597</b> is an account number, not letters with meanings. <b>DUR</b> is the broker’s prefix for this paper account.",
+    origin: "Brokers stamp every account with a code so money never gets mixed up. This code is the practice account only.",
+    eli: "<strong>Explain like I’m 10</strong>Think of it as the name written on a practice piggy bank. It is not the live household account."
+  },
+  nlv: {
+    title: "NLV",
+    letters: "<b>N</b> = Net, <b>L</b> = Liquidation, <b>V</b> = Value. Full words: net liquidation value.",
+    origin: "Broker jargon for one question: if every line were sold at today’s price and the cash added in, what would be left? That is the big number at the top.",
+    eli: "<strong>Explain like I’m 10</strong>Empty the whole piggy bank onto the table, sell the toys at today’s prices, count everything. That total is what the broker calls NLV. We just call it “how much money do we have”."
+  },
+  sxr8: {
+    title: "SXR8",
+    letters: "<b>SXR8</b> is a market short name, not four words. Full name: iShares Core S&amp;P 500 EUR. <b>EUR</b> means it is priced in euros.",
+    origin: "Exchanges give funds a short code so they fit on a price board. iShares is BlackRock’s fund brand. S&amp;P 500 is a list of 500 big US companies.",
+    eli: "<strong>Explain like I’m 10</strong>Instead of buying one company, Joel bought a ready-made basket that already holds tiny pieces of 500 big US companies, paid for in euros."
+  },
+  tsla: {
+    title: "TSLA",
+    letters: "<b>T S L A</b> is Tesla’s market short name, squeezed from the company name. Not an acronym for four other words.",
+    origin: "US stock short names are often a compressed company name. Tesla’s is TSLA.",
+    eli: "<strong>Explain like I’m 10</strong>This is one leftover Tesla share that belongs to Joel. It is kept as it is. It is never part of Joe’s practice day."
+  },
+  sp500: {
+    title: "S&P 500",
+    letters: "<b>S</b> = Standard, <b>P</b> = Poor’s, <b>500</b> = five hundred companies. Full words: Standard &amp; Poor’s 500.",
+    origin: "A US ratings firm, Standard &amp; Poor’s (now S&amp;P Global), keeps a list of 500 large US companies. People use the list as a snapshot of the whole US stock market.",
+    eli: "<strong>Explain like I’m 10</strong>It is a class photo of 500 big US companies. The fund Joel bought tries to own a little bit of every face in that photo."
+  },
+  dell: {
+    title: "Dell",
+    letters: "<b>Dell</b> is the company name. Its market short name is also DELL. Not an acronym.",
+    origin: "Named after its founder, Michael Dell. The company makes computers and sells them to people and to other companies.",
+    eli: "<strong>Explain like I’m 10</strong>Joe is only watching Dell today. Watching is not buying. There is no Joe day-trade yet."
+  },
+  sixteen: {
+    title: "16:20 Vienna",
+    letters: "<b>16:20</b> is a clock time in Vienna. Not an acronym.",
+    origin: "By then the US market has been open a while, mid-morning in New York. Joe waits so he is not buying in the noisy first minutes.",
+    eli: "<strong>Explain like I’m 10</strong>Before 16:20 Joe looks and does not buy. After that he may try one practice buy. At 17:00 he must stop. Joel’s Tesla is never part of this."
+  }
+};
+
+const pop = document.getElementById("popover");
+const title = document.getElementById("pop-title");
+const letters = document.getElementById("pop-letters");
+const origin = document.getElementById("pop-origin");
+const eli = document.getElementById("pop-eli");
+const sheet = window.matchMedia("(max-width: 640px)");
+let lastBtn = null;
+
+function closePop() {
+  pop.hidden = true;
+  if (lastBtn) lastBtn.setAttribute("aria-expanded", "false");
+  lastBtn = null;
+}
+
+function placePop(btn) {
+  if (sheet.matches) { pop.style.left = ""; pop.style.top = ""; return; }
+  const r = btn.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  const left = Math.min(Math.max(16, r.left), window.innerWidth - w - 16);
+  let top = r.bottom + 12;
+  if (top + h > window.innerHeight - 16) top = Math.max(16, r.top - h - 12);
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+}
+
+function openTerm(key, btn) {
+  const t = TERMS[key];
+  if (!t) return;
+  title.textContent = t.title;
+  letters.innerHTML = t.letters;
+  origin.innerHTML = t.origin;
+  eli.innerHTML = t.eli;
+  pop.hidden = false;
+  if (lastBtn && lastBtn !== btn) lastBtn.setAttribute("aria-expanded", "false");
+  lastBtn = btn || lastBtn;
+  if (lastBtn) lastBtn.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => placePop(btn || lastBtn || document.body));
+}
+
+document.querySelectorAll("[data-term]").forEach((btn) => {
+  const key = btn.getAttribute("data-term");
+  const go = (e) => { e.preventDefault(); e.stopPropagation(); openTerm(key, btn); };
+  btn.addEventListener("click", go);
+  btn.addEventListener("mouseenter", () => openTerm(key, btn));
+});
+document.querySelector(".popover-close").addEventListener("click", (e) => { e.stopPropagation(); closePop(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(); });
+document.addEventListener("click", (e) => {
+  if (pop.hidden) return;
+  if (pop.contains(e.target)) return;
+  if (e.target.closest("[data-term]")) return;
+  closePop();
+});
+window.addEventListener("scroll", () => { if (!pop.hidden && !sheet.matches) closePop(); }, { passive: true });
+
+const boot = (location.hash || "").replace("#", "");
+if (boot && TERMS[boot]) {
+  const btn = document.querySelector('[data-term="' + boot + '"]');
+  openTerm(boot, btn || document.querySelector("[data-term]"));
+}
+</script>
 </body>
 </html>
