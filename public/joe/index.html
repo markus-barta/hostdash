@@ -39,7 +39,7 @@
   .datagrid { --tblr-datagrid-item-width: 9rem; --tblr-datagrid-padding: 1rem; }
   /* First screen, no scroll, on large desktops: let the cards row take the leftover height. */
   @media (min-width: 1600px) and (min-height: 900px) {
-    .page-body > .container-xl { display: flex; flex-direction: column; flex: 1 1 auto; }
+    .page-body > .container-fluid { display: flex; flex-direction: column; flex: 1 1 auto; }
     .fold-row { flex: 1 1 auto; }
     .fold-row > [class*="col-"] { display: flex; }
     .fold-row .card { flex: 1 1 auto; }
@@ -50,7 +50,7 @@
 <div class="page">
 
   <header class="navbar navbar-expand-md d-print-none">
-    <div class="container-xl">
+    <div class="container-fluid">
       <h1 class="navbar-brand navbar-brand-autodark pe-0 pe-md-3 mb-0">
         <a href="#" class="text-reset text-decoration-none"><i class="ti ti-home me-1" aria-hidden="true"></i>Joe · household money</a>
       </h1>
@@ -64,7 +64,7 @@
   <div class="page-wrapper">
 
     <div class="page-header d-print-none">
-      <div class="container-xl">
+      <div class="container-fluid">
         <div class="row g-2 align-items-center">
           <div class="col">
             <div class="page-pretitle">Household · Wednesday 2 September 2026 · Vienna</div>
@@ -87,7 +87,7 @@
     </div>
 
     <div class="page-body">
-      <div class="container-xl">
+      <div class="container-fluid">
 
         <div class="card mb-3">
           <div class="ribbon bg-yellow text-yellow-fg">Paper</div>
@@ -477,6 +477,13 @@ window.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.offcanvas').forEach(function (oc) {
     oc.addEventListener('show.bs.offcanvas', hideAll);
   });
+  var hash = (location.hash || "").replace("#", "");
+  if (hash) {
+    var oc = document.getElementById(hash);
+    if (oc && oc.classList.contains("offcanvas") && T.Offcanvas) {
+      T.Offcanvas.getOrCreateInstance(oc).show();
+    }
+  }
   document.querySelectorAll('.card[role="button"][data-bs-toggle="offcanvas"]').forEach(function (card) {
     card.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
