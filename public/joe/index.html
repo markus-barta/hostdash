@@ -204,11 +204,26 @@
   .learning { min-height: 8.5em; padding: 14px; border: 1px solid #3f403b; border-radius: 5px; background: rgba(23,24,21,.54); }
   .learning strong { display: block; margin: 5px 0 4px; font-size: 14px; font-weight: 600; }
   .learning p { margin: 0; color: var(--muted); font-size: 12px; }
-  .desk-money { margin-top: 18px; }
-  .desk-money .label { display: inline-block; margin-bottom: 10px; }
-  .desk-money .flap { display: block; margin-top: 10px; padding-inline: 14px 16px; width: fit-content; max-width: 100%; box-sizing: border-box; }
-  .money-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-  .money-grid div { padding-top: 11px; border-top: 1px solid var(--line); }
+  .desk-money {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .desk-money > .label {
+    display: block;
+    margin: 0;
+  }
+  .desk-money > .flap {
+    align-self: flex-end;
+    margin-top: 0;
+    padding-inline: 14px 16px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .money-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+  .money-grid div { padding-top: 11px; border-top: 1px solid var(--line); text-align: right; }
+  .money-grid .label { display: block; text-align: right; }
   .money-grid strong { display: block; margin-top: 3px; font-family: var(--mono); font-size: 13px; font-weight: 550; font-variant-numeric: tabular-nums; }
   .issues { margin: 14px 0 0; padding: 11px 13px; border-left: 2px solid var(--red); color: #e5b7b0; background: rgba(95,42,37,.24); font-size: 12px; }
 
