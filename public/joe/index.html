@@ -205,7 +205,8 @@
   .learning strong { display: block; margin: 5px 0 4px; font-size: 14px; font-weight: 600; }
   .learning p { margin: 0; color: var(--muted); font-size: 12px; }
   .desk-money { margin-top: 18px; }
-  .desk-money .flap { margin-top: 6px; }
+  .desk-money .label { display: inline-block; margin-bottom: 10px; }
+  .desk-money .flap { display: block; margin-top: 10px; padding-inline: 14px 16px; width: fit-content; max-width: 100%; box-sizing: border-box; }
   .money-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
   .money-grid div { padding-top: 11px; border-top: 1px solid var(--line); }
   .money-grid strong { display: block; margin-top: 3px; font-family: var(--mono); font-size: 13px; font-weight: 550; font-variant-numeric: tabular-nums; }
@@ -377,7 +378,7 @@
   }
 
   function amount(value, signed) {
-    if (value === null) { return "Not known"; }
+    if (value === null || value === undefined) { value = 0; }
     var formatted = money.format(Math.abs(value));
     if (!signed || value === 0) { return value < 0 ? "−" + formatted : formatted; }
     return (value > 0 ? "+" : "−") + formatted;
