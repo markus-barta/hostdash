@@ -244,27 +244,164 @@
   .gate-card p { color: #bcb8ad; }
   .gate-card a { display: inline-block; margin-top: 8px; color: var(--green); font-family: var(--mono); font-size: 13px; }
 
-  .history-board { margin-top: 8px; padding: 18px 20px 20px; }
-  .history-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
-  .history-controls { display: flex; flex-wrap: wrap; gap: 8px; }
-  .history-controls button {
+  .history-board {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin-top: 8px;
+    padding: 18px 20px 20px;
+    transform-origin: center center;
+  }
+  .history-board.has-custom-size { max-width: none; width: 100%; }
+  .history-board.has-custom-size .history-canvas-wrap,
+  .history-board.is-expanded .history-canvas-wrap {
+    flex: 1 1 auto;
+    min-height: 160px;
+    height: auto;
+  }
+  .history-stage-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 840;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: rgba(8, 9, 7, .74);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
+    cursor: pointer;
+    transition: opacity .42s cubic-bezier(.34, 1.2, .64, 1);
+  }
+  .history-stage-overlay.is-visible { opacity: 1; pointer-events: auto; }
+  .history-board.is-expanded {
+    position: fixed;
+    z-index: 860;
+    top: 50%;
+    left: 50%;
+    width: min(calc(100vw - 28px), 2000px);
+    height: min(calc(100vh - 28px), 1000px);
+    max-width: none;
+    margin: 0;
+    transform: translate(-50%, -50%) scale(1);
+    border-color: #5c6b55;
+    box-shadow:
+      0 0 0 1px rgba(141, 172, 129, .22),
+      0 0 42px rgba(141, 172, 129, .1),
+      0 28px 90px rgba(0, 0, 0, .58);
+  }
+  .history-board.is-expanded.is-entering {
+    transform: translate(-50%, -50%) scale(.965);
+    opacity: .88;
+  }
+  body.history-focus-active { overflow: hidden; }
+  .history-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 14px; flex: 0 0 auto; }
+  .history-head-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+  .history-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .history-controls button,
+  .history-expand-btn,
+  .history-close-btn {
     appearance: none; border: 1px solid var(--line); background: var(--ink-2); color: var(--muted);
     font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
     padding: 7px 10px; border-radius: 4px; cursor: pointer;
   }
   .history-controls button[aria-pressed="true"] { color: var(--paper); border-color: #5a5b55; background: #2a2b27; }
-  .history-meta { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 12px; }
+  .history-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    padding-inline: 8px;
+    color: var(--muted);
+  }
+  .history-expand-btn[aria-expanded="true"] {
+    color: var(--green);
+    border-color: rgba(141, 172, 129, .45);
+    background: rgba(141, 172, 129, .08);
+  }
+  .history-expand-btn svg { width: 13px; height: 13px; display: block; }
+  .history-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    padding-inline: 8px;
+    color: var(--paper);
+    border-color: #5a5b55;
+  }
+  .history-close-btn:hover,
+  .history-expand-btn:hover { border-color: #5a5b55; color: var(--paper); }
+  .history-meta { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 12px; flex: 0 0 auto; }
   .history-meta .stat { padding: 10px 12px; background: var(--ink-2); border: 1px solid var(--line); border-radius: 4px; }
   .history-meta .stat .label { margin: 0 0 4px; }
   .history-meta .stat strong { font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; }
-  .history-canvas-wrap { position: relative; width: 100%; height: 260px; background: rgba(23,24,21,.54); border: 1px solid #3f403b; border-radius: 5px; }
+  .history-canvas-wrap { position: relative; width: 100%; height: 260px; background: rgba(23,24,21,.54); border: 1px solid #3f403b; border-radius: 5px; flex: 0 0 auto; }
   .history-canvas-wrap canvas { width: 100%; height: 100%; display: block; }
   .history-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; padding: 20px; text-align: center; z-index: 1; }
-  .history-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .history-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); flex: 0 0 auto; }
   .history-legend span::before { content: ""; display: inline-block; width: 10px; height: 3px; margin-right: 6px; vertical-align: middle; background: currentColor; }
+  .history-resize-handle {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 14px;
+    height: 14px;
+    touch-action: none;
+    cursor: nwse-resize;
+    opacity: .38;
+    color: var(--muted);
+    transition: opacity .15s ease, color .15s ease;
+  }
+  .history-resize-handle::before,
+  .history-resize-handle::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 10px;
+    height: 10px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    border-radius: 0 0 2px 0;
+  }
+  .history-resize-handle::after {
+    right: 4px;
+    bottom: 4px;
+    width: 6px;
+    height: 6px;
+    opacity: .7;
+  }
+  .history-resize-handle:hover,
+  .history-resize-handle:focus-visible {
+    opacity: .85;
+    color: var(--green);
+    outline: none;
+  }
+  .history-board.is-expanded .history-resize-handle { display: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    .history-board {
+      transition:
+        width .48s cubic-bezier(.34, 1.45, .64, 1),
+        height .48s cubic-bezier(.34, 1.45, .64, 1),
+        transform .48s cubic-bezier(.34, 1.45, .64, 1),
+        opacity .32s ease,
+        box-shadow .38s ease,
+        border-color .38s ease;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .history-board,
+    .history-stage-overlay { transition: none !important; }
+  }
   @media (max-width: 720px) {
     .history-meta { grid-template-columns: 1fr; }
     .history-canvas-wrap { height: 220px; }
+    .history-resize-handle { width: 26px; height: 26px; opacity: .55; }
+    .history-resize-handle::before { width: 14px; height: 14px; }
+    .history-resize-handle::after { right: 5px; bottom: 5px; width: 8px; height: 8px; }
+  }
+  @media (pointer: coarse) {
+    .history-resize-handle { width: 30px; height: 30px; opacity: .62; }
   }
 
   @media (max-width: 980px) {
@@ -330,23 +467,31 @@
   <div class="alarm" id="alarm" hidden role="alert"><strong>Something needs attention</strong><span id="alarmText"></span></div>
 
 
-  <section class="history-board desk" aria-labelledby="historyTitle">
+  <button type="button" class="history-stage-overlay" id="historyStageOverlay" hidden aria-label="Close expanded history"></button>
+
+  <section class="history-board desk" id="historyBoard" aria-labelledby="historyTitle">
     <div class="history-head">
       <div>
         <p class="section-kicker">Stand · deltas · timeframe</p>
         <h2 id="historyTitle">History</h2>
       </div>
-      <div class="history-controls" role="group" aria-label="Series">
-        <button type="button" data-series="totals" aria-pressed="true">Household</button>
-        <button type="button" data-series="j" aria-pressed="false">J</button>
-        <button type="button" data-series="joe" aria-pressed="false">Joe</button>
-        <button type="button" data-series="joel" aria-pressed="false">Joel</button>
-      </div>
-      <div class="history-controls" role="group" aria-label="Timeframe">
-        <button type="button" data-range="1d" aria-pressed="false">1D</button>
-        <button type="button" data-range="1w" aria-pressed="false">1W</button>
-        <button type="button" data-range="1m" aria-pressed="false">1M</button>
-        <button type="button" data-range="all" aria-pressed="true">ALL</button>
+      <div class="history-head-actions">
+        <div class="history-controls" role="group" aria-label="Series">
+          <button type="button" data-series="totals" aria-pressed="true">Household</button>
+          <button type="button" data-series="j" aria-pressed="false">J</button>
+          <button type="button" data-series="joe" aria-pressed="false">Joe</button>
+          <button type="button" data-series="joel" aria-pressed="false">Joel</button>
+        </div>
+        <div class="history-controls" role="group" aria-label="Timeframe">
+          <button type="button" data-range="1d" aria-pressed="false">1D</button>
+          <button type="button" data-range="1w" aria-pressed="false">1W</button>
+          <button type="button" data-range="1m" aria-pressed="false">1M</button>
+          <button type="button" data-range="all" aria-pressed="true">ALL</button>
+          <button type="button" class="history-expand-btn" id="historyExpandBtn" aria-expanded="false" aria-label="Expand history chart" title="Expand">
+            <svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.25" d="M1.5 5V1.5H5M9 1.5h3.5V5M12.5 9v3.5H9M5 12.5H1.5V9"/></svg>
+          </button>
+        </div>
+        <button type="button" class="history-close-btn" id="historyCloseBtn" hidden aria-label="Close expanded history" title="Close">✕</button>
       </div>
     </div>
     <div class="history-meta">
@@ -361,6 +506,7 @@
     <div class="history-legend">
       <span style="color:#9fbf8f">Stand (equity)</span>
     </div>
+    <div class="history-resize-handle" id="historyResizeHandle" role="separator" aria-orientation="both" aria-label="Drag to resize history panel" tabindex="0"></div>
   </section>
 
   <section aria-labelledby="desksTitle">
@@ -746,6 +892,237 @@
     }
   }
 
+  var HISTORY_SIZE_KEY = "joe.history.cardSize";
+  var historyLayout = { expanded: false, dragging: false, bodyOverflow: "" };
+  var historyExpandIcon = "<svg viewBox=\"0 0 14 14\" aria-hidden=\"true\" focusable=\"false\"><path fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" d=\"M1.5 5V1.5H5M9 1.5h3.5V5M12.5 9v3.5H9M5 12.5H1.5V9\"/></svg>";
+  var historyCollapseIcon = "<svg viewBox=\"0 0 14 14\" aria-hidden=\"true\" focusable=\"false\"><path fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" d=\"M5 1.5H1.5V5M12.5 5H9V1.5M5 12.5V9H1.5M12.5 9v3.5H9\"/></svg>";
+
+  function historyReducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function resizeHistoryChart() {
+    requestAnimationFrame(function () {
+      if (historyState.chart) { historyState.chart.resize(); }
+      setTimeout(function () {
+        if (historyState.chart) { historyState.chart.resize(); }
+      }, historyReducedMotion() ? 0 : 520);
+    });
+  }
+
+  function historySizeLimits() {
+    var pad = 24;
+    return {
+      minW: 320,
+      minH: 280,
+      maxW: Math.max(320, window.innerWidth - pad),
+      maxH: Math.max(280, window.innerHeight - pad)
+    };
+  }
+
+  function clampHistorySize(width, height) {
+    var lim = historySizeLimits();
+    return {
+      w: Math.min(lim.maxW, Math.max(lim.minW, Math.round(width))),
+      h: Math.min(lim.maxH, Math.max(lim.minH, Math.round(height)))
+    };
+  }
+
+  function applyHistoryCardSize(width, height, persist) {
+    var board = document.getElementById("historyBoard");
+    if (!board || historyLayout.expanded) { return null; }
+    var size = clampHistorySize(width, height);
+    board.style.width = size.w + "px";
+    board.style.height = size.h + "px";
+    board.classList.add("has-custom-size");
+    if (persist) {
+      try {
+        sessionStorage.setItem(HISTORY_SIZE_KEY, JSON.stringify({ w: size.w, h: size.h }));
+      } catch (err) { /* sessionStorage unavailable */ }
+    }
+    return size;
+  }
+
+  function restoreHistoryCardSize() {
+    try {
+      var raw = sessionStorage.getItem(HISTORY_SIZE_KEY);
+      if (!raw) { return; }
+      var data = JSON.parse(raw);
+      if (!data || !Number.isFinite(data.w) || !Number.isFinite(data.h)) { return; }
+      applyHistoryCardSize(data.w, data.h, false);
+    } catch (err) { /* ignore invalid persisted size */ }
+  }
+
+  function setHistoryExpanded(expanded) {
+    var board = document.getElementById("historyBoard");
+    var overlay = document.getElementById("historyStageOverlay");
+    var expandBtn = document.getElementById("historyExpandBtn");
+    var closeBtn = document.getElementById("historyCloseBtn");
+    if (!board || !overlay || !expandBtn || historyLayout.expanded === expanded) { return; }
+
+    historyLayout.expanded = expanded;
+
+    if (expanded) {
+      historyLayout.bodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.body.classList.add("history-focus-active");
+      board.style.width = "";
+      board.style.height = "";
+      board.classList.remove("has-custom-size");
+      overlay.hidden = false;
+      overlay.setAttribute("aria-hidden", "false");
+      if (!historyReducedMotion()) { board.classList.add("is-entering"); }
+      board.classList.add("is-expanded");
+      expandBtn.setAttribute("aria-expanded", "true");
+      expandBtn.setAttribute("aria-label", "Collapse history chart");
+      expandBtn.title = "Collapse";
+      expandBtn.innerHTML = historyCollapseIcon;
+      closeBtn.hidden = false;
+      requestAnimationFrame(function () {
+        board.classList.remove("is-entering");
+      });
+      closeBtn.focus();
+    } else {
+      overlay.classList.remove("is-visible");
+      board.classList.remove("is-expanded", "is-entering");
+      expandBtn.setAttribute("aria-expanded", "false");
+      expandBtn.setAttribute("aria-label", "Expand history chart");
+      expandBtn.title = "Expand";
+      expandBtn.innerHTML = historyExpandIcon;
+      closeBtn.hidden = true;
+      document.body.style.overflow = historyLayout.bodyOverflow;
+      document.body.classList.remove("history-focus-active");
+      var hideOverlay = function () {
+        overlay.hidden = true;
+        overlay.setAttribute("aria-hidden", "true");
+      };
+      if (historyReducedMotion()) {
+        hideOverlay();
+      } else {
+        var onOverlayEnd = function (event) {
+          if (event.propertyName !== "opacity") { return; }
+          overlay.removeEventListener("transitionend", onOverlayEnd);
+          hideOverlay();
+        };
+        overlay.addEventListener("transitionend", onOverlayEnd);
+        setTimeout(hideOverlay, 560);
+      }
+      restoreHistoryCardSize();
+      expandBtn.focus();
+    }
+
+    requestAnimationFrame(function () {
+      overlay.classList.toggle("is-visible", expanded);
+    });
+
+    var onBoardEnd = function (event) {
+      if (event.target !== board) { return; }
+      board.removeEventListener("transitionend", onBoardEnd);
+      resizeHistoryChart();
+    };
+    board.addEventListener("transitionend", onBoardEnd);
+    resizeHistoryChart();
+  }
+
+  function bindHistoryLayout() {
+    var board = document.getElementById("historyBoard");
+    var overlay = document.getElementById("historyStageOverlay");
+    var expandBtn = document.getElementById("historyExpandBtn");
+    var closeBtn = document.getElementById("historyCloseBtn");
+    var handle = document.getElementById("historyResizeHandle");
+    if (!board || !overlay || !expandBtn || !closeBtn || !handle) { return; }
+
+    restoreHistoryCardSize();
+
+    expandBtn.addEventListener("click", function () {
+      setHistoryExpanded(!historyLayout.expanded);
+    });
+    closeBtn.addEventListener("click", function () {
+      setHistoryExpanded(false);
+    });
+    overlay.addEventListener("click", function () {
+      setHistoryExpanded(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && historyLayout.expanded) {
+        event.preventDefault();
+        setHistoryExpanded(false);
+      }
+    });
+
+    handle.addEventListener("pointerdown", function (event) {
+      if (historyLayout.expanded || event.button !== 0) { return; }
+      event.preventDefault();
+      historyLayout.dragging = true;
+      board.classList.add("is-resizing");
+      var startX = event.clientX;
+      var startY = event.clientY;
+      var startW = board.offsetWidth;
+      var startH = board.offsetHeight;
+      handle.setPointerCapture(event.pointerId);
+
+      function onMove(moveEvent) {
+        if (!historyLayout.dragging) { return; }
+        applyHistoryCardSize(
+          startW + (moveEvent.clientX - startX),
+          startH + (moveEvent.clientY - startY),
+          false
+        );
+        resizeHistoryChart();
+      }
+
+      function onUp(upEvent) {
+        if (!historyLayout.dragging) { return; }
+        historyLayout.dragging = false;
+        board.classList.remove("is-resizing");
+        try { handle.releasePointerCapture(upEvent.pointerId); } catch (err) { /* ignore */ }
+        applyHistoryCardSize(board.offsetWidth, board.offsetHeight, true);
+        resizeHistoryChart();
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        handle.removeEventListener("pointercancel", onUp);
+      }
+
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+      handle.addEventListener("pointercancel", onUp);
+    });
+
+    handle.addEventListener("keydown", function (event) {
+      if (historyLayout.expanded) { return; }
+      var step = event.shiftKey ? 24 : 12;
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        applyHistoryCardSize(board.offsetWidth + step, board.offsetHeight, true);
+        resizeHistoryChart();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        applyHistoryCardSize(board.offsetWidth - step, board.offsetHeight, true);
+        resizeHistoryChart();
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        applyHistoryCardSize(board.offsetWidth, board.offsetHeight + step, true);
+        resizeHistoryChart();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        applyHistoryCardSize(board.offsetWidth, board.offsetHeight - step, true);
+        resizeHistoryChart();
+      }
+    });
+
+    window.addEventListener("resize", function () {
+      if (historyLayout.expanded || !board.classList.contains("has-custom-size")) { return; }
+      var size = clampHistorySize(board.offsetWidth, board.offsetHeight);
+      board.style.width = size.w + "px";
+      board.style.height = size.h + "px";
+      try {
+        sessionStorage.setItem(HISTORY_SIZE_KEY, JSON.stringify({ w: size.w, h: size.h }));
+      } catch (err) { /* sessionStorage unavailable */ }
+      resizeHistoryChart();
+    });
+  }
+
   function bindHistoryControls() {
     document.querySelectorAll(".history-controls button[data-series]").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -794,6 +1171,7 @@
     }
   }
 
+  bindHistoryLayout();
   bindHistoryControls();
   refresh();
   refreshHistory();
