@@ -526,6 +526,7 @@
 <noscript><div class="gate"><div class="gate-card"><h1>JavaScript is off.</h1><p>The household board needs JavaScript to read its local data snapshot.</p></div></div></noscript>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
 (function () {
   "use strict";
@@ -730,11 +731,38 @@
     return formatted;
   }
 
+  function rangeDurationMs(range) {
+    if (range === "1d") { return 864e5; }
+    if (range === "1w") { return 7 * 864e5; }
+    if (range === "1m") { return 30 * 864e5; }
+    return null;
+  }
+
+  function rangeWindow(points, range) {
+    var times = [];
+    var i;
+    var t;
+    for (i = 0; i < points.length; i += 1) {
+      t = Date.parse(points[i].t);
+      if (Number.isFinite(t)) { times.push(t); }
+    }
+    if (!times.length) { return null; }
+    var last = times[times.length - 1];
+    var first = times[0];
+    var duration = rangeDurationMs(range);
+    if (range === "all" || duration === null) {
+      return { min: first, max: last };
+    }
+    return { min: last - duration, max: last };
+  }
+
   function filterPoints(points, range) {
-    if (!points.length || range === "all") { return points.slice(); }
-    var last = Date.parse(points[points.length - 1].t);
-    var ms = range === "1d" ? 864e5 : range === "1w" ? 7 * 864e5 : 30 * 864e5;
-    return points.filter(function (p) { return Date.parse(p.t) >= last - ms; });
+    var win = rangeWindow(points, range);
+    if (!win) { return []; }
+    return points.filter(function (p) {
+      var t = Date.parse(p.t);
+      return Number.isFinite(t) && t >= win.min && t <= win.max;
+    });
   }
 
   function seriesBag(point, series) {
@@ -748,8 +776,9 @@
     return bag && Number.isFinite(bag.dayPnl) ? bag.dayPnl : 0;
   }
 
-  function axisLabelFor(iso, range) {
-    var d = new Date(iso);
+  function axisLabelFor(value, range) {
+    var d = value instanceof Date ? value : new Date(value);
+    if (!Number.isFinite(d.getTime())) { return ""; }
     if (range === "1d") { return histAxisTime.format(d); }
     if (range === "1w") { return histAxisDateTime.format(d); }
     return histAxisDate.format(d);
@@ -796,25 +825,33 @@
       return;
     }
 
+    var win = rangeWindow(pts, historyState.range);
+    if (!win) {
+      destroyHistoryChart();
+      showHistoryEmpty("History will fill as snapshots arrive.");
+      return;
+    }
+
     empty.hidden = true;
-    var equities = pts.map(function (p) { return seriesBag(p, historyState.series).equity; });
-    var firstEquity = equities[0];
-    var stand = equities[equities.length - 1];
+    var seriesPoints = pts.map(function (p) {
+      return { x: Date.parse(p.t), y: seriesBag(p, historyState.series).equity };
+    });
+    var firstEquity = seriesPoints[0].y;
+    var stand = seriesPoints[seriesPoints.length - 1].y;
     var deltaPeriod = stand - firstEquity;
     var deltaDay = seriesDay(pts, historyState.series);
+    var range = historyState.range;
     historyState.firstEquity = firstEquity;
     setHistoryMeta(stand, deltaPeriod, deltaDay);
 
-    var labels = pts.map(function (p) { return axisLabelFor(p.t, historyState.range); });
     var tickFont = { family: "SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace", size: 10 };
 
     var chartConfig = {
       type: "line",
       data: {
-        labels: labels,
         datasets: [{
           label: "Stand",
-          data: equities,
+          data: seriesPoints,
           borderColor: "#9fbf8f",
           backgroundColor: "rgba(159,191,143,.14)",
           fill: true,
@@ -831,6 +868,7 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        parsing: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
           legend: { display: false },
@@ -845,8 +883,7 @@
             callbacks: {
               title: function (items) {
                 if (!items.length) { return ""; }
-                var idx = items[0].dataIndex;
-                return histTooltipTime.format(new Date(pts[idx].t));
+                return histTooltipTime.format(new Date(items[0].parsed.x));
               },
               label: function (item) {
                 var equity = item.parsed.y;
@@ -861,12 +898,18 @@
         },
         scales: {
           x: {
+            type: "time",
+            min: win.min,
+            max: win.max,
             ticks: {
               color: "#77766f",
               maxRotation: 0,
               autoSkip: true,
               maxTicksLimit: 7,
-              font: tickFont
+              font: tickFont,
+              callback: function (value) {
+                return axisLabelFor(value, range);
+              }
             },
             grid: { color: "rgba(63,64,59,.45)", drawBorder: false }
           },
@@ -882,14 +925,15 @@
       }
     };
 
-    if (historyState.chart) {
-      historyState.chart.data.labels = labels;
-      historyState.chart.data.datasets[0].data = equities;
-      historyState.chart.options.plugins.tooltip.callbacks = chartConfig.options.plugins.tooltip.callbacks;
-      historyState.chart.update();
-    } else {
+    destroyHistoryChart();
+    try {
       historyState.chart = new Chart(canvas.getContext("2d"), chartConfig);
+    } catch (err) {
+      destroyHistoryChart();
+      showHistoryEmpty("Chart.js could not be loaded from the CDN, so the history chart is unavailable.");
+      return;
     }
+    resizeHistoryChart();
   }
 
   var HISTORY_SIZE_KEY = "joe.history.cardSize";

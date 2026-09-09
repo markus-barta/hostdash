@@ -27,6 +27,34 @@ async function writeSnapshot(overrides = {}) {
 
 await writeSnapshot();
 
+function historyPoint(iso, equity) {
+  return {
+    t: iso,
+    desks: {
+      j: { equity: 5000, dayPnl: 0, totalPnl: 0 },
+      joe: { equity: 5000, dayPnl: 0, totalPnl: 0 },
+      joel: { equity: 9000, dayPnl: 0, totalPnl: 0 }
+    },
+    totals: { equity, dayPnl: 12.5, totalPnl: equity - 19000 }
+  };
+}
+
+async function writeSparseHistory(hours = 9, stepMinutes = 30) {
+  const end = Date.now();
+  const step = stepMinutes * 60_000;
+  const start = end - hours * 3600_000;
+  const points = [];
+  for (let t = start; t <= end; t += step) {
+    points.push(historyPoint(new Date(t).toISOString(), 19000 + (t - start) / 3600_000));
+  }
+  await writeFile(join(site, "joe", "history.json"), JSON.stringify({
+    schema: "inspr.joe.household.history.v1",
+    points
+  }));
+}
+
+await writeSparseHistory();
+
 const server = createServer(async (request, response) => {
   const url = new URL(request.url || "/", "http://local.test");
   requests.push({ host: request.headers.host || "", path: url.pathname });
@@ -142,7 +170,7 @@ try {
   const healthy = await value(`(() => ({
     view: document.documentElement.dataset.joeView,
     state: document.documentElement.dataset.joeState,
-    deskIds: [...document.querySelectorAll('.desk')].map(node => node.dataset.desk),
+    deskIds: [...document.querySelectorAll('#desks .desk')].map(node => node.dataset.desk),
     states: [...document.querySelectorAll('.state')].map(node => node.textContent),
     total: document.getElementById('totalEquity')?.textContent,
     gateway: document.getElementById('gatewayValue')?.textContent,
@@ -162,6 +190,73 @@ try {
     const shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
     await writeFile(join(process.env.JOE_SCREENSHOT_DIR, "joe-dash-desktop.png"), Buffer.from(shot.data, "base64"));
   }
+
+  async function waitForHistoryChart() {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (await value("Boolean(typeof Chart !== 'undefined' && Chart.getChart('historyChart'))").catch(() => false)) return;
+      await delay(100);
+    }
+    throw new Error("History chart did not appear");
+  }
+  async function historyScale(range) {
+    return value(`(() => {
+      const btn = document.querySelector('.history-controls button[data-range="${range}"]');
+      if (!btn) return { error: "missing range button ${range}" };
+      btn.click();
+      const chart = Chart.getChart("historyChart");
+      if (!chart) return { error: "no chart after ${range}" };
+      const x = chart.scales.x;
+      const data = chart.data.datasets[0].data;
+      return {
+        type: x.type,
+        min: x.min,
+        max: x.max,
+        span: x.max - x.min,
+        firstX: data[0] && data[0].x,
+        lastX: data[data.length - 1] && data[data.length - 1].x,
+        pointCount: data.length,
+        period: document.getElementById("histDeltaPeriod")?.textContent
+      };
+    })()`);
+  }
+  await waitForHistoryChart();
+  const day = await historyScale("1d");
+  const week = await historyScale("1w");
+  const month = await historyScale("1m");
+  const all = await historyScale("all");
+  const DAY = 864e5;
+  const near = (actual, expected, slack) => Math.abs(actual - expected) <= slack;
+  if (day.error || week.error || month.error || all.error) {
+    throw new Error(`History range click failed: ${JSON.stringify({ day, week, month, all })}`);
+  }
+  if (day.type !== "time" || week.type !== "time" || all.type !== "time") {
+    throw new Error(`History x scale is not time: ${JSON.stringify({ day, week, all })}`);
+  }
+  if (!near(day.span, DAY, 2000) || !near(week.span, 7 * DAY, 2000) || !near(month.span, 30 * DAY, 2000)) {
+    throw new Error(`History windows are not 1d/7d/30d: ${JSON.stringify({ day, week, month })}`);
+  }
+  if (!(all.span < day.span && day.span < week.span && week.span < month.span)) {
+    throw new Error(`History windows do not zoom: ${JSON.stringify({ all, day, week, month })}`);
+  }
+  if (!(day.min < day.firstX && week.min < day.min && month.min < week.min)) {
+    throw new Error(`Sparse history is not right-aligned in longer windows: ${JSON.stringify({ day, week, month })}`);
+  }
+  if (!near(all.min, all.firstX, 2000) || !near(all.max, all.lastX, 2000)) {
+    throw new Error(`ALL should span first…last point: ${JSON.stringify(all)}`);
+  }
+  if (day.pointCount !== week.pointCount || week.pointCount !== all.pointCount) {
+    throw new Error(`Sparse 9h series should keep the same points across ranges: ${JSON.stringify({ day, week, all })}`);
+  }
+
+  const expand = await value(`(() => {
+    document.getElementById("historyExpandBtn").click();
+    return {
+      expanded: document.getElementById("historyBoard")?.classList.contains("is-expanded"),
+      chart: Boolean(Chart.getChart("historyChart"))
+    };
+  })()`);
+  if (!expand.expanded || !expand.chart) throw new Error(`History expand mismatch: ${JSON.stringify(expand)}`);
+  await value(`document.getElementById("historyCloseBtn").click()`);
 
   await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   const mobile = await value(`(() => ({
