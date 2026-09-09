@@ -14,9 +14,27 @@ function extractJoeBlock(startMarker, endMarker) {
 }
 
 const layoutContext = extractJoeBlock("  var DEFAULT_LAYOUT = [", "\n  var COLORS = ");
-const sanitizeLayoutItems = new Function(`${layoutContext}\n${extractJoeBlock("  function sanitizeLayoutItems", "\n\n  function safeStoredLayout")}\nreturn sanitizeLayoutItems;`)();
-const defaultLayoutsCatalog = new Function(`${layoutContext}\n  var LAYOUTS_KEY = \"joe-board-named-layouts-v1\";\n  var DEFAULT_LAYOUT_ID = \"default\";\n${extractJoeBlock("  function defaultLayoutsCatalog", "\n\n  function normalizeLayoutEntry")}\nreturn defaultLayoutsCatalog;`)();
-const normalizeLayoutEntry = new Function(`${layoutContext}\n  var DEFAULT_LAYOUT_ID = \"default\";\n${extractJoeBlock("  function sanitizeLayoutItems", "\n\n  function safeStoredLayout")}\n${extractJoeBlock("  function normalizeLayoutEntry", "\n\n  function readLayoutsCatalog")}\nreturn normalizeLayoutEntry;`)();
+const layoutHelpers = `${layoutContext}
+  var LAYOUTS_KEY = "joe-board-named-layouts-v1";
+  var DEFAULT_LAYOUT_ID = "default";
+  var MAX_LAYOUTS = 24;
+${extractJoeBlock("  function layoutCoordinate", "\n\n  function safeStoredLayout")}
+${extractJoeBlock("  function defaultLayoutEntry", "\n\n  function bindLayoutControls")}`;
+
+const api = new Function(`${layoutHelpers}
+  return {
+    sanitizeLayoutItems,
+    defaultLayoutEntry,
+    defaultLayoutsCatalog,
+    normalizeLayoutEntry,
+    canonicalLayoutsCatalog,
+    writeLayoutsCatalog: function(catalog) {
+      if (!catalog || catalog.schema !== "inspr.joe.layouts.v1" || !Array.isArray(catalog.layouts)) return false;
+      if (catalog.layouts.length > MAX_LAYOUTS) return false;
+      return canonicalLayoutsCatalog(catalog.layouts).layouts.length;
+    }
+  };
+`)();
 
 const version = new Function("window", `${versionSource}; return window.JoeVersion;`)({});
 if (!version?.APP_VERSION || !Array.isArray(version.VERSION_HISTORY) || version.VERSION_HISTORY.length < 4) {
@@ -33,16 +51,30 @@ const sample = [
   { id: "positions", x: 0, y: 11, w: 12, h: 5 },
 ];
 
-if (!sanitizeLayoutItems(sample)) throw new Error("valid layout rejected");
-if (sanitizeLayoutItems(sample.slice(0, 6))) throw new Error("incomplete layout accepted");
-if (sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, w: 0 } : item))) throw new Error("invalid width accepted");
+if (!api.sanitizeLayoutItems(sample)) throw new Error("valid layout rejected");
+if (api.sanitizeLayoutItems(sample.slice(0, 6))) throw new Error("incomplete layout accepted");
+if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, w: 0 } : item))) throw new Error("invalid width accepted");
+if (api.sanitizeLayoutItems(sample.concat({ id: "hero", x: 0, y: 0, w: 12, h: 2 }))) throw new Error("duplicate id accepted");
+if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 1.5 } : item))) throw new Error("fractional coordinate accepted");
+if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 11, w: 2 } : item))) throw new Error("overflow width accepted");
 
-const catalog = defaultLayoutsCatalog();
-if (catalog.schema !== "inspr.joe.layouts.v1" || catalog.layouts.length !== 1 || catalog.layouts[0].id !== "default") {
-  throw new Error(`default catalog invalid: ${JSON.stringify(catalog)}`);
+const alteredDefault = api.normalizeLayoutEntry({ id: "default", name: "Default", items: sample.map((item) => item.id === "hero" ? { ...item, h: 9 } : item) });
+if (!alteredDefault || alteredDefault.items.find((item) => item.id === "hero").h !== 2) {
+  throw new Error("default layout must stay canonical");
 }
 
-const normalized = normalizeLayoutEntry({ id: "qa", name: " QA ", items: sample });
-if (!normalized || normalized.name !== "QA") throw new Error("layout entry normalization failed");
+const catalog = api.defaultLayoutsCatalog();
+if (catalog.layouts.length !== 1 || catalog.layouts[0].id !== "default") throw new Error("default catalog invalid");
 
-console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, historyEntries: version.VERSION_HISTORY.length }, null, 2));
+const canonical = api.canonicalLayoutsCatalog([
+  { id: "default", name: "Default", items: sample.map((item) => item.id === "hero" ? { ...item, h: 9 } : item) },
+  { id: "qa", name: "QA", items: sample },
+  { id: "qa", name: "Dup", items: sample },
+]);
+if (canonical.layouts.length !== 2) throw new Error("duplicate layout ids not deduped");
+if (canonical.layouts[0].items.find((item) => item.id === "hero").h !== 2) throw new Error("canonical default not restored");
+
+const tooMany = { schema: "inspr.joe.layouts.v1", layouts: Array.from({ length: 25 }, (_, index) => ({ id: `layout-${index}`, name: `Layout ${index}`, items: sample })) };
+if (api.writeLayoutsCatalog(tooMany)) throw new Error("catalog over limit accepted");
+
+console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, checks: 11 }, null, 2));
