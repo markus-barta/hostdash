@@ -536,7 +536,7 @@
     if (host.charAt(0) === "[" && host.charAt(host.length - 1) === "]") {
       host = host.slice(1, -1);
     }
-    if (host === "hsb1.lan" || host === "hsb1" || host === "localhost" || host === "127.0.0.1" || host === "::1") {
+    if (host === "hsb1.lan" || host === "hsb1" || host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "cs0.barta.cm") {
       return true;
     }
     var parts = host.split(".");

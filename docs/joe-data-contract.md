@@ -41,11 +41,14 @@ mv "$JOE_WEBROOT/data.json.next" "$JOE_WEBROOT/data.json"
 ```
 
 Bind-mount that single file at
-`/usr/share/nginx/html/joe/data.json:ro` for hsb1. Do not mount it into cs0. The
-shared static package shows the board on LAN/local hosts, Tailscale CGNAT IPv4
-(`100.64.0.0/10`), and hsb1 `*.ts.net` names. Unknown public hostnames stay on a
-private stub before any request for `data.json`, so `https://cs0.barta.cm/joe/`
-contains no household PnL.
+`/usr/share/nginx/html/joe/data.json:ro` for the legacy hsb1 LAN board if still
+enabled. Primary cloud path is `https://cs0.barta.cm/joe/` behind HostDash
+oauth2-proxy / Zitadel. csb0 `joe-board` accepts machine pushes at
+`POST /joe/inbox` (Bearer token; no browser OAuth on that path) and serves the
+latest snapshot at `/joe/data.json` to authenticated browsers. Canonical hosts
+for the full board UI include `hsb1.lan`, Tailscale CGNAT IPv4
+(`100.64.0.0/10`), hsb1 `*.ts.net` names, localhost, and `cs0.barta.cm`.
+Other public hostnames stay on the private stub before any `data.json` fetch.
 
 ## Release/deploy hand-off
 
@@ -55,8 +58,9 @@ After this repository PR lands:
 2. add the hsb1-only `data.json` bind mount/producer wiring;
 3. build the hsb1 configuration;
 4. deploy hsb1 through the normal HIL-gated host path if the change requires it;
-5. verify `http://hsb1.lan/joe/` and this host's Tailscale IP render three desks and current paper data;
-6. verify `https://cs0.barta.cm/joe/` renders only the private canonical stub and
-   makes no `/joe/data.json` request.
+5. verify `http://hsb1.lan/joe/` (legacy) and/or Tailscale IP render three desks if still mounted;
+6. verify unauthenticated `https://cs0.barta.cm/joe/` redirects to login / 401 via oauth2-proxy;
+7. verify authenticated `https://cs0.barta.cm/joe/` renders three desks from inbox data;
+8. verify `POST /joe/inbox` without token is rejected and with token updates within ≤35s.
 
 This repository change does not perform the nixcfg bump or live deployment.

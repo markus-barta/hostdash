@@ -22,10 +22,11 @@ function assertJoeHostGate(isCanonicalJoeHost) {
     "hsb1.lan", "hsb1", "localhost", "127.0.0.1", "::1",
     "HSB1.LAN", "[::1]",
     "100.64.0.7", "100.64.0.0", "100.127.255.255",
-    "hsb1.tail1234.ts.net", "foo.hsb1.ts.net", "hsb1.ts.net"
+    "hsb1.tail1234.ts.net", "foo.hsb1.ts.net", "hsb1.ts.net",
+    "cs0.barta.cm"
   ];
   const deny = [
-    "cs0.barta.cm", "example.com", "8.8.8.8",
+    "example.com", "8.8.8.8",
     "100.63.255.255", "100.128.0.1", "100.64.0.256", "100.64.0.07",
     "192.168.1.10", "10.0.0.1",
     "example.ts.net", "hsb1.example.com"
@@ -315,15 +316,17 @@ try {
 
   const cs0Before = requests.filter(item => item.host.startsWith("cs0.barta.cm") && item.path === "/joe/data.json").length;
   const cs0Url = `http://cs0.barta.cm:${sitePort}/joe/`;
-  await navigate(cs0Url, "document.documentElement.dataset.joeView === 'stub'");
+  await navigate(cs0Url, "document.documentElement.dataset.joeView === 'board'");
   await delay(250);
-  const stub = await value(`({ view: document.documentElement.dataset.joeView, gateHidden: document.getElementById('privateGate')?.hidden, dashboardHidden: document.getElementById('dashboard')?.hidden, text: document.body.innerText })`);
+  const cs0Board = await value(`({ view: document.documentElement.dataset.joeView, gateHidden: document.getElementById('privateGate')?.hidden, dashboardHidden: document.getElementById('dashboard')?.hidden, deskIds: [...document.querySelectorAll('[data-desk]')].map(n => n.getAttribute('data-desk')) })`);
   const cs0After = requests.filter(item => item.host.startsWith("cs0.barta.cm") && item.path === "/joe/data.json").length;
-  if (stub.view !== "stub" || stub.gateHidden || !stub.dashboardHidden || !/Joe lives at home/.test(stub.text) || !/Tailscale/.test(stub.text) || cs0After !== cs0Before) throw new Error(`cs0 privacy stub mismatch: ${JSON.stringify({ stub, cs0Before, cs0After })}`);
+  if (cs0Board.view !== "board" || !cs0Board.gateHidden || cs0Board.dashboardHidden || JSON.stringify(cs0Board.deskIds) !== JSON.stringify(["j", "joe", "joel"]) || cs0After <= cs0Before) {
+    throw new Error(`cs0 oauth board mismatch: ${JSON.stringify({ cs0Board, cs0Before, cs0After })}`);
+  }
 
   if (/DUR\d+|1,001,403|SXR8|TSLA/.test(joePageSource)) throw new Error("Static /joe/ source still contains Paper-Drill account or position data");
   if (exceptions.length) throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
-  console.log(JSON.stringify({ healthy, mobile, stale, broken, stub: { ...stub, text: "private stub" }, dataRequests: requests.filter(item => item.path === "/joe/data.json") }, null, 2));
+  console.log(JSON.stringify({ healthy, mobile, stale, broken, cs0: cs0Board, dataRequests: requests.filter(item => item.path === "/joe/data.json") }, null, 2));
   await send("Browser.close").catch(() => {});
 } finally {
   await cleanup();
