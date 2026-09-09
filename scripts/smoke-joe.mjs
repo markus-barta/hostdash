@@ -31,6 +31,39 @@ async function writeSnapshot(overrides = {}) {
 }
 
 await writeSnapshot();
+
+function extractIsCanonicalJoeHost(source) {
+  const start = source.indexOf("function isCanonicalJoeHost");
+  const end = source.indexOf("\n  var LAYOUT_KEY", start);
+  if (start < 0 || end < 0) throw new Error("isCanonicalJoeHost missing from joe.js");
+  return new Function(`${source.slice(start, end)}; return isCanonicalJoeHost;`)();
+}
+
+function assertJoeHostGate(isCanonicalJoeHost) {
+  const allow = [
+    "hsb1.lan", "hsb1", "localhost", "127.0.0.1", "::1",
+    "HSB1.LAN", "[::1]",
+    "100.64.0.7", "100.64.0.0", "100.127.255.255",
+    "hsb1.tail1234.ts.net", "foo.hsb1.ts.net", "hsb1.ts.net",
+    "cs0.barta.cm", "cs0", "CS0.BARTA.CM"
+  ];
+  const deny = [
+    "example.com", "8.8.8.8",
+    "100.63.255.255", "100.128.0.1", "100.64.0.256", "100.64.0.07",
+    "192.168.1.10", "10.0.0.1",
+    "example.ts.net", "hsb1.example.com"
+  ];
+  for (const host of allow) {
+    if (!isCanonicalJoeHost(host)) throw new Error(`canonical host rejected: ${host}`);
+  }
+  for (const host of deny) {
+    if (isCanonicalJoeHost(host)) throw new Error(`non-canonical host allowed: ${host}`);
+  }
+}
+
+const joeSource = await readFile(join(repoRoot, "public/joe/joe.js"), "utf8");
+assertJoeHostGate(extractIsCanonicalJoeHost(joeSource));
+
 const historyPoints = Array.from({ length: 8 }, (_, index) => ({
   t: new Date(Date.now() - (7 - index) * 3600_000).toISOString(),
   desks: {
@@ -86,7 +119,7 @@ const browser = spawn(browserPath, [
   "--no-sandbox",
   "--disable-dev-shm-usage",
   "--no-proxy-server",
-  "--host-resolver-rules=MAP hsb1.lan 127.0.0.1, MAP cs0.barta.cm 127.0.0.1",
+  "--host-resolver-rules=MAP hsb1.lan 127.0.0.1, MAP cs0.barta.cm 127.0.0.1, MAP example.com 127.0.0.1",
   `--remote-debugging-port=${cdpPort}`,
   `--user-data-dir=${profile}`,
   "about:blank",
@@ -173,13 +206,23 @@ try {
   let richSnapshot;
 
   if (smokeMode === "privacy") {
-    const cs0Before = requests.filter(item => item.host.startsWith("cs0.barta.cm") && item.path === "/joe/data.json").length;
-    await navigate(`http://cs0.barta.cm:${sitePort}/joe/`, "document.documentElement.dataset.joeView === 'stub'");
+    const publicBefore = requests.filter(item => item.host.startsWith("example.com") && item.path === "/joe/data.json").length;
+    await navigate(`http://example.com:${sitePort}/joe/`, "document.documentElement.dataset.joeView === 'stub'");
     await delay(250);
-    stub = await value(`({ view: document.documentElement.dataset.joeView, gateHidden: document.getElementById('privateGate')?.hidden, dashboardHidden: document.getElementById('dashboard')?.hidden, text: document.body.innerText })`);
-    const cs0After = requests.filter(item => item.host.startsWith("cs0.barta.cm") && item.path === "/joe/data.json").length;
-    if (stub.view !== "stub" || stub.gateHidden || !stub.dashboardHidden || !/Joe lives at home/.test(stub.text) || cs0After !== cs0Before) throw new Error(`cs0 privacy stub mismatch: ${JSON.stringify({ stub, cs0Before, cs0After })}`);
+    stub = await value(`({ view: document.documentElement.dataset.joeView, gateHidden: document.getElementById('privateGate')?.hidden, dashboardHidden: document.getElementById('dashboard')?.hidden, text: document.body.innerText, title: document.title })`);
+    const publicAfter = requests.filter(item => item.host.startsWith("example.com") && item.path === "/joe/data.json").length;
+    if (stub.view !== "stub" || stub.gateHidden || !stub.dashboardHidden || !/Joe lives at home/.test(stub.text) || stub.title !== "Joe · Private household board" || publicAfter !== publicBefore) throw new Error(`public privacy stub mismatch: ${JSON.stringify({ stub, publicBefore, publicAfter })}`);
   } else {
+
+    const cs0Before = requests.filter(item => item.host.startsWith("cs0.barta.cm") && item.path === "/joe/data.json").length;
+    await navigate(`http://cs0.barta.cm:${sitePort}/joe/`, "document.documentElement.dataset.joeView === 'board'");
+    await delay(250);
+    const cs0Board = await value(`({ view: document.documentElement.dataset.joeView, title: document.title, gateHidden: document.getElementById('privateGate')?.hidden, dashboardHidden: document.getElementById('dashboard')?.hidden, deskIds: [...document.querySelectorAll('[data-desk]')].map(n => n.getAttribute('data-desk')) })`);
+    const cs0After = requests.filter(item => item.host.startsWith("cs0.barta.cm") && item.path === "/joe/data.json").length;
+    if (cs0Board.view !== "board" || cs0Board.title !== "Joe · Household desk" || !cs0Board.gateHidden || cs0Board.dashboardHidden || JSON.stringify(cs0Board.deskIds) !== JSON.stringify(["j", "joe", "joel"]) || cs0After <= cs0Before) {
+      throw new Error(`cs0 oauth board mismatch: ${JSON.stringify({ cs0Board, cs0Before, cs0After })}`);
+    }
+
     await navigate(hsb1Url, "document.documentElement.dataset.joeState");
     healthy = await value(`(() => ({
     view: document.documentElement.dataset.joeView,
