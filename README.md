@@ -104,8 +104,9 @@ paper-trading book. Non-hsb1 hostnames render a private canonical-link stub and
 do not fetch the data file; in particular, cs0 must never serve household PnL.
 
 The contract, synthetic sample, and atomic sync/deploy hand-off are documented
-in [`docs/joe-data-contract.md`](docs/joe-data-contract.md). Run its dedicated
-browser test with:
+in [`docs/joe-data-contract.md`](docs/joe-data-contract.md). GitHub Actions runs
+`node --check scripts/smoke-joe.mjs` and the browser smoke on Ubuntu Chrome for
+changes under `public/joe/`. Run its dedicated browser test with:
 
 ```bash
 node --check scripts/smoke-joe.mjs

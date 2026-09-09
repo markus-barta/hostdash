@@ -38,6 +38,8 @@
   }
 
   var LAYOUT_KEY = "joe-board-layout-v1";
+  var LAYOUTS_KEY = "joe-board-named-layouts-v1";
+  var DEFAULT_LAYOUT_ID = "default";
   var DESK_IDS = ["j", "joe", "joel"];
   var DEFAULT_LAYOUT = [
     { id: "hero", x: 0, y: 0, w: 12, h: 2 },
@@ -48,7 +50,7 @@
     { id: "history", x: 4, y: 6, w: 8, h: 5 },
     { id: "positions", x: 0, y: 11, w: 12, h: 5 }
   ];
-  var COLORS = { j: "#a9c99a", joe: "#96b6c9", joel: "#d4bd7a" };
+  var COLORS = { j: "#8ecf78", joe: "#6aaee8", joel: "#e0b85a" };
   var stateCopy = { working: "Working", "sit-out": "Sitting out", stuck: "Stuck" };
   var money = new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
   var number = new Intl.NumberFormat("de-AT", { maximumFractionDigits: 4 });
@@ -58,7 +60,8 @@
   var restoringLayout = false;
   var latestSnapshot = null;
   var positionFilter = "all";
-  var historyState = { selected: ["j", "joe"], range: "all", points: [], chart: null };
+  var historyState = { selected: DESK_IDS.slice(), range: "all", points: [], chart: null };
+  var layoutFormMode = null;
 
   var gate = document.getElementById("privateGate");
   var dashboard = document.getElementById("dashboard");
@@ -139,20 +142,284 @@
     return window[globalName] || (meta && meta.content) || fallback;
   }
 
+  function sanitizeLayoutItems(value) {
+    if (!Array.isArray(value)) { return null; }
+    var allowed = new Set(DEFAULT_LAYOUT.map(function (item) { return item.id; }));
+    var clean = value.filter(function (item) {
+      return item && allowed.has(item.id) && [item.x, item.y, item.w, item.h].every(Number.isFinite) && item.w > 0 && item.h > 0;
+    }).map(function (item) {
+      return { id: item.id, x: Math.max(0, Math.min(11, item.x)), y: Math.max(0, item.y), w: Math.min(12, Math.max(1, item.w)), h: Math.max(2, Math.min(24, item.h)) };
+    });
+    return clean.length === DEFAULT_LAYOUT.length ? clean : null;
+  }
+
   function safeStoredLayout() {
     try {
-      var value = JSON.parse(localStorage.getItem(LAYOUT_KEY));
-      if (!Array.isArray(value)) { return null; }
-      var allowed = new Set(DEFAULT_LAYOUT.map(function (item) { return item.id; }));
-      var clean = value.filter(function (item) {
-        return item && allowed.has(item.id) && [item.x, item.y, item.w, item.h].every(Number.isFinite) && item.w > 0 && item.h > 0;
-      }).map(function (item) {
-        return { id: item.id, x: Math.max(0, item.x), y: Math.max(0, item.y), w: Math.min(12, item.w), h: Math.max(2, item.h) };
-      });
-      return clean.length === DEFAULT_LAYOUT.length ? clean : null;
+      return sanitizeLayoutItems(JSON.parse(localStorage.getItem(LAYOUT_KEY)));
     } catch (_) {
       return null;
     }
+  }
+
+  function defaultLayoutsCatalog() {
+    return {
+      schema: "inspr.joe.layouts.v1",
+      layouts: [{ id: DEFAULT_LAYOUT_ID, name: "Default", items: DEFAULT_LAYOUT.slice(), builtin: true }]
+    };
+  }
+
+  function normalizeLayoutEntry(entry) {
+    if (!entry || typeof entry !== "object") { return null; }
+    var id = typeof entry.id === "string" && entry.id.length ? entry.id.slice(0, 64) : null;
+    var name = typeof entry.name === "string" && entry.name.trim().length ? entry.name.trim().slice(0, 48) : null;
+    var items = sanitizeLayoutItems(entry.items);
+    if (!id || !name || !items) { return null; }
+    return { id: id, name: name, items: items, builtin: entry.id === DEFAULT_LAYOUT_ID || entry.builtin === true };
+  }
+
+  function readLayoutsCatalog() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(LAYOUTS_KEY));
+      if (!raw || raw.schema !== "inspr.joe.layouts.v1" || !Array.isArray(raw.layouts)) {
+        return defaultLayoutsCatalog();
+      }
+      var seen = new Set();
+      var layouts = raw.layouts.map(normalizeLayoutEntry).filter(function (entry) {
+        if (!entry || seen.has(entry.id)) { return false; }
+        seen.add(entry.id);
+        return true;
+      });
+      if (!layouts.some(function (entry) { return entry.id === DEFAULT_LAYOUT_ID; })) {
+        layouts.unshift(defaultLayoutsCatalog().layouts[0]);
+      }
+      return { schema: "inspr.joe.layouts.v1", layouts: layouts.slice(0, 24) };
+    } catch (_) {
+      return defaultLayoutsCatalog();
+    }
+  }
+
+  function writeLayoutsCatalog(catalog) {
+    try {
+      localStorage.setItem(LAYOUTS_KEY, JSON.stringify(catalog));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setLayoutStatus(message, isError) {
+    var node = document.getElementById("layoutStatus");
+    if (!node) { return; }
+    node.textContent = message || "";
+    node.classList.toggle("is-error", Boolean(isError));
+  }
+
+  function currentGridLayout() {
+    if (!grid) { return DEFAULT_LAYOUT.slice(); }
+    return grid.save(false, false, undefined, 12).map(function (item) {
+      return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h };
+    });
+  }
+
+  function applyGridLayout(items) {
+    if (!grid) { return false; }
+    var clean = sanitizeLayoutItems(items);
+    if (!clean) { return false; }
+    restoringLayout = true;
+    grid.load(clean, false);
+    restoringLayout = false;
+    saveLayout();
+    resizeVisuals();
+    return true;
+  }
+
+  function renderLayoutSelect() {
+    var select = document.getElementById("layoutSelect");
+    if (!select) { return; }
+    var catalog = readLayoutsCatalog();
+    var current = select.value;
+    select.replaceChildren.apply(select, catalog.layouts.map(function (entry) {
+      var option = document.createElement("option");
+      option.value = entry.id;
+      option.textContent = entry.name;
+      return option;
+    }));
+    if (catalog.layouts.some(function (entry) { return entry.id === current; })) {
+      select.value = current;
+    } else {
+      select.value = DEFAULT_LAYOUT_ID;
+    }
+    var selected = catalog.layouts.find(function (entry) { return entry.id === select.value; });
+    document.getElementById("deleteLayout").disabled = !selected || selected.builtin;
+    document.getElementById("renameLayout").disabled = !selected || selected.builtin;
+  }
+
+  function hideLayoutForm() {
+    layoutFormMode = null;
+    document.getElementById("layoutInlineForm").hidden = true;
+    document.getElementById("layoutNameInput").value = "";
+  }
+
+  function showLayoutForm(mode) {
+    layoutFormMode = mode;
+    var input = document.getElementById("layoutNameInput");
+    var select = document.getElementById("layoutSelect");
+    var catalog = readLayoutsCatalog();
+    var selected = catalog.layouts.find(function (entry) { return entry.id === select.value; });
+    input.value = mode === "rename" && selected ? selected.name : "";
+    document.getElementById("layoutInlineForm").hidden = false;
+    input.focus();
+    input.select();
+  }
+
+  function uniqueLayoutId(name) {
+    var base = String(name || "layout").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "layout";
+    var catalog = readLayoutsCatalog();
+    var candidate = base;
+    var suffix = 2;
+    while (catalog.layouts.some(function (entry) { return entry.id === candidate; })) {
+      candidate = base + "-" + suffix;
+      suffix += 1;
+    }
+    return candidate.slice(0, 64);
+  }
+
+  function saveNamedLayout(name) {
+    var trimmed = String(name || "").trim();
+    if (!trimmed) {
+      setLayoutStatus("Enter a layout name.", true);
+      return false;
+    }
+    var items = currentGridLayout();
+    var catalog = readLayoutsCatalog();
+    var entry = { id: uniqueLayoutId(trimmed), name: trimmed, items: items, builtin: false };
+    catalog.layouts.push(entry);
+    if (!writeLayoutsCatalog(catalog)) {
+      setLayoutStatus("Layout storage is unavailable.", true);
+      return false;
+    }
+    renderLayoutSelect();
+    document.getElementById("layoutSelect").value = entry.id;
+    hideLayoutForm();
+    setLayoutStatus('Saved layout "' + trimmed + '".');
+    return true;
+  }
+
+  function renameSelectedLayout(name) {
+    var trimmed = String(name || "").trim();
+    if (!trimmed) {
+      setLayoutStatus("Enter a layout name.", true);
+      return false;
+    }
+    var select = document.getElementById("layoutSelect");
+    var catalog = readLayoutsCatalog();
+    var entry = catalog.layouts.find(function (item) { return item.id === select.value; });
+    if (!entry || entry.builtin) {
+      setLayoutStatus("The default layout cannot be renamed.", true);
+      return false;
+    }
+    entry.name = trimmed;
+    if (!writeLayoutsCatalog(catalog)) {
+      setLayoutStatus("Layout storage is unavailable.", true);
+      return false;
+    }
+    renderLayoutSelect();
+    select.value = entry.id;
+    hideLayoutForm();
+    setLayoutStatus('Renamed layout to "' + trimmed + '".');
+    return true;
+  }
+
+  function loadSelectedLayout() {
+    var select = document.getElementById("layoutSelect");
+    var catalog = readLayoutsCatalog();
+    var entry = catalog.layouts.find(function (item) { return item.id === select.value; });
+    if (!entry) {
+      setLayoutStatus("Choose a saved layout.", true);
+      return false;
+    }
+    if (!applyGridLayout(entry.items)) {
+      setLayoutStatus("That layout could not be loaded.", true);
+      return false;
+    }
+    setLayoutStatus('Loaded layout "' + entry.name + '".');
+    return true;
+  }
+
+  function deleteSelectedLayout() {
+    var select = document.getElementById("layoutSelect");
+    var catalog = readLayoutsCatalog();
+    var entry = catalog.layouts.find(function (item) { return item.id === select.value; });
+    if (!entry || entry.builtin) {
+      setLayoutStatus("The default layout cannot be deleted.", true);
+      return false;
+    }
+    catalog.layouts = catalog.layouts.filter(function (item) { return item.id !== entry.id; });
+    if (!writeLayoutsCatalog(catalog)) {
+      setLayoutStatus("Layout storage is unavailable.", true);
+      return false;
+    }
+    renderLayoutSelect();
+    select.value = DEFAULT_LAYOUT_ID;
+    setLayoutStatus('Deleted layout "' + entry.name + '".');
+    return true;
+  }
+
+  function bindLayoutControls() {
+    renderLayoutSelect();
+    document.getElementById("saveLayout").addEventListener("click", function () { showLayoutForm("save"); });
+    document.getElementById("renameLayout").addEventListener("click", function () { showLayoutForm("rename"); });
+    document.getElementById("loadLayout").addEventListener("click", loadSelectedLayout);
+    document.getElementById("deleteLayout").addEventListener("click", deleteSelectedLayout);
+    document.getElementById("layoutFormCancel").addEventListener("click", hideLayoutForm);
+    document.getElementById("layoutFormConfirm").addEventListener("click", function () {
+      var name = document.getElementById("layoutNameInput").value;
+      if (layoutFormMode === "rename") { renameSelectedLayout(name); }
+      else { saveNamedLayout(name); }
+    });
+    document.getElementById("layoutNameInput").addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("layoutFormConfirm").click();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        hideLayoutForm();
+      }
+    });
+  }
+
+  function renderVersionPanel() {
+    var version = window.JoeVersion || { APP_VERSION: "0.2.0", VERSION_HISTORY: [] };
+    document.getElementById("appVersion").textContent = version.APP_VERSION;
+    var panel = document.getElementById("versionPanel");
+    panel.replaceChildren.apply(panel, version.VERSION_HISTORY.map(function (entry) {
+      var section = el("section", "version__entry");
+      var heading = el("h3");
+      heading.appendChild(document.createTextNode(entry.version === "unversioned milestone" ? "Unversioned milestone" : "v" + entry.version));
+      heading.appendChild(el("span", "", entry.date));
+      section.appendChild(heading);
+      section.appendChild(el("p", "version__title", entry.title));
+      var list = el("ul");
+      entry.changes.forEach(function (change) { list.appendChild(el("li", "", change)); });
+      section.appendChild(list);
+      return section;
+    }));
+  }
+
+  function bindDismissableDetails() {
+    document.addEventListener("click", function (event) {
+      document.querySelectorAll("details[data-dismissable][open]").forEach(function (open) {
+        if (event.target instanceof Node && !open.contains(event.target)) {
+          open.removeAttribute("open");
+        }
+      });
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") { return; }
+      document.querySelectorAll("details[data-dismissable][open]").forEach(function (open) {
+        open.removeAttribute("open");
+      });
+    });
   }
 
   function saveLayout() {
@@ -173,7 +440,7 @@
       column: 12,
       columnOpts: { breakpoints: [{ w: 700, c: 1 }], layout: "list" },
       cellHeight: 82,
-      margin: 0,
+      margin: 10,
       float: false,
       handle: ".widget-drag",
       resizable: { handles: "e,se,s,sw,w" }
@@ -188,10 +455,8 @@
     grid.on("resizestop", function () { resizeVisuals(); });
     document.getElementById("resetLayout").addEventListener("click", function () {
       try { localStorage.removeItem(LAYOUT_KEY); } catch (_) { /* storage unavailable */ }
-      restoringLayout = true;
-      grid.load(DEFAULT_LAYOUT, false);
-      restoringLayout = false;
-      resizeVisuals();
+      applyGridLayout(DEFAULT_LAYOUT);
+      setLayoutStatus("Reset to default layout.");
     });
   }
 
@@ -399,8 +664,86 @@
     empty.textContent = message;
   }
 
+  function easternOffsetMinutes(date) {
+    var year = date.getUTCFullYear();
+    var march = new Date(Date.UTC(year, 2, 8));
+    march.setUTCDate(8 + (7 - march.getUTCDay()) % 7);
+    var november = new Date(Date.UTC(year, 10, 1));
+    november.setUTCDate(1 + (7 - november.getUTCDay()) % 7);
+    return date >= march && date < november ? 240 : 300;
+  }
+
+  function easternSessionBounds(dayStartMs) {
+    var day = new Date(dayStartMs);
+    day.setUTCHours(0, 0, 0, 0);
+    var offset = easternOffsetMinutes(day);
+    var open = day.getTime() + ((9 * 60 + 30) + offset) * 60 * 1000;
+    var close = day.getTime() + (16 * 60 + offset) * 60 * 1000;
+    return { open: open, close: close };
+  }
+
+  function visibleHistoryDomain(points) {
+    if (!points.length) { return null; }
+    var values = points.map(function (point) { return Date.parse(point.t); }).filter(Number.isFinite);
+    if (!values.length) { return null; }
+    return { min: Math.min.apply(Math, values), max: Math.max.apply(Math, values) };
+  }
+
+  var historyOverlayPlugin = {
+    id: "joeHistoryOverlay",
+    beforeDatasetsDraw: function (chart) {
+      var area = chart.chartArea;
+      var scale = chart.scales.x;
+      if (!area || !scale) { return; }
+      var domain = visibleHistoryDomain(filterPoints(historyState.points, historyState.range));
+      if (!domain) { return; }
+      var context = chart.ctx;
+      context.save();
+      var day = new Date(domain.min);
+      day.setUTCHours(0, 0, 0, 0);
+      while (day.getTime() <= domain.max + 86400000) {
+        var session = easternSessionBounds(day.getTime());
+        var start = Math.max(domain.min, session.open);
+        var end = Math.min(domain.max, session.close);
+        if (end > start) {
+          var left = scale.getPixelForValue(start);
+          var right = scale.getPixelForValue(end);
+          context.fillStyle = "rgba(169, 201, 154, 0.06)";
+          context.fillRect(Math.max(area.left, left), area.top, Math.min(area.right, right) - Math.max(area.left, left), area.bottom - area.top);
+        }
+        day = new Date(day.getTime() + 86400000);
+      }
+      var now = Date.now();
+      if (now >= domain.min && now <= domain.max) {
+        var marker = scale.getPixelForValue(now);
+        if (marker >= area.left && marker <= area.right) {
+          context.strokeStyle = "rgba(238, 230, 212, 0.55)";
+          context.lineWidth = 1;
+          context.setLineDash([4, 4]);
+          context.beginPath();
+          context.moveTo(marker, area.top);
+          context.lineTo(marker, area.bottom);
+          context.stroke();
+        }
+      }
+      context.restore();
+    }
+  };
+
+  function updateSeriesButtons() {
+    var allSelected = DESK_IDS.every(function (id) { return historyState.selected.includes(id); });
+    document.getElementById("seriesAll").setAttribute("aria-pressed", String(allSelected && historyState.selected.length === DESK_IDS.length));
+    document.querySelectorAll("button[data-series]").forEach(function (button) {
+      button.setAttribute("aria-pressed", String(historyState.selected.includes(button.dataset.series)));
+    });
+  }
+
   function drawHistory() {
     if (!window.Chart) { showHistoryEmpty("The local chart library could not be loaded."); return; }
+    if (!historyState.selected.length) {
+      showHistoryEmpty("Select one or more desks to compare.");
+      return;
+    }
     var points = filterPoints(historyState.points, historyState.range);
     var datasets = historyState.selected.map(function (deskId) {
       return {
@@ -438,7 +781,8 @@
           x: { type: "linear", ticks: { color: "#77766f", maxTicksLimit: 7, font: tickFont, callback: function (value) { return shortTime.format(new Date(value)); } }, grid: { color: "rgba(63,64,59,.45)" } },
           y: { ticks: { color: "#77766f", font: tickFont, callback: function (value) { return amount(value, false); } }, grid: { color: "rgba(63,64,59,.45)" } }
         }
-      }
+      },
+      plugins: [historyOverlayPlugin]
     };
     destroyHistoryChart();
     historyState.chart = new window.Chart(document.getElementById("historyChart").getContext("2d"), config);
@@ -487,18 +831,25 @@
   }
 
   function bindControls() {
+    document.getElementById("seriesAll").addEventListener("click", function () {
+      if (historyState.selected.length === DESK_IDS.length) {
+        historyState.selected = [];
+      } else {
+        historyState.selected = DESK_IDS.slice();
+      }
+      updateSeriesButtons();
+      drawHistory();
+    });
     document.querySelectorAll("button[data-series]").forEach(function (button) {
       button.addEventListener("click", function () {
         var id = button.dataset.series;
         var index = historyState.selected.indexOf(id);
         if (index >= 0) {
-          if (historyState.selected.length === 1) { return; }
           historyState.selected.splice(index, 1);
         } else {
-          if (historyState.selected.length === 2) { historyState.selected.shift(); }
           historyState.selected.push(id);
         }
-        document.querySelectorAll("button[data-series]").forEach(function (candidate) { candidate.setAttribute("aria-pressed", String(historyState.selected.includes(candidate.dataset.series))); });
+        updateSeriesButtons();
         drawHistory();
       });
     });
@@ -547,10 +898,18 @@
   window.JoeBoard = Object.freeze({
     ingest: function (snapshot) { render(validate(snapshot)); },
     refresh: refresh,
-    layoutStorageKey: LAYOUT_KEY
+    layoutStorageKey: LAYOUT_KEY,
+    layoutsStorageKey: LAYOUTS_KEY,
+    defaultLayoutId: DEFAULT_LAYOUT_ID,
+    readLayoutsCatalog: readLayoutsCatalog,
+    sanitizeLayoutItems: sanitizeLayoutItems
   });
   initGrid();
   bindControls();
+  bindLayoutControls();
+  bindDismissableDetails();
+  renderVersionPanel();
+  updateSeriesButtons();
   refresh();
   refreshHistory();
   window.setInterval(refresh, 15000);

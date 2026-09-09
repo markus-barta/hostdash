@@ -236,6 +236,14 @@ try {
     gridReady: Boolean(document.getElementById('joeGrid')?.gridstack),
     widgets: document.querySelectorAll('#joeGrid > .grid-stack-item').length,
     selectedSeries: document.querySelectorAll('button[data-series][aria-pressed="true"]').length,
+    allBotsPressed: document.getElementById('seriesAll')?.getAttribute('aria-pressed'),
+    historyTitle: document.querySelector('[gs-id="history"] .widget-drag span')?.textContent,
+    historyHelp: document.getElementById('historyHelp')?.textContent,
+    deskLabel: document.getElementById('deskControlsLabel')?.textContent,
+    rangeLabel: document.getElementById('rangeControlsLabel')?.textContent,
+    versionSummary: document.querySelector('.version > summary')?.textContent,
+    versionEntries: document.querySelectorAll('#versionPanel .version__entry').length,
+    layoutSelectOptions: document.getElementById('layoutSelect')?.options?.length,
     positionFallback: document.getElementById('positionsBody')?.innerText,
     zoomPlugin: Boolean(window.Chart?.registry?.plugins?.get('zoom')),
     externalScripts: [...document.scripts].filter(script => script.src && new URL(script.src).origin !== location.origin).length,
@@ -247,7 +255,12 @@ try {
       !healthy.states.includes("Working") || !healthy.states.includes("Sitting out") ||
       !/30[\.\s]000/.test(healthy.total || "") || healthy.gateway !== "OK · connected" ||
       !healthy.halt.startsWith("Off") || !healthy.alarmHidden || !healthy.gridReady || healthy.widgets !== 7 ||
-      healthy.selectedSeries !== 2 || !/not present/i.test(healthy.positionFallback || "") || !healthy.zoomPlugin || healthy.externalScripts || healthy.overflow
+      healthy.selectedSeries !== 3 || healthy.allBotsPressed !== "true" ||
+      healthy.historyTitle !== "History" || /drag here|compare up to two/i.test(healthy.historyHelp || "") ||
+      healthy.deskLabel !== "Desks" || healthy.rangeLabel !== "Range" ||
+      !/v0\.2\.0/.test(healthy.versionSummary || "") || healthy.versionEntries < 4 ||
+      !healthy.layoutSelectOptions || healthy.layoutSelectOptions < 1 ||
+      !/not present/i.test(healthy.positionFallback || "") || !healthy.zoomPlugin || healthy.externalScripts || healthy.overflow
     ) throw new Error(`Healthy board mismatch: ${JSON.stringify(healthy)}`);
 
     if (process.env.JOE_SCREENSHOT_DIR) {
@@ -293,8 +306,9 @@ try {
       richSnapshot = await value(`(() => { window.JoeBoard.ingest(${JSON.stringify(positionsSnapshot)}); return { rows: document.querySelectorAll('#positionsBody tr').length, symbols: document.getElementById('positionsBody')?.innerText, open: document.getElementById('totalOpen')?.textContent, tradeCount: document.querySelector('[data-desk-slot="j"] .desk-money-row')?.innerText }; })()`);
       if (richSnapshot.rows !== 2 || !/DEMO1/.test(richSnapshot.symbols || "") || !/17,25/.test(richSnapshot.open || "") || !/4/.test(richSnapshot.tradeCount || "")) throw new Error(`Rich snapshot mismatch: ${JSON.stringify(richSnapshot)}`);
 
-      const layout = await value(`(async () => { const board = document.getElementById('joeGrid'); const grid = board.gridstack; const hero = document.querySelector('[gs-id="hero"]'); grid.update(hero, { h: 3 }); await new Promise(resolve => setTimeout(resolve, 50)); const saved = JSON.parse(localStorage.getItem('joe-board-layout-v1')); document.getElementById('resetLayout').click(); await new Promise(resolve => setTimeout(resolve, 50)); return { savedHeight: saved.find(item => item.id === 'hero')?.h, resetHeight: hero.gridstackNode.h, storageCleared: localStorage.getItem('joe-board-layout-v1') === null }; })()`);
-      if (layout.savedHeight !== 3 || layout.resetHeight !== 2 || !layout.storageCleared) throw new Error(`Layout persistence mismatch: ${JSON.stringify(layout)}`);
+      const layout = await value(`(async () => { const board = document.getElementById('joeGrid'); const grid = board.gridstack; const hero = document.querySelector('[gs-id="hero"]'); grid.update(hero, { h: 3 }); await new Promise(resolve => setTimeout(resolve, 50)); const saved = JSON.parse(localStorage.getItem('joe-board-layout-v1')); document.getElementById('resetLayout').click(); await new Promise(resolve => setTimeout(resolve, 50)); const resetResult = { savedHeight: saved.find(item => item.id === 'hero')?.h, resetHeight: hero.gridstackNode.h, storageCleared: localStorage.getItem('joe-board-layout-v1') !== null }; document.getElementById('layoutNameInput').value = 'QA layout'; document.getElementById('saveLayout').click(); document.getElementById('layoutFormConfirm').click(); await new Promise(resolve => setTimeout(resolve, 50)); const catalog = window.JoeBoard.readLayoutsCatalog(); const savedLayout = catalog.layouts.find(entry => entry.name === 'QA layout'); document.getElementById('layoutSelect').value = savedLayout?.id || ''; document.getElementById('loadLayout').click(); await new Promise(resolve => setTimeout(resolve, 50)); const loadedHeight = hero.gridstackNode.h; document.getElementById('seriesAll').click(); await new Promise(resolve => setTimeout(resolve, 25)); const cleared = { selected: document.querySelectorAll('button[data-series][aria-pressed="true"]').length, empty: document.getElementById('historyEmpty')?.hidden === false }; document.getElementById('seriesAll').click(); await new Promise(resolve => setTimeout(resolve, 25)); const restored = document.querySelectorAll('button[data-series][aria-pressed="true"]').length; return { resetResult, savedLayout: Boolean(savedLayout), loadedHeight, cleared, restored }; })()`);
+      if (layout.resetResult.savedHeight !== 3 || layout.resetResult.resetHeight !== 2 || !layout.resetResult.storageCleared) throw new Error(`Layout persistence mismatch: ${JSON.stringify(layout)}`);
+      if (!layout.savedLayout || layout.loadedHeight !== 3 || layout.cleared.selected !== 0 || !layout.cleared.empty || layout.restored !== 3) throw new Error(`Layout/history UX mismatch: ${JSON.stringify(layout)}`);
     }
   }
 
