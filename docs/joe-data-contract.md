@@ -42,8 +42,10 @@ mv "$JOE_WEBROOT/data.json.next" "$JOE_WEBROOT/data.json"
 
 Bind-mount that single file at
 `/usr/share/nginx/html/joe/data.json:ro` for hsb1. Do not mount it into cs0. The
-shared static package gates every non-hsb1 hostname to a private stub before any
-request for `data.json`, so `https://cs0.barta.cm/joe/` contains no household PnL.
+shared static package shows the board on LAN/local hosts, Tailscale CGNAT IPv4
+(`100.64.0.0/10`), and hsb1 `*.ts.net` names. Unknown public hostnames stay on a
+private stub before any request for `data.json`, so `https://cs0.barta.cm/joe/`
+contains no household PnL.
 
 ## Release/deploy hand-off
 
@@ -53,7 +55,7 @@ After this repository PR lands:
 2. add the hsb1-only `data.json` bind mount/producer wiring;
 3. build the hsb1 configuration;
 4. deploy hsb1 through the normal HIL-gated host path if the change requires it;
-5. verify `http://hsb1.lan/joe/` renders three desks and current paper data;
+5. verify `http://hsb1.lan/joe/` and this host's Tailscale IP render three desks and current paper data;
 6. verify `https://cs0.barta.cm/joe/` renders only the private canonical stub and
    makes no `/joe/data.json` request.
 

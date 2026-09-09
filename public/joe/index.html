@@ -428,7 +428,7 @@
   <div class="gate-card">
     <p class="kicker">Private household board</p>
     <h1 id="gateTitle">Joe lives at home.</h1>
-    <p>This address does not publish the household trading desk or its paper results.</p>
+    <p>This address does not publish the household trading desk or its paper results. On the home LAN use http://hsb1.lan/joe/. The Tailscale mesh IP of this host is also OK.</p>
     <a href="http://hsb1.lan/joe/">Open the canonical board on hsb1.lan →</a>
   </div>
 </section>
@@ -531,12 +531,43 @@
 (function () {
   "use strict";
 
-  var CANONICAL_HOSTS = new Set(["hsb1.lan", "hsb1", "localhost", "127.0.0.1", "::1"]);
+  function isCanonicalJoeHost(hostname) {
+    var host = String(hostname || "").toLowerCase();
+    if (host.charAt(0) === "[" && host.charAt(host.length - 1) === "]") {
+      host = host.slice(1, -1);
+    }
+    if (host === "hsb1.lan" || host === "hsb1" || host === "localhost" || host === "127.0.0.1" || host === "::1") {
+      return true;
+    }
+    var parts = host.split(".");
+    if (parts.length === 4) {
+      var octets = [];
+      var i;
+      var valid = true;
+      for (i = 0; i < 4; i += 1) {
+        if (!/^(0|[1-9]\d{0,2})$/.test(parts[i])) {
+          valid = false;
+          break;
+        }
+        var n = Number(parts[i]);
+        if (n > 255) {
+          valid = false;
+          break;
+        }
+        octets.push(n);
+      }
+      if (valid && octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) {
+        return true;
+      }
+    }
+    return host.slice(-7) === ".ts.net" && host.indexOf("hsb1") !== -1;
+  }
+
   var host = location.hostname.toLowerCase();
   var gate = document.getElementById("privateGate");
   var dashboard = document.getElementById("dashboard");
 
-  if (!CANONICAL_HOSTS.has(host)) {
+  if (!isCanonicalJoeHost(host)) {
     document.title = "Joe · Private household board";
     document.documentElement.dataset.joeView = "stub";
     gate.hidden = false;
