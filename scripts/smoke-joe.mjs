@@ -6,7 +6,39 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
+const joePageSource = await readFile(join(repoRoot, "public", "joe", "index.html"), "utf8");
 const browserPath = process.env.BROWSER_PATH || "/usr/bin/google-chrome";
+
+function extractIsCanonicalJoeHost(source) {
+  const start = source.indexOf("function isCanonicalJoeHost(");
+  const end = source.indexOf("\n  var host = location.hostname.toLowerCase();", start);
+  if (start < 0 || end < 0) throw new Error("isCanonicalJoeHost missing from public/joe/index.html");
+  const fnSource = source.slice(start, end).trim();
+  return new Function(`${fnSource}\nreturn isCanonicalJoeHost;`)();
+}
+
+function assertJoeHostGate(isCanonicalJoeHost) {
+  const allow = [
+    "hsb1.lan", "hsb1", "localhost", "127.0.0.1", "::1",
+    "HSB1.LAN", "[::1]",
+    "100.64.0.7", "100.64.0.0", "100.127.255.255",
+    "hsb1.tail1234.ts.net", "foo.hsb1.ts.net", "hsb1.ts.net"
+  ];
+  const deny = [
+    "cs0.barta.cm", "example.com", "8.8.8.8",
+    "100.63.255.255", "100.128.0.1", "100.64.0.256", "100.64.0.07",
+    "192.168.1.10", "10.0.0.1",
+    "example.ts.net", "hsb1.example.com"
+  ];
+  for (const host of allow) {
+    if (!isCanonicalJoeHost(host)) throw new Error(`expected canonical Joe host: ${host}`);
+  }
+  for (const host of deny) {
+    if (isCanonicalJoeHost(host)) throw new Error(`expected gated Joe host: ${host}`);
+  }
+}
+
+assertJoeHostGate(extractIsCanonicalJoeHost(joePageSource));
 const site = await mkdtemp(join(tmpdir(), "hostdash-joe-site-"));
 const profile = await mkdtemp(join(tmpdir(), "hostdash-joe-browser-"));
 const requests = [];
@@ -287,10 +319,9 @@ try {
   await delay(250);
   const stub = await value(`({ view: document.documentElement.dataset.joeView, gateHidden: document.getElementById('privateGate')?.hidden, dashboardHidden: document.getElementById('dashboard')?.hidden, text: document.body.innerText })`);
   const cs0After = requests.filter(item => item.host.startsWith("cs0.barta.cm") && item.path === "/joe/data.json").length;
-  if (stub.view !== "stub" || stub.gateHidden || !stub.dashboardHidden || !/Joe lives at home/.test(stub.text) || cs0After !== cs0Before) throw new Error(`cs0 privacy stub mismatch: ${JSON.stringify({ stub, cs0Before, cs0After })}`);
+  if (stub.view !== "stub" || stub.gateHidden || !stub.dashboardHidden || !/Joe lives at home/.test(stub.text) || !/Tailscale/.test(stub.text) || cs0After !== cs0Before) throw new Error(`cs0 privacy stub mismatch: ${JSON.stringify({ stub, cs0Before, cs0After })}`);
 
-  const source = await readFile(join(repoRoot, "public", "joe", "index.html"), "utf8");
-  if (/DUR\d+|1,001,403|SXR8|TSLA/.test(source)) throw new Error("Static /joe/ source still contains Paper-Drill account or position data");
+  if (/DUR\d+|1,001,403|SXR8|TSLA/.test(joePageSource)) throw new Error("Static /joe/ source still contains Paper-Drill account or position data");
   if (exceptions.length) throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   console.log(JSON.stringify({ healthy, mobile, stale, broken, stub: { ...stub, text: "private stub" }, dataRequests: requests.filter(item => item.path === "/joe/data.json") }, null, 2));
   await send("Browser.close").catch(() => {});
