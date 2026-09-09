@@ -99,10 +99,9 @@ here. Omit the section entirely and every card falls back to probe-only behavior
 ## Joe household board
 
 The only Joe board is the quiet split-flap view at `/joe/`, canonical on
-`http://hsb1.lan/joe/`, this host's Tailscale mesh IP (`100.64.0.0/10`), and
-hsb1 `*.ts.net` names. It reads an hsb1-local `/joe/data.json` projection of the
-paper-trading book. Unknown public hostnames render a private canonical-link stub
-and do not fetch the data file; in particular, cs0 must never serve household PnL.
+`http://hsb1.lan/joe/`. It reads an hsb1-local `/joe/data.json` projection of the
+paper-trading book. Non-hsb1 hostnames render a private canonical-link stub and
+do not fetch the data file; in particular, cs0 must never serve household PnL.
 
 The contract, synthetic sample, and atomic sync/deploy hand-off are documented
 in [`docs/joe-data-contract.md`](docs/joe-data-contract.md). Run its dedicated
@@ -111,6 +110,8 @@ browser test with:
 ```bash
 node --check scripts/smoke-joe.mjs
 node scripts/smoke-joe.mjs
+JOE_SMOKE_VIEWPORT=mobile node scripts/smoke-joe.mjs
+JOE_SMOKE_VIEWPORT=privacy node scripts/smoke-joe.mjs
 ```
 
 ## QA Checklist
@@ -121,6 +122,8 @@ Before pushing or redeploying, run:
 node --check scripts/smoke-ui.mjs
 node --check scripts/smoke-joe.mjs
 node scripts/smoke-joe.mjs
+JOE_SMOKE_VIEWPORT=mobile node scripts/smoke-joe.mjs
+JOE_SMOKE_VIEWPORT=privacy node scripts/smoke-joe.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
