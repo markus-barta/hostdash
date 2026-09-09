@@ -112,9 +112,14 @@ tr[data-desk="joel"] td:first-child { color: var(--amber); }
   .shell { width: min(100% - 16px,1600px); padding-top: 8px; }
   .topline { align-items: flex-start; }
   .toolbar { align-items: flex-end; flex-direction: column; }
-  .hero-values { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .hero-values { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; padding: 7px 7px 5px; }
   .hero-lead { grid-column: 1 / -1; }
-  .system-strip { flex-wrap: wrap; }
+  .hero-lead .kicker { display: none; }
+  .hero-lead h1 { margin: 0; font-size: 16px; white-space: nowrap; }
+  .hero-stat { padding: 6px 5px; }
+  .hero-stat strong { margin-top: 3px; font-size: clamp(9px,2.7vw,11px); }
+  .system-strip { gap: 4px; padding: 0 7px 6px; }
+  .system-strip .status-badge { padding: 3px 6px; font-size: 8px; }
   .grid-fallback { display: block; }
   .grid-fallback > .grid-stack-item { min-height: 300px; margin-bottom: 12px; }
   .positions-head { align-items: flex-start; flex-direction: column; }

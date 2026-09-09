@@ -217,9 +217,12 @@ try {
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       gridColumns: document.getElementById('joeGrid')?.gridstack?.getColumn(),
       gateHidden: document.getElementById('privateGate').hidden,
+      heroClipped: (() => { const hero = document.querySelector('[gs-id="hero"] .grid-stack-item-content'); return hero.scrollHeight > hero.clientHeight + 1; })(),
+      heroOpen: document.getElementById('totalOpen')?.textContent,
+      heroFreshness: document.getElementById('freshValue')?.textContent,
       offenders: [...document.querySelectorAll('body *')].filter(node => node.getBoundingClientRect().right > document.documentElement.clientWidth + 1).slice(0, 8).map(node => ({ tag: node.tagName, id: node.id, className: String(node.className), right: Math.round(node.getBoundingClientRect().right), width: Math.round(node.getBoundingClientRect().width) })),
       }))()`);
-      if (mobile.overflow || mobile.gridColumns !== 1 || !mobile.gateHidden) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
+      if (mobile.overflow || mobile.gridColumns !== 1 || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
     } else {
       const staleSnapshot = structuredClone(sample);
       staleSnapshot.generatedAt = new Date(Date.now() - 3600_000).toISOString();
