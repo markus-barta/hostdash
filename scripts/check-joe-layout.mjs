@@ -121,6 +121,8 @@ if (api.sanitizeGridSettings({ columns: 99, cellHeight: 12, tilePadding: -4, til
   throw new Error("grid settings bounds failed");
 }
 
+if (api.sanitizeLayoutItems(sample, 6)) throw new Error("twelve-column geometry must not pass six-column sanitization");
+
 const catalog = api.defaultLayoutsCatalog();
 if (catalog.layouts.length !== 1 || catalog.layouts[0].id !== "default" || !catalog.layouts[0].settings) {
   throw new Error("default catalog invalid");
@@ -137,4 +139,4 @@ if (canonical.layouts[0].items.find((item) => item.id === "hero").h !== 3) throw
 const tooMany = { schema: "inspr.joe.layouts.v1", layouts: Array.from({ length: 25 }, (_, index) => ({ id: `layout-${index}`, name: `Layout ${index}`, items: sample })) };
 if (api.writeLayoutsCatalog(tooMany)) throw new Error("catalog over limit accepted");
 
-console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, checks: 18 }, null, 2));
+console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, checks: 19 }, null, 2));

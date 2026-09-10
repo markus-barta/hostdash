@@ -342,6 +342,76 @@ try {
         mobile.defaultHeroY !== 0 || mobile.defaultHeroH !== 3 || mobile.liveHeroY !== 0 || mobile.liveHeroH !== 3 ||
         !mobile.headerStatusVisible || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness || mobile.versionPanel?.overflow
       ) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
+
+      const mobileSave = await value(`(async () => {
+        document.getElementById('settingsMenu').setAttribute('open', '');
+        document.getElementById('settingsColumns').value = '6';
+        document.getElementById('settingsCellHeight').value = '88';
+        document.getElementById('settingsTilePadding').value = '18';
+        document.getElementById('settingsTileGap').value = '20';
+        document.getElementById('settingsApply').click();
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        document.getElementById('layoutMenu').setAttribute('open', '');
+        document.getElementById('saveLayout').click();
+        document.getElementById('layoutNameInput').value = 'Custom grid';
+        document.getElementById('layoutFormConfirm').click();
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        const afterSave = {
+          status: document.getElementById('layoutStatus').textContent,
+          isError: document.getElementById('layoutStatus').classList.contains('is-error'),
+          catalogCount: window.JoeBoard.readLayoutsCatalog().layouts.length,
+          selected: document.getElementById('layoutSelect').value,
+          renameDisabled: document.getElementById('renameLayout').disabled,
+          gridColumns: window.JoeBoard.gridColumnCount(),
+          heroW: document.querySelector('[gs-id="hero"]')?.gridstackNode?.w,
+          savedHeroW: window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.name === 'Custom grid')?.items.find((item) => item.id === 'hero')?.w,
+        };
+        document.getElementById('renameLayout').click();
+        document.getElementById('layoutNameInput').value = 'Renamed grid';
+        document.getElementById('layoutFormConfirm').click();
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        return {
+          afterSave,
+          afterRename: document.getElementById('layoutSelect').selectedOptions[0]?.textContent,
+          renamedId: window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.name === 'Renamed grid')?.id,
+        };
+      })()`);
+      if (
+        mobileSave.afterSave.isError || mobileSave.afterSave.catalogCount < 2 ||
+        mobileSave.afterSave.selected === 'default' || mobileSave.afterSave.renameDisabled ||
+        mobileSave.afterSave.gridColumns !== 1 || mobileSave.afterSave.savedHeroW !== 6 ||
+        mobileSave.afterRename !== 'Renamed grid' || !mobileSave.renamedId
+      ) throw new Error(`Mobile save layout mismatch: ${JSON.stringify(mobileSave)}`);
+
+      await send("Page.reload", { ignoreCache: true });
+      await delay(600);
+      await navigate(hsb1Url, "document.getElementById('joeGrid')?.gridstack");
+      const mobileReloaded = await value(`(() => {
+        const renamed = window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.name === 'Renamed grid');
+        document.getElementById('layoutMenu').setAttribute('open', '');
+        if (renamed) document.getElementById('layoutSelect').value = renamed.id;
+        document.getElementById('loadLayout').click();
+        return {
+          catalogCount: window.JoeBoard.readLayoutsCatalog().layouts.length,
+          settings: window.JoeBoard.readActiveGridSettings(),
+          gridColumns: window.JoeBoard.gridColumnCount(),
+          desktopColumns: window.JoeBoard.desktopColumnCount(),
+          heroW: document.querySelector('[gs-id="hero"]')?.gridstackNode?.w,
+        };
+      })()`);
+      await delay(60);
+      await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await delay(300);
+      const mobileWidened = await value(`(() => ({
+        gridColumns: window.JoeBoard.gridColumnCount(),
+        desktopColumns: window.JoeBoard.desktopColumnCount(),
+        heroW: document.querySelector('[gs-id="hero"]')?.gridstackNode?.w,
+      }))()`);
+      if (
+        mobileReloaded.catalogCount < 2 || mobileReloaded.settings.columns !== 6 ||
+        mobileReloaded.gridColumns !== 1 || mobileReloaded.desktopColumns !== 6 || mobileReloaded.heroW !== 6 ||
+        mobileWidened.gridColumns !== 6 || mobileWidened.desktopColumns !== 6 || mobileWidened.heroW !== 6
+      ) throw new Error(`Mobile save reload mismatch: ${JSON.stringify({ mobileReloaded, mobileWidened })}`);
     } else {
       const staleSnapshot = structuredClone(sample);
       staleSnapshot.generatedAt = new Date(Date.now() - 3600_000).toISOString();

@@ -210,6 +210,53 @@
     return grid ? grid.getColumn() : null;
   }
 
+  function layoutItemsFromGrid(cols) {
+    if (!grid) { return null; }
+    return sanitizeLayoutItems(grid.save(false, false, undefined, cols).map(function (item) {
+      return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h };
+    }), cols);
+  }
+
+  function captureDesktopGridLayout(cols) {
+    if (!grid) { return sanitizeLayoutItems(DEFAULT_LAYOUT.slice(), cols); }
+    var previousCols = grid.getColumn();
+    var items = null;
+    restoringLayout = true;
+    grid.opts.columnOpts = columnOptsFor(cols);
+    if (previousCols !== cols) {
+      grid.column(cols, "moveScale");
+    }
+    items = layoutItemsFromGrid(cols);
+    if (previousCols !== cols) {
+      grid.column(previousCols, previousCols === 1 ? "list" : "moveScale");
+      grid.opts.columnOpts = columnOptsFor(desktopColumnCount());
+    }
+    restoringLayout = false;
+    return items;
+  }
+
+  function persistDesktopLayoutGeometry(cols) {
+    var saved = captureDesktopGridLayout(cols);
+    if (!saved) { return false; }
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(saved));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function catalogContainsEntry(catalog, entryId) {
+    return Boolean(catalog && catalog.layouts.some(function (entry) { return entry.id === entryId; }));
+  }
+
+  function writeNamedLayoutsCatalog(catalog, entryId) {
+    if (!writeLayoutsCatalog(catalog)) {
+      return false;
+    }
+    return catalogContainsEntry(readLayoutsCatalog(), entryId);
+  }
+
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
@@ -255,6 +302,9 @@
       resizeVisuals();
       if (historyState.chart) { drawHistory(); }
       return false;
+    }
+    if (isMobileGridViewport()) {
+      persistDesktopLayoutGeometry(clean.columns);
     }
     resizeVisuals();
     if (historyState.chart) { drawHistory(); }
@@ -449,11 +499,18 @@
   }
 
   function currentGridLayout() {
-    if (!grid) { return DEFAULT_LAYOUT.slice(); }
     var cols = desktopColumnCount();
-    return grid.save(false, false, undefined, cols).map(function (item) {
-      return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h };
-    });
+    if (!grid) { return DEFAULT_LAYOUT.slice(); }
+    if (!isMobileGridViewport()) {
+      var live = layoutItemsFromGrid(cols);
+      return live || DEFAULT_LAYOUT.slice();
+    }
+    var stored = safeStoredLayout();
+    if (stored && sanitizeLayoutItems(stored, cols)) {
+      return stored;
+    }
+    var captured = captureDesktopGridLayout(cols);
+    return captured || DEFAULT_LAYOUT.slice();
   }
 
   function applyGridLayout(items) {
@@ -553,17 +610,22 @@
       setLayoutStatus("Layout catalog is full (" + MAX_LAYOUTS + " saved layouts). Delete one before saving.", true);
       return false;
     }
-    var items = currentGridLayout();
+    var settings = Object.assign({}, activeGridSettings);
+    var items = sanitizeLayoutItems(currentGridLayout(), settings.columns);
+    if (!items) {
+      setLayoutStatus("That layout could not be saved with the current grid settings.", true);
+      return false;
+    }
     var entry = {
       id: uniqueLayoutId(trimmed),
       name: trimmed,
       items: items,
-      settings: Object.assign({}, activeGridSettings),
+      settings: settings,
       builtin: false
     };
     catalog.layouts.push(entry);
-    if (!writeLayoutsCatalog(catalog)) {
-      setLayoutStatus("Layout storage is unavailable.", true);
+    if (!writeNamedLayoutsCatalog(catalog, entry.id)) {
+      setLayoutStatus("That layout could not be saved.", true);
       return false;
     }
     renderLayoutSelect(entry.id);
@@ -757,11 +819,9 @@
   }
 
   function saveLayout() {
-    if (!grid || restoringLayout) { return; }
+    if (!grid || restoringLayout || isMobileGridViewport()) { return; }
     var cols = desktopColumnCount();
-    var saved = sanitizeLayoutItems(grid.save(false, false, undefined, cols).map(function (item) {
-      return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h };
-    }), cols);
+    var saved = layoutItemsFromGrid(cols);
     if (!saved) { return; }
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(saved)); } catch (_) { /* private browsing may reject storage */ }
   }
@@ -1298,6 +1358,8 @@
     desktopColumnCount: desktopColumnCount,
     gridColumnCount: gridColumnCount,
     syncGridColumnConfig: syncGridColumnConfig,
+    captureDesktopGridLayout: captureDesktopGridLayout,
+    layoutItemsFromGrid: layoutItemsFromGrid,
     positionHeaderMenus: positionHeaderMenus,
     todayUtcMidnight: todayUtcMidnight
   });
