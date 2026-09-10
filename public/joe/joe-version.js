@@ -2,8 +2,18 @@
   "use strict";
 
   window.JoeVersion = Object.freeze({
-    APP_VERSION: "0.2.0",
+    APP_VERSION: "0.3.0",
     VERSION_HISTORY: [
+      {
+        version: "0.3.0",
+        date: "2026-09-10",
+        title: "Compact board and personal layouts",
+        changes: [
+          "Grid columns, row height, tile padding and gaps saved with each named layout.",
+          "Compact SVG header and Layout menu replace the introductory strip and toolbar.",
+          "Bright, Dark and System themes apply across widgets and history charts.",
+        ],
+      },
       {
         version: "0.2.0",
         date: "2026-09-10",
