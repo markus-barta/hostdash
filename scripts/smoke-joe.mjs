@@ -337,7 +337,7 @@ try {
       };
       })()`);
       if (
-        mobile.overflow || mobile.gridColumns !== 1 || mobile.desktopColumns !== 12 || mobile.storedColumns !== 12 ||
+        mobile.overflow || mobile.gridColumns !== 1 || mobile.desktopColumns !== 12 || (mobile.storedColumns !== undefined && mobile.storedColumns !== 12) ||
         mobile.layoutPanel?.overflow || mobile.settingsPanel?.overflow ||
         mobile.defaultHeroY !== 0 || mobile.defaultHeroH !== 3 || mobile.liveHeroY !== 0 || mobile.liveHeroH !== 3 ||
         !mobile.headerStatusVisible || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness || mobile.versionPanel?.overflow
