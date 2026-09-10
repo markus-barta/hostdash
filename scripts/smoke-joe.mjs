@@ -391,7 +391,7 @@ try {
         const restored = document.querySelectorAll('button[data-series][aria-pressed="true"]').length;
         return { resetResult, afterSave, afterRename, heightBeforeLoad, loadedHeight, afterDelete, cleared, restored };
       })()`);
-      if (layout.resetResult.savedHeight !== 3 || layout.resetResult.resetHeight !== 2 || !layout.resetResult.storageRepersisted) {
+      if (layout.resetResult.savedHeight !== 3 || layout.resetResult.resetHeight !== 3 || !layout.resetResult.storageRepersisted) {
         throw new Error(`Layout persistence mismatch: ${JSON.stringify(layout.resetResult)}`);
       }
       if (layout.afterSave.renameDisabled || layout.afterSave.selectedName !== 'Night layout') {

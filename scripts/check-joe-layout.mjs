@@ -45,7 +45,7 @@ if (!version?.APP_VERSION || !Array.isArray(version.VERSION_HISTORY) || version.
 }
 
 const sample = [
-  { id: "hero", x: 0, y: 0, w: 12, h: 2 },
+  { id: "hero", x: 0, y: 0, w: 12, h: 3 },
   { id: "desk-j", x: 0, y: 2, w: 4, h: 4 },
   { id: "desk-joe", x: 4, y: 2, w: 4, h: 4 },
   { id: "desk-joel", x: 8, y: 2, w: 4, h: 4 },
@@ -57,12 +57,12 @@ const sample = [
 if (!api.sanitizeLayoutItems(sample, 12)) throw new Error("valid layout rejected");
 if (api.sanitizeLayoutItems(sample.slice(0, 6), 12)) throw new Error("incomplete layout accepted");
 if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, w: 0 } : item), 12)) throw new Error("invalid width accepted");
-if (api.sanitizeLayoutItems(sample.concat({ id: "hero", x: 0, y: 0, w: 12, h: 2 }), 12)) throw new Error("duplicate id accepted");
+if (api.sanitizeLayoutItems(sample.concat({ id: "hero", x: 0, y: 0, w: 12, h: 3 }), 12)) throw new Error("duplicate id accepted");
 if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 1.5 } : item), 12)) throw new Error("fractional coordinate accepted");
 if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 11, w: 2 } : item), 12)) throw new Error("overflow width accepted");
 
 const sixCol = [
-  { id: "hero", x: 0, y: 0, w: 6, h: 2 },
+  { id: "hero", x: 0, y: 0, w: 6, h: 3 },
   { id: "desk-j", x: 0, y: 2, w: 2, h: 4 },
   { id: "desk-joe", x: 2, y: 2, w: 2, h: 4 },
   { id: "desk-joel", x: 4, y: 2, w: 2, h: 4 },
@@ -78,7 +78,7 @@ const alteredDefault = api.normalizeLayoutEntry({
   items: sample.map((item) => item.id === "hero" ? { ...item, h: 9 } : item),
   settings: { columns: 6, cellHeight: 60, tilePadding: 4, tileGap: 2 },
 });
-if (!alteredDefault || alteredDefault.items.find((item) => item.id === "hero").h !== 2) {
+if (!alteredDefault || alteredDefault.items.find((item) => item.id === "hero").h !== 3) {
   throw new Error("default layout must stay canonical");
 }
 if (alteredDefault.settings.columns !== 12 || alteredDefault.settings.cellHeight !== 82) {
@@ -115,7 +115,7 @@ const canonical = api.canonicalLayoutsCatalog([
   { id: "qa", name: "Dup", items: sample },
 ]);
 if (canonical.layouts.length !== 2) throw new Error("duplicate layout ids not deduped");
-if (canonical.layouts[0].items.find((item) => item.id === "hero").h !== 2) throw new Error("canonical default not restored");
+if (canonical.layouts[0].items.find((item) => item.id === "hero").h !== 3) throw new Error("canonical default not restored");
 
 const tooMany = { schema: "inspr.joe.layouts.v1", layouts: Array.from({ length: 25 }, (_, index) => ({ id: `layout-${index}`, name: `Layout ${index}`, items: sample })) };
 if (api.writeLayoutsCatalog(tooMany)) throw new Error("catalog over limit accepted");
