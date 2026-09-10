@@ -128,6 +128,9 @@ browser.stdout.resume();
 browser.stderr.resume();
 
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+async function withTimeout(promise, milliseconds) {
+  await Promise.race([promise, delay(milliseconds)]);
+}
 
 async function waitForJson(path) {
   const url = `http://127.0.0.1:${cdpPort}${path}`;
@@ -396,7 +399,7 @@ try {
   if (/DUR\d+|1,001,403|SXR8|TSLA/.test(source)) throw new Error("Static /joe/ source still contains Paper-Drill account or position data");
   if (exceptions.length) throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   console.log(JSON.stringify({ healthy, mobile, stale, broken, richSnapshot, stub: stub && { ...stub, text: "private stub" }, dataRequests: requests.filter(item => item.path === "/joe/data.json") }, null, 2));
-  await send("Browser.close").catch(() => {});
+  await withTimeout(send("Browser.close").catch(() => {}), 1000);
   ws.close();
 } finally {
   await cleanup();
