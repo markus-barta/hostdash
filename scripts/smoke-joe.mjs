@@ -409,7 +409,7 @@ try {
       }))()`);
       if (
         mobileReloaded.catalogCount < 2 || mobileReloaded.settings.columns !== 6 ||
-        mobileReloaded.gridColumns !== 1 || mobileReloaded.desktopColumns !== 6 || mobileReloaded.heroW !== 6 ||
+        mobileReloaded.gridColumns !== 1 || mobileReloaded.desktopColumns !== 6 || mobileReloaded.heroW !== 1 ||
         mobileWidened.gridColumns !== 6 || mobileWidened.desktopColumns !== 6 || mobileWidened.heroW !== 6
       ) throw new Error(`Mobile save reload mismatch: ${JSON.stringify({ mobileReloaded, mobileWidened })}`);
     } else {
