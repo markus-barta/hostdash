@@ -148,7 +148,7 @@ tr[data-desk="joel"] td:first-child { color: var(--amber); }
   .grid-fallback > .grid-stack-item { min-height: 300px; margin-bottom: 12px; }
   .positions-head { align-items: flex-start; flex-direction: column; }
   .footer { align-items: flex-start; flex-direction: column; }
-  .footer-meta { margin-left: 0; justify-content: flex-start; }
+  .footer-meta { margin-left: 0; justify-content: flex-start; width: 100%; }
   .footer-meta .version { display: block; width: 100%; }
   .version__panel { right: auto; left: 50%; transform: translateX(-50%); width: min(26rem, calc(100vw - 32px)); }
   .history-controls { width: 100%; }

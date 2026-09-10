@@ -273,6 +273,9 @@ try {
 
     if (mobileViewport) {
       mobile = await value(`(() => {
+      const updatedAt = document.getElementById('updatedAt');
+      const priorUpdatedAt = updatedAt.textContent;
+      updatedAt.textContent = 'data.json unavailable';
       const details = document.querySelector('details.version');
       details.open = true;
       const panel = document.getElementById('versionPanel');
@@ -285,6 +288,7 @@ try {
         overflow: panelRect.x < -1 || panelRect.right > viewportWidth + 1,
       };
       details.open = false;
+      updatedAt.textContent = priorUpdatedAt;
       return {
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       gridColumns: document.getElementById('joeGrid')?.gridstack?.getColumn(),
