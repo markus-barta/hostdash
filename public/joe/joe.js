@@ -39,8 +39,14 @@
 
   var LAYOUT_KEY = "joe-board-layout-v1";
   var LAYOUTS_KEY = "joe-board-named-layouts-v1";
+  var SETTINGS_KEY = "joe-board-grid-settings-v1";
+  var THEME_KEY = "joe-board-theme-v1";
   var DEFAULT_LAYOUT_ID = "default";
   var MAX_LAYOUTS = 24;
+  var MOBILE_BREAKPOINT = 700;
+  var SUPPORTED_COLUMNS = [3, 6, 12];
+  var THEME_MODES = ["light", "dark", "system"];
+  var DEFAULT_GRID_SETTINGS = { columns: 12, cellHeight: 82, tilePadding: 10, tileGap: 10 };
   var DESK_IDS = ["j", "joe", "joel"];
   var DEFAULT_LAYOUT = [
     { id: "hero", x: 0, y: 0, w: 12, h: 2 },
@@ -51,7 +57,6 @@
     { id: "history", x: 4, y: 6, w: 8, h: 5 },
     { id: "positions", x: 0, y: 11, w: 12, h: 5 }
   ];
-  var COLORS = { j: "#8ecf78", joe: "#6aaee8", joel: "#e0b85a" };
   var stateCopy = { working: "Working", "sit-out": "Sitting out", stuck: "Stuck" };
   var money = new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
   var number = new Intl.NumberFormat("de-AT", { maximumFractionDigits: 4 });
@@ -63,6 +68,7 @@
   var positionFilter = "all";
   var historyState = { selected: DESK_IDS.slice(), range: "all", points: [], chart: null };
   var layoutFormMode = null;
+  var activeGridSettings = Object.assign({}, DEFAULT_GRID_SETTINGS);
 
   var gate = document.getElementById("privateGate");
   var dashboard = document.getElementById("dashboard");
@@ -149,8 +155,133 @@
     return value;
   }
 
-  function sanitizeLayoutItems(value) {
+  function boundedInt(value, min, max, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) { return fallback; }
+    return Math.min(max, Math.max(min, Math.round(n)));
+  }
+
+  function sanitizeGridSettings(value) {
+    if (!value || typeof value !== "object") {
+      return Object.assign({}, DEFAULT_GRID_SETTINGS);
+    }
+    var columns = SUPPORTED_COLUMNS.includes(value.columns) ? value.columns : DEFAULT_GRID_SETTINGS.columns;
+    return {
+      columns: columns,
+      cellHeight: boundedInt(value.cellHeight, 48, 140, DEFAULT_GRID_SETTINGS.cellHeight),
+      tilePadding: boundedInt(value.tilePadding, 0, 24, DEFAULT_GRID_SETTINGS.tilePadding),
+      tileGap: boundedInt(value.tileGap, 0, 24, DEFAULT_GRID_SETTINGS.tileGap)
+    };
+  }
+
+  function desktopColumnCount() {
+    return activeGridSettings.columns;
+  }
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function deskColor(deskId) {
+    var map = { j: "--desk-j", joe: "--desk-joe", joel: "--desk-joel" };
+    return cssVar(map[deskId]) || "#888888";
+  }
+
+  function readActiveGridSettings() {
+    try {
+      return sanitizeGridSettings(JSON.parse(localStorage.getItem(SETTINGS_KEY)));
+    } catch (_) {
+      return Object.assign({}, DEFAULT_GRID_SETTINGS);
+    }
+  }
+
+  function writeActiveGridSettings(settings) {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(sanitizeGridSettings(settings)));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function applyTilePadding(padding) {
+    document.documentElement.style.setProperty("--joe-tile-padding", padding + "px");
+  }
+
+  function applyGridSettings(settings, skipPersist) {
+    var clean = sanitizeGridSettings(settings);
+    var previousColumns = activeGridSettings.columns;
+    activeGridSettings = clean;
+    applyTilePadding(clean.tilePadding);
+    if (grid) {
+      grid.cellHeight(clean.cellHeight);
+      grid.margin(clean.tileGap);
+      if (previousColumns !== clean.columns) {
+        grid.column(clean.columns, "moveScale");
+      }
+    }
+    if (!skipPersist) { writeActiveGridSettings(clean); }
+    resizeVisuals();
+    if (historyState.chart) { drawHistory(); }
+    return true;
+  }
+
+  function readThemeMode() {
+    try {
+      var stored = localStorage.getItem(THEME_KEY);
+      return THEME_MODES.includes(stored) ? stored : "dark";
+    } catch (_) {
+      return "dark";
+    }
+  }
+
+  function resolveTheme(mode) {
+    if (mode === "system") {
+      return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    return mode === "light" ? "light" : "dark";
+  }
+
+  function applyTheme(mode, skipPersist) {
+    var clean = THEME_MODES.includes(mode) ? mode : "dark";
+    document.documentElement.dataset.themeMode = clean;
+    document.documentElement.dataset.theme = resolveTheme(clean);
+    if (!skipPersist) {
+      try { localStorage.setItem(THEME_KEY, clean); } catch (_) { /* storage unavailable */ }
+    }
+    if (historyState.chart) { drawHistory(); }
+    drawSparklines();
+  }
+
+  function populateSettingsForm(settings, themeMode) {
+    var clean = sanitizeGridSettings(settings);
+    document.getElementById("settingsColumns").value = String(clean.columns);
+    document.getElementById("settingsCellHeight").value = String(clean.cellHeight);
+    document.getElementById("settingsTilePadding").value = String(clean.tilePadding);
+    document.getElementById("settingsTileGap").value = String(clean.tileGap);
+    var mode = THEME_MODES.includes(themeMode) ? themeMode : readThemeMode();
+    document.getElementById("themeLight").checked = mode === "light";
+    document.getElementById("themeDark").checked = mode === "dark";
+    document.getElementById("themeSystem").checked = mode === "system";
+  }
+
+  function readSettingsFromForm() {
+    return sanitizeGridSettings({
+      columns: Number(document.getElementById("settingsColumns").value),
+      cellHeight: Number(document.getElementById("settingsCellHeight").value),
+      tilePadding: Number(document.getElementById("settingsTilePadding").value),
+      tileGap: Number(document.getElementById("settingsTileGap").value)
+    });
+  }
+
+  function readThemeFromForm() {
+    var selected = document.querySelector('input[name="themeMode"]:checked');
+    return selected && THEME_MODES.includes(selected.value) ? selected.value : readThemeMode();
+  }
+
+  function sanitizeLayoutItems(value, columns) {
     if (!Array.isArray(value)) { return null; }
+    var cols = SUPPORTED_COLUMNS.includes(columns) ? columns : DEFAULT_GRID_SETTINGS.columns;
     var requiredIds = DEFAULT_LAYOUT.map(function (item) { return item.id; });
     if (value.length !== requiredIds.length) { return null; }
     var allowed = new Set(requiredIds);
@@ -160,11 +291,11 @@
     for (i = 0; i < value.length; i += 1) {
       var item = value[i];
       if (!item || !allowed.has(item.id) || seen.has(item.id)) { return null; }
-      var x = layoutCoordinate(item.x, 0, 11);
+      var x = layoutCoordinate(item.x, 0, cols - 1);
       var y = layoutCoordinate(item.y, 0, 999);
-      var w = layoutCoordinate(item.w, 1, 12);
+      var w = layoutCoordinate(item.w, 1, cols);
       var h = layoutCoordinate(item.h, 2, 24);
-      if (x === null || y === null || w === null || h === null || x + w > 12) { return null; }
+      if (x === null || y === null || w === null || h === null || x + w > cols) { return null; }
       seen.add(item.id);
       clean.push({ id: item.id, x: x, y: y, w: w, h: h });
     }
@@ -174,14 +305,20 @@
 
   function safeStoredLayout() {
     try {
-      return sanitizeLayoutItems(JSON.parse(localStorage.getItem(LAYOUT_KEY)));
+      return sanitizeLayoutItems(JSON.parse(localStorage.getItem(LAYOUT_KEY)), desktopColumnCount());
     } catch (_) {
       return null;
     }
   }
 
   function defaultLayoutEntry() {
-    return { id: DEFAULT_LAYOUT_ID, name: "Default", items: DEFAULT_LAYOUT.slice(), builtin: true };
+    return {
+      id: DEFAULT_LAYOUT_ID,
+      name: "Default",
+      items: DEFAULT_LAYOUT.slice(),
+      settings: Object.assign({}, DEFAULT_GRID_SETTINGS),
+      builtin: true
+    };
   }
 
   function defaultLayoutsCatalog() {
@@ -196,9 +333,10 @@
     if (id === DEFAULT_LAYOUT_ID) {
       return defaultLayoutEntry();
     }
-    var items = sanitizeLayoutItems(entry.items);
+    var settings = sanitizeGridSettings(entry.settings);
+    var items = sanitizeLayoutItems(entry.items, settings.columns);
     if (!items) { return null; }
-    return { id: id, name: name, items: items, builtin: false };
+    return { id: id, name: name, items: items, settings: settings, builtin: false };
   }
 
   function canonicalLayoutsCatalog(layouts) {
@@ -249,14 +387,15 @@
 
   function currentGridLayout() {
     if (!grid) { return DEFAULT_LAYOUT.slice(); }
-    return grid.save(false, false, undefined, 12).map(function (item) {
+    var cols = desktopColumnCount();
+    return grid.save(false, false, undefined, cols).map(function (item) {
       return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h };
     });
   }
 
   function applyGridLayout(items) {
     if (!grid) { return false; }
-    var clean = sanitizeLayoutItems(items);
+    var clean = sanitizeLayoutItems(items, desktopColumnCount());
     if (!clean) { return false; }
     restoringLayout = true;
     grid.load(clean, false);
@@ -352,7 +491,13 @@
       return false;
     }
     var items = currentGridLayout();
-    var entry = { id: uniqueLayoutId(trimmed), name: trimmed, items: items, builtin: false };
+    var entry = {
+      id: uniqueLayoutId(trimmed),
+      name: trimmed,
+      items: items,
+      settings: Object.assign({}, activeGridSettings),
+      builtin: false
+    };
     catalog.layouts.push(entry);
     if (!writeLayoutsCatalog(catalog)) {
       setLayoutStatus("Layout storage is unavailable.", true);
@@ -398,6 +543,7 @@
       setLayoutStatus("Choose a saved layout.", true);
       return false;
     }
+    if (entry.settings) { applyGridSettings(entry.settings); }
     if (!applyGridLayout(entry.items)) {
       setLayoutStatus("That layout could not be loaded.", true);
       return false;
@@ -471,6 +617,7 @@
     document.addEventListener("click", function (event) {
       document.querySelectorAll("details[data-dismissable][open]").forEach(function (open) {
         if (event.target instanceof Node && !open.contains(event.target)) {
+          if (open.matches("[data-settings-menu]")) { populateSettingsForm(activeGridSettings, readThemeMode()); }
           open.removeAttribute("open");
         }
       });
@@ -478,21 +625,59 @@
     document.addEventListener("keydown", function (event) {
       if (event.key !== "Escape") { return; }
       document.querySelectorAll("details[data-dismissable][open]").forEach(function (open) {
+        if (open.matches("[data-settings-menu]")) { populateSettingsForm(activeGridSettings, readThemeMode()); }
         open.removeAttribute("open");
+      });
+    });
+    document.querySelectorAll("details[data-settings-menu]").forEach(function (menu) {
+      menu.addEventListener("toggle", function () {
+        if (menu.open) {
+          populateSettingsForm(activeGridSettings, readThemeMode());
+        }
       });
     });
   }
 
+  function bindSettingsControls() {
+    var menu = document.getElementById("settingsMenu");
+    document.getElementById("settingsApply").addEventListener("click", function () {
+      var nextSettings = readSettingsFromForm();
+      var nextTheme = readThemeFromForm();
+      applyGridSettings(nextSettings);
+      applyTheme(nextTheme);
+      populateSettingsForm(activeGridSettings, readThemeMode());
+      menu.removeAttribute("open");
+      setLayoutStatus("Board settings applied.");
+    });
+    document.getElementById("settingsCancel").addEventListener("click", function () {
+      populateSettingsForm(activeGridSettings, readThemeMode());
+      menu.removeAttribute("open");
+    });
+    var media = window.matchMedia("(prefers-color-scheme: light)");
+    var onSystemThemeChange = function () {
+      if (readThemeMode() === "system") { applyTheme("system", true); }
+    };
+    if (media.addEventListener) { media.addEventListener("change", onSystemThemeChange); }
+    else { media.addListener(onSystemThemeChange); }
+  }
+
+  function initTheme() {
+    applyTheme(readThemeMode(), true);
+  }
+
   function saveLayout() {
     if (!grid || restoringLayout) { return; }
-    var saved = sanitizeLayoutItems(grid.save(false, false, undefined, 12).map(function (item) {
+    var cols = desktopColumnCount();
+    var saved = sanitizeLayoutItems(grid.save(false, false, undefined, cols).map(function (item) {
       return { id: item.id, x: item.x, y: item.y, w: item.w, h: item.h };
-    }));
+    }), cols);
     if (!saved) { return; }
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(saved)); } catch (_) { /* private browsing may reject storage */ }
   }
 
   function initGrid() {
+    activeGridSettings = readActiveGridSettings();
+    applyTilePadding(activeGridSettings.tilePadding);
     if (!window.GridStack) {
       document.getElementById("joeGrid").classList.add("grid-fallback");
       document.getElementById("resetLayout").disabled = true;
@@ -500,10 +685,10 @@
       return;
     }
     grid = window.GridStack.init({
-      column: 12,
-      columnOpts: { breakpoints: [{ w: 700, c: 1 }], layout: "list" },
-      cellHeight: 82,
-      margin: 10,
+      column: activeGridSettings.columns,
+      columnOpts: { breakpoints: [{ w: MOBILE_BREAKPOINT, c: 1 }], layout: "list" },
+      cellHeight: activeGridSettings.cellHeight,
+      margin: activeGridSettings.tileGap,
       float: false,
       handle: ".widget-drag",
       resizable: { handles: "e,se,s,sw,w" }
@@ -518,7 +703,9 @@
     grid.on("resizestop", function () { resizeVisuals(); });
     document.getElementById("resetLayout").addEventListener("click", function () {
       try { localStorage.removeItem(LAYOUT_KEY); } catch (_) { /* storage unavailable */ }
+      applyGridSettings(defaultLayoutEntry().settings, false);
       applyGridLayout(DEFAULT_LAYOUT);
+      writeActiveGridSettings(activeGridSettings);
       setLayoutStatus("Reset to default layout.");
     });
   }
@@ -776,7 +963,7 @@
       context.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
       context.clip();
       if (domain.max - domain.min <= maxShadingSpanMs) {
-        context.fillStyle = "rgba(169, 201, 154, 0.06)";
+        context.fillStyle = cssVar("--chart-session-fill") || "rgba(169, 201, 154, 0.06)";
         var day = utcDayStart(domain.min);
         var lastDay = utcDayStart(domain.max);
         while (day <= lastDay) {
@@ -803,7 +990,7 @@
       if (todayMs >= domain.min && todayMs <= domain.max) {
         var marker = scale.getPixelForValue(todayMs);
         if (marker >= area.left && marker <= area.right) {
-          context.strokeStyle = "rgba(238, 230, 212, 0.55)";
+          context.strokeStyle = cssVar("--chart-today-line") || "rgba(238, 230, 212, 0.55)";
           context.lineWidth = 1;
           context.setLineDash([4, 4]);
           context.beginPath();
@@ -811,7 +998,7 @@
           context.lineTo(marker, area.bottom);
           context.stroke();
           context.setLineDash([]);
-          context.fillStyle = "rgba(238, 230, 212, 0.75)";
+          context.fillStyle = cssVar("--chart-today-label") || "rgba(238, 230, 212, 0.75)";
           context.font = "10px SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace";
           context.fillText("Today UTC", Math.min(marker + 4, area.right - 58), area.top + 12);
         }
@@ -842,7 +1029,7 @@
           var bag = seriesBag(point, deskId);
           return bag && Number.isFinite(bag.equity) ? { x: Date.parse(point.t), y: bag.equity } : null;
         }).filter(Boolean),
-        borderColor: COLORS[deskId], backgroundColor: COLORS[deskId], borderWidth: 2,
+        borderColor: deskColor(deskId), backgroundColor: deskColor(deskId), borderWidth: 2,
         pointRadius: 0, pointHoverRadius: 4, tension: .2
       };
     }).filter(function (dataset) { return dataset.data.length; });
@@ -856,8 +1043,14 @@
         responsive: false, maintainAspectRatio: false, animation: false, parsing: false,
         interaction: { mode: "nearest", intersect: false },
         plugins: {
-          legend: { display: true, labels: { color: "#aaa79d", boxWidth: 14, boxHeight: 2, font: tickFont } },
-          tooltip: { backgroundColor: "rgba(41,42,38,.96)", titleColor: "#eee6d4", bodyColor: "#c9c4b7", borderColor: "#454641", borderWidth: 1, callbacks: {
+          legend: { display: true, labels: { color: cssVar("--chart-legend") || "#aaa79d", boxWidth: 14, boxHeight: 2, font: tickFont } },
+          tooltip: {
+            backgroundColor: cssVar("--chart-tooltip-bg") || "rgba(41,42,38,.96)",
+            titleColor: cssVar("--chart-tooltip-title") || "#eee6d4",
+            bodyColor: cssVar("--chart-tooltip-body") || "#c9c4b7",
+            borderColor: cssVar("--chart-tooltip-border") || "#454641",
+            borderWidth: 1,
+            callbacks: {
             title: function (items) { return items.length ? dateTime.format(new Date(items[0].parsed.x)) : ""; },
             label: function (item) { return item.dataset.label + "  " + amount(item.parsed.y, false); }
           } },
@@ -868,8 +1061,8 @@
           }
         },
         scales: {
-          x: { type: "linear", ticks: { color: "#77766f", maxTicksLimit: 7, font: tickFont, callback: function (value) { return shortTime.format(new Date(value)); } }, grid: { color: "rgba(63,64,59,.45)" } },
-          y: { ticks: { color: "#77766f", font: tickFont, callback: function (value) { return amount(value, false); } }, grid: { color: "rgba(63,64,59,.45)" } }
+          x: { type: "linear", ticks: { color: cssVar("--chart-tick") || "#77766f", maxTicksLimit: 7, font: tickFont, callback: function (value) { return shortTime.format(new Date(value)); } }, grid: { color: cssVar("--chart-grid") || "rgba(63,64,59,.45)" } },
+          y: { ticks: { color: cssVar("--chart-tick") || "#77766f", font: tickFont, callback: function (value) { return amount(value, false); } }, grid: { color: cssVar("--chart-grid") || "rgba(63,64,59,.45)" } }
         }
       },
       plugins: [historyOverlayPlugin]
@@ -889,7 +1082,7 @@
     context.scale(ratio, ratio);
     context.clearRect(0, 0, rect.width, rect.height);
     if (values.length < 2) {
-      context.strokeStyle = "#4a4b44"; context.setLineDash([3, 4]); context.beginPath(); context.moveTo(0, rect.height / 2); context.lineTo(rect.width, rect.height / 2); context.stroke();
+      context.strokeStyle = cssVar("--spark-empty") || "#4a4b44"; context.setLineDash([3, 4]); context.beginPath(); context.moveTo(0, rect.height / 2); context.lineTo(rect.width, rect.height / 2); context.stroke();
       return;
     }
     var min = Math.min.apply(Math, values); var max = Math.max.apply(Math, values); var spread = max - min || 1;
@@ -906,7 +1099,7 @@
     document.querySelectorAll("canvas[data-spark]").forEach(function (canvas) {
       var id = canvas.dataset.spark;
       var values = historyState.points.slice(-40).map(function (point) { var bag = seriesBag(point, id); return bag && bag.equity; }).filter(Number.isFinite);
-      drawSpark(canvas, values, COLORS[id]);
+      drawSpark(canvas, values, deskColor(id));
     });
   }
 
@@ -990,18 +1183,31 @@
     refresh: refresh,
     layoutStorageKey: LAYOUT_KEY,
     layoutsStorageKey: LAYOUTS_KEY,
+    settingsStorageKey: SETTINGS_KEY,
+    themeStorageKey: THEME_KEY,
     defaultLayoutId: DEFAULT_LAYOUT_ID,
     maxLayouts: MAX_LAYOUTS,
+    defaultGridSettings: Object.assign({}, DEFAULT_GRID_SETTINGS),
     readLayoutsCatalog: readLayoutsCatalog,
     writeLayoutsCatalog: writeLayoutsCatalog,
+    readActiveGridSettings: readActiveGridSettings,
+    sanitizeGridSettings: sanitizeGridSettings,
     sanitizeLayoutItems: sanitizeLayoutItems,
     canonicalLayoutsCatalog: canonicalLayoutsCatalog,
+    applyGridSettings: applyGridSettings,
+    applyTheme: applyTheme,
+    readThemeMode: readThemeMode,
+    resolveTheme: resolveTheme,
+    desktopColumnCount: desktopColumnCount,
     todayUtcMidnight: todayUtcMidnight
   });
+  initTheme();
   initGrid();
   bindControls();
   bindLayoutControls();
+  bindSettingsControls();
   bindDismissableDetails();
+  populateSettingsForm(activeGridSettings, readThemeMode());
   renderVersionPanel();
   updateSeriesButtons();
   refresh();

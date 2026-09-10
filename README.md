@@ -117,6 +117,17 @@ JOE_SMOKE_VIEWPORT=mobile node scripts/smoke-joe.mjs
 JOE_SMOKE_VIEWPORT=privacy node scripts/smoke-joe.mjs
 ```
 
+Joe stores board chrome locally in the browser:
+
+| Key | Purpose |
+| --- | --- |
+| `joe-board-layout-v1` | Active widget geometry for the current desktop column count |
+| `joe-board-named-layouts-v1` | Saved layouts (`inspr.joe.layouts.v1`) including per-layout grid settings |
+| `joe-board-grid-settings-v1` | Active grid settings: columns, row height, tile padding, tile gap |
+| `joe-board-theme-v1` | Theme preference: `dark`, `light`, or `system` |
+
+Mobile stacking uses GridStack's responsive breakpoint only for display; saved geometry and grid settings keep the chosen desktop column count.
+
 ## QA Checklist
 
 Before pushing or redeploying, run:

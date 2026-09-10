@@ -247,6 +247,11 @@ try {
     versionSummary: document.querySelector('.version > summary')?.textContent,
     versionEntries: document.querySelectorAll('#versionPanel .version__entry').length,
     layoutSelectOptions: document.getElementById('layoutSelect')?.options?.length,
+    layoutMenu: Boolean(document.getElementById('layoutMenu')),
+    settingsMenu: Boolean(document.getElementById('settingsMenu')),
+    brandLogo: Boolean(document.querySelector('.brand-logo')),
+    marketingCopy: /Three bots|quiet answer/i.test(document.body.innerText),
+    heroId: document.querySelector('[gs-id="hero"]')?.getAttribute('gs-id'),
     positionFallback: document.getElementById('positionsBody')?.innerText,
     zoomPlugin: Boolean(window.Chart?.registry?.plugins?.get('zoom')),
     externalScripts: [...document.scripts].filter(script => script.src && new URL(script.src).origin !== location.origin).length,
@@ -263,6 +268,8 @@ try {
       healthy.deskLabel !== "Desks" || healthy.rangeLabel !== "Range" ||
       !/v0\.2\.0/.test(healthy.versionSummary || "") || healthy.versionEntries < 4 ||
       !healthy.layoutSelectOptions || healthy.layoutSelectOptions < 1 ||
+      !healthy.layoutMenu || !healthy.settingsMenu || !healthy.brandLogo || healthy.marketingCopy ||
+      healthy.heroId !== "hero" ||
       !/not present/i.test(healthy.positionFallback || "") || !healthy.zoomPlugin || healthy.externalScripts || healthy.overflow
     ) throw new Error(`Healthy board mismatch: ${JSON.stringify(healthy)}`);
 
@@ -292,6 +299,8 @@ try {
       return {
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       gridColumns: document.getElementById('joeGrid')?.gridstack?.getColumn(),
+      desktopColumns: window.JoeBoard.desktopColumnCount(),
+      storedColumns: JSON.parse(localStorage.getItem('joe-board-grid-settings-v1') || 'null')?.columns,
       gateHidden: document.getElementById('privateGate').hidden,
       heroClipped: (() => { const hero = document.querySelector('[gs-id="hero"] .grid-stack-item-content'); return hero.scrollHeight > hero.clientHeight + 1; })(),
       heroOpen: document.getElementById('totalOpen')?.textContent,
@@ -300,7 +309,7 @@ try {
       offenders: [...document.querySelectorAll('body *')].filter(node => node.getBoundingClientRect().right > document.documentElement.clientWidth + 1).slice(0, 8).map(node => ({ tag: node.tagName, id: node.id, className: String(node.className), right: Math.round(node.getBoundingClientRect().right), width: Math.round(node.getBoundingClientRect().width) })),
       };
       })()`);
-      if (mobile.overflow || mobile.gridColumns !== 1 || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness || mobile.versionPanel?.overflow) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
+      if (mobile.overflow || mobile.gridColumns !== 1 || mobile.desktopColumns !== 12 || mobile.storedColumns !== 12 || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness || mobile.versionPanel?.overflow) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
     } else {
       const staleSnapshot = structuredClone(sample);
       staleSnapshot.generatedAt = new Date(Date.now() - 3600_000).toISOString();
@@ -329,6 +338,7 @@ try {
       if (richSnapshot.rows !== 2 || !/DEMO1/.test(richSnapshot.symbols || "") || !/17,25/.test(richSnapshot.open || "") || !/4/.test(richSnapshot.tradeCount || "")) throw new Error(`Rich snapshot mismatch: ${JSON.stringify(richSnapshot)}`);
 
       const layout = await value(`(async () => {
+        document.getElementById('layoutMenu').setAttribute('open', '');
         const board = document.getElementById('joeGrid');
         const grid = board.gridstack;
         const hero = document.querySelector('[gs-id="hero"]');
@@ -395,6 +405,101 @@ try {
       }
       if (layout.cleared.selected !== 0 || !layout.cleared.empty || layout.restored !== 3) {
         throw new Error(`History UX mismatch: ${JSON.stringify({ cleared: layout.cleared, restored: layout.restored })}`);
+      }
+
+      const preferences = await value(`(async () => {
+        const layoutItems = JSON.parse(localStorage.getItem('joe-board-layout-v1'));
+        const legacyWrite = window.JoeBoard.writeLayoutsCatalog({
+          schema: 'inspr.joe.layouts.v1',
+          layouts: [{ id: 'legacy-layout', name: 'Legacy layout', items: layoutItems }]
+        });
+        const legacyEntry = window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.id === 'legacy-layout');
+        document.getElementById('settingsMenu').setAttribute('open', '');
+        document.getElementById('settingsColumns').value = '6';
+        document.getElementById('settingsCellHeight').value = '96';
+        document.getElementById('settingsTilePadding').value = '8';
+        document.getElementById('settingsTileGap').value = '12';
+        document.getElementById('settingsCancel').click();
+        const cancelled = window.JoeBoard.readActiveGridSettings();
+        document.getElementById('settingsMenu').setAttribute('open', '');
+        document.getElementById('settingsColumns').value = '6';
+        document.getElementById('settingsCellHeight').value = '96';
+        document.getElementById('settingsTilePadding').value = '8';
+        document.getElementById('settingsTileGap').value = '12';
+        document.getElementById('settingsApply').click();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const applied = window.JoeBoard.readActiveGridSettings();
+        document.getElementById('layoutMenu').setAttribute('open', '');
+        document.getElementById('saveLayout').click();
+        document.getElementById('layoutNameInput').value = 'Wide six';
+        document.getElementById('layoutFormConfirm').click();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const savedEntry = window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.name === 'Wide six');
+        window.JoeBoard.applyGridSettings({ columns: 12, cellHeight: 82, tilePadding: 10, tileGap: 10 });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        document.getElementById('loadLayout').click();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const loadedSettings = window.JoeBoard.readActiveGridSettings();
+        document.getElementById('renameLayout').click();
+        document.getElementById('layoutNameInput').value = 'Wide six renamed';
+        document.getElementById('layoutFormConfirm').click();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const renamed = window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.id === savedEntry.id);
+        return {
+          legacyWrite,
+          legacySettings: legacyEntry?.settings,
+          cancelledColumns: cancelled.columns,
+          applied,
+          savedSettings: savedEntry?.settings,
+          loadedSettings,
+          renamedSettings: renamed?.settings,
+          historyPointCount: ${historyPoints.length}
+        };
+      })()`);
+      if (!preferences.legacyWrite || preferences.legacySettings?.columns !== 12) {
+        throw new Error(`Legacy layout migration mismatch: ${JSON.stringify(preferences)}`);
+      }
+      if (preferences.cancelledColumns === 6 || preferences.applied.columns !== 6 || preferences.applied.cellHeight !== 96) {
+        throw new Error(`Settings apply/cancel mismatch: ${JSON.stringify(preferences)}`);
+      }
+      if (preferences.savedSettings?.columns !== 6 || preferences.loadedSettings.columns !== 6 || preferences.renamedSettings?.columns !== 6) {
+        throw new Error(`Layout settings persistence mismatch: ${JSON.stringify(preferences)}`);
+      }
+      if (preferences.historyPointCount !== historyPoints.length) {
+        throw new Error(`History point count changed: ${JSON.stringify(preferences)}`);
+      }
+
+      await send("Page.reload", { ignoreCache: true });
+      await delay(600);
+      await navigate(hsb1Url, "document.documentElement.dataset.joeState");
+      const reloaded = await value(`(() => ({
+        settings: window.JoeBoard.readActiveGridSettings(),
+        desktopColumns: window.JoeBoard.desktopColumnCount(),
+        historyPointCount: document.querySelectorAll('#historyChart').length ? 1 : 0
+      }))()`);
+      if (reloaded.settings.columns !== 6 || reloaded.desktopColumns !== 6) {
+        throw new Error(`Reloaded settings mismatch: ${JSON.stringify(reloaded)}`);
+      }
+
+      await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
+      const theme = await value(`(() => {
+        window.JoeBoard.applyTheme('light');
+        const light = document.documentElement.dataset.theme;
+        window.JoeBoard.applyTheme('dark');
+        const dark = document.documentElement.dataset.theme;
+        window.JoeBoard.applyTheme('system');
+        const systemResolved = document.documentElement.dataset.theme;
+        window.JoeBoard.applyTheme('dark');
+        const explicitDark = document.documentElement.dataset.theme;
+        return { light, dark, systemResolved, explicitDark };
+      })()`);
+      await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] });
+      const systemDark = await value(`(() => {
+        window.JoeBoard.applyTheme('system');
+        return document.documentElement.dataset.theme;
+      })()`);
+      if (theme.light !== "light" || theme.dark !== "dark" || theme.systemResolved !== "light" || theme.explicitDark !== "dark" || systemDark !== "dark") {
+        throw new Error(`Theme preference mismatch: ${JSON.stringify({ theme, systemDark })}`);
       }
     }
   }

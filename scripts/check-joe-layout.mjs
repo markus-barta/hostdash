@@ -13,17 +13,20 @@ function extractJoeBlock(startMarker, endMarker) {
   return joeSource.slice(start, end);
 }
 
-const layoutContext = extractJoeBlock("  var DEFAULT_LAYOUT = [", "\n  var COLORS = ");
+const layoutContext = extractJoeBlock("  var DEFAULT_LAYOUT = [", "\n  var stateCopy = ");
 const layoutHelpers = `${layoutContext}
   var LAYOUTS_KEY = "joe-board-named-layouts-v1";
   var DEFAULT_LAYOUT_ID = "default";
   var MAX_LAYOUTS = 24;
-${extractJoeBlock("  function layoutCoordinate", "\n\n  function safeStoredLayout")}
+  var SUPPORTED_COLUMNS = [3, 6, 12];
+  var DEFAULT_GRID_SETTINGS = { columns: 12, cellHeight: 82, tilePadding: 10, tileGap: 10 };
+${extractJoeBlock("  function layoutCoordinate", "\n\n  function setLayoutStatus")}
 ${extractJoeBlock("  function defaultLayoutEntry", "\n\n  function bindLayoutControls")}`;
 
 const api = new Function(`${layoutHelpers}
   return {
     sanitizeLayoutItems,
+    sanitizeGridSettings,
     defaultLayoutEntry,
     defaultLayoutsCatalog,
     normalizeLayoutEntry,
@@ -51,20 +54,60 @@ const sample = [
   { id: "positions", x: 0, y: 11, w: 12, h: 5 },
 ];
 
-if (!api.sanitizeLayoutItems(sample)) throw new Error("valid layout rejected");
-if (api.sanitizeLayoutItems(sample.slice(0, 6))) throw new Error("incomplete layout accepted");
-if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, w: 0 } : item))) throw new Error("invalid width accepted");
-if (api.sanitizeLayoutItems(sample.concat({ id: "hero", x: 0, y: 0, w: 12, h: 2 }))) throw new Error("duplicate id accepted");
-if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 1.5 } : item))) throw new Error("fractional coordinate accepted");
-if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 11, w: 2 } : item))) throw new Error("overflow width accepted");
+if (!api.sanitizeLayoutItems(sample, 12)) throw new Error("valid layout rejected");
+if (api.sanitizeLayoutItems(sample.slice(0, 6), 12)) throw new Error("incomplete layout accepted");
+if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, w: 0 } : item), 12)) throw new Error("invalid width accepted");
+if (api.sanitizeLayoutItems(sample.concat({ id: "hero", x: 0, y: 0, w: 12, h: 2 }), 12)) throw new Error("duplicate id accepted");
+if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 1.5 } : item), 12)) throw new Error("fractional coordinate accepted");
+if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item, x: 11, w: 2 } : item), 12)) throw new Error("overflow width accepted");
 
-const alteredDefault = api.normalizeLayoutEntry({ id: "default", name: "Default", items: sample.map((item) => item.id === "hero" ? { ...item, h: 9 } : item) });
+const sixCol = [
+  { id: "hero", x: 0, y: 0, w: 6, h: 2 },
+  { id: "desk-j", x: 0, y: 2, w: 2, h: 4 },
+  { id: "desk-joe", x: 2, y: 2, w: 2, h: 4 },
+  { id: "desk-joel", x: 4, y: 2, w: 2, h: 4 },
+  { id: "attribution", x: 0, y: 6, w: 2, h: 3 },
+  { id: "history", x: 2, y: 6, w: 4, h: 5 },
+  { id: "positions", x: 0, y: 11, w: 6, h: 5 },
+];
+if (!api.sanitizeLayoutItems(sixCol, 6)) throw new Error("valid six-column layout rejected");
+
+const alteredDefault = api.normalizeLayoutEntry({
+  id: "default",
+  name: "Default",
+  items: sample.map((item) => item.id === "hero" ? { ...item, h: 9 } : item),
+  settings: { columns: 6, cellHeight: 60, tilePadding: 4, tileGap: 2 },
+});
 if (!alteredDefault || alteredDefault.items.find((item) => item.id === "hero").h !== 2) {
   throw new Error("default layout must stay canonical");
 }
+if (alteredDefault.settings.columns !== 12 || alteredDefault.settings.cellHeight !== 82) {
+  throw new Error("default layout settings must stay canonical");
+}
+
+const legacy = api.normalizeLayoutEntry({ id: "qa", name: "QA", items: sample });
+if (!legacy || !legacy.settings || legacy.settings.columns !== 12) {
+  throw new Error("legacy layout without settings must migrate defaults");
+}
+
+const custom = api.normalizeLayoutEntry({
+  id: "qa",
+  name: "QA",
+  items: sixCol,
+  settings: { columns: 6, cellHeight: 96, tilePadding: 8, tileGap: 12 },
+});
+if (!custom || custom.settings.columns !== 6 || custom.settings.cellHeight !== 96) {
+  throw new Error("custom layout settings not preserved");
+}
+
+if (api.sanitizeGridSettings({ columns: 99, cellHeight: 12, tilePadding: -4, tileGap: 40 }).columns !== 12) {
+  throw new Error("grid settings bounds failed");
+}
 
 const catalog = api.defaultLayoutsCatalog();
-if (catalog.layouts.length !== 1 || catalog.layouts[0].id !== "default") throw new Error("default catalog invalid");
+if (catalog.layouts.length !== 1 || catalog.layouts[0].id !== "default" || !catalog.layouts[0].settings) {
+  throw new Error("default catalog invalid");
+}
 
 const canonical = api.canonicalLayoutsCatalog([
   { id: "default", name: "Default", items: sample.map((item) => item.id === "hero" ? { ...item, h: 9 } : item) },
@@ -77,4 +120,4 @@ if (canonical.layouts[0].items.find((item) => item.id === "hero").h !== 2) throw
 const tooMany = { schema: "inspr.joe.layouts.v1", layouts: Array.from({ length: 25 }, (_, index) => ({ id: `layout-${index}`, name: `Layout ${index}`, items: sample })) };
 if (api.writeLayoutsCatalog(tooMany)) throw new Error("catalog over limit accepted");
 
-console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, checks: 11 }, null, 2));
+console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, checks: 16 }, null, 2));

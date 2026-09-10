@@ -3,10 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
   <meta name="joe-data-endpoint" content="./data.json">
   <meta name="joe-history-endpoint" content="./history.json">
   <title>Joe · Household desk</title>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("joe-board-theme-v1");
+        var mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "dark";
+        document.documentElement.dataset.themeMode = mode;
+        var resolved = mode === "system"
+          ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+          : mode;
+        document.documentElement.dataset.theme = resolved;
+      } catch (_) {
+        document.documentElement.dataset.theme = "dark";
+        document.documentElement.dataset.themeMode = "dark";
+      }
+    }());
+  </script>
   <link rel="stylesheet" href="./vendor/gridstack-13.2.0.min.css">
   <link rel="stylesheet" href="./joe.css">
 </head>
@@ -22,24 +38,87 @@
 
 <main class="shell" id="dashboard" hidden>
   <header class="topline">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><strong>Joe / Household desk</strong></div>
+    <div class="brand">
+      <svg class="brand-logo" width="28" height="28" viewBox="0 0 28 28" role="img" aria-label="Joe household desk">
+        <title>Joe household desk</title>
+        <rect x="1" y="14" width="7" height="12" rx="1.5" fill="currentColor" opacity=".92"/>
+        <rect x="10.5" y="10" width="7" height="16" rx="1.5" fill="currentColor"/>
+        <rect x="20" y="6" width="7" height="20" rx="1.5" fill="currentColor" opacity=".78"/>
+        <path d="M1 14h26" stroke="currentColor" stroke-width="1.2" opacity=".35"/>
+      </svg>
+      <span class="visually-hidden">Joe household desk</span>
+    </div>
     <div class="toolbar">
       <span class="paper-mark">Paper only</span>
-      <div class="layout-toolbar" id="layoutToolbar" aria-label="Saved layouts">
-        <label class="visually-hidden" for="layoutSelect">Saved layout</label>
-        <select class="layout-select" id="layoutSelect" aria-describedby="layoutStatus"></select>
-        <button class="quiet-button" id="loadLayout" type="button">Load</button>
-        <button class="quiet-button" id="renameLayout" type="button">Rename</button>
-        <button class="quiet-button" id="deleteLayout" type="button">Delete</button>
-        <button class="quiet-button" id="saveLayout" type="button">Save layout</button>
-        <div class="layout-inline-form" id="layoutInlineForm" hidden>
-          <label class="visually-hidden" for="layoutNameInput">Layout name</label>
-          <input class="layout-name-input" id="layoutNameInput" type="text" maxlength="48" autocomplete="off" placeholder="Layout name">
-          <button class="quiet-button" id="layoutFormConfirm" type="button">Confirm</button>
-          <button class="quiet-button" id="layoutFormCancel" type="button">Cancel</button>
+      <details class="header-menu" id="layoutMenu" data-dismissable>
+        <summary class="header-menu-trigger" aria-haspopup="dialog">Layout</summary>
+        <div class="header-menu-panel" role="dialog" aria-label="Saved layouts">
+          <div class="layout-toolbar" id="layoutToolbar" aria-label="Saved layouts">
+            <label class="visually-hidden" for="layoutSelect">Saved layout</label>
+            <select class="layout-select" id="layoutSelect" aria-describedby="layoutStatus"></select>
+            <button class="quiet-button" id="loadLayout" type="button">Load</button>
+            <button class="quiet-button" id="renameLayout" type="button">Rename</button>
+            <button class="quiet-button" id="deleteLayout" type="button">Delete</button>
+            <button class="quiet-button" id="saveLayout" type="button">Save layout</button>
+            <button class="quiet-button" id="resetLayout" type="button">Reset layout</button>
+            <div class="layout-inline-form" id="layoutInlineForm" hidden>
+              <label class="visually-hidden" for="layoutNameInput">Layout name</label>
+              <input class="layout-name-input" id="layoutNameInput" type="text" maxlength="48" autocomplete="off" placeholder="Layout name">
+              <button class="quiet-button" id="layoutFormConfirm" type="button">Confirm</button>
+              <button class="quiet-button" id="layoutFormCancel" type="button">Cancel</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <button class="quiet-button" id="resetLayout" type="button">Reset layout</button>
+      </details>
+      <details class="header-menu" id="settingsMenu" data-dismissable data-settings-menu>
+        <summary class="header-menu-trigger" aria-haspopup="dialog">Settings</summary>
+        <div class="header-menu-panel settings-panel" role="dialog" aria-label="Board settings">
+          <fieldset class="settings-group">
+            <legend>Grid</legend>
+            <label class="settings-field" for="settingsColumns">
+              <span class="settings-label">Columns</span>
+              <select id="settingsColumns">
+                <option value="12">12 columns</option>
+                <option value="6">6 columns</option>
+                <option value="3">3 columns</option>
+              </select>
+            </label>
+            <label class="settings-field" for="settingsCellHeight">
+              <span class="settings-label">Row height</span>
+              <span class="settings-input-wrap">
+                <input id="settingsCellHeight" type="number" min="48" max="140" step="1" inputmode="numeric">
+                <span class="settings-unit">px</span>
+              </span>
+            </label>
+            <label class="settings-field" for="settingsTilePadding">
+              <span class="settings-label">Tile padding</span>
+              <span class="settings-input-wrap">
+                <input id="settingsTilePadding" type="number" min="0" max="24" step="1" inputmode="numeric">
+                <span class="settings-unit">px</span>
+              </span>
+            </label>
+            <label class="settings-field" for="settingsTileGap">
+              <span class="settings-label">Tile gap</span>
+              <span class="settings-input-wrap">
+                <input id="settingsTileGap" type="number" min="0" max="24" step="1" inputmode="numeric">
+                <span class="settings-unit">px</span>
+              </span>
+            </label>
+          </fieldset>
+          <fieldset class="settings-group">
+            <legend>Theme</legend>
+            <div class="theme-choices" role="radiogroup" aria-label="Color theme">
+              <label class="theme-choice"><input type="radio" name="themeMode" id="themeLight" value="light"> Bright</label>
+              <label class="theme-choice"><input type="radio" name="themeMode" id="themeDark" value="dark"> Dark</label>
+              <label class="theme-choice"><input type="radio" name="themeMode" id="themeSystem" value="system"> System</label>
+            </div>
+          </fieldset>
+          <div class="settings-actions">
+            <button class="quiet-button" id="settingsCancel" type="button">Cancel</button>
+            <button class="quiet-button settings-apply" id="settingsApply" type="button">Apply</button>
+          </div>
+        </div>
+      </details>
     </div>
   </header>
   <div class="alarm" id="alarm" hidden role="alert"><strong>Something needs attention</strong><span id="alarmText"></span></div>
@@ -49,7 +128,6 @@
       <div class="grid-stack-item-content widget hero-widget">
         <div class="widget-drag" aria-label="Drag household summary"><span>Household · paper</span><span class="drag-dots" aria-hidden="true">•••</span></div>
         <div class="hero-values">
-          <div class="hero-lead"><p class="kicker">The quiet answer · right now</p><h1>Three bots. One calm board.</h1></div>
           <div class="hero-stat hero-net"><span class="label">Net</span><strong class="flap" id="totalEquity">—</strong></div>
           <div class="hero-stat"><span class="label">Day</span><strong id="totalDay">—</strong></div>
           <div class="hero-stat"><span class="label">Open</span><strong id="totalOpen">—</strong></div>
