@@ -69,6 +69,7 @@
   var historyState = { selected: DESK_IDS.slice(), range: "all", points: [], chart: null };
   var layoutFormMode = null;
   var activeGridSettings = Object.assign({}, DEFAULT_GRID_SETTINGS);
+  var settingsFormDirty = false;
 
   var gate = document.getElementById("privateGate");
   var dashboard = document.getElementById("dashboard");
@@ -178,6 +179,36 @@
     return activeGridSettings.columns;
   }
 
+  function isMobileGridViewport() {
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  }
+
+  function columnOptsFor(columns) {
+    var cols = SUPPORTED_COLUMNS.includes(columns) ? columns : DEFAULT_GRID_SETTINGS.columns;
+    return {
+      breakpoints: [{ w: MOBILE_BREAKPOINT, c: 1 }],
+      layout: "list",
+      columnMax: cols
+    };
+  }
+
+  function syncGridColumnConfig(columns) {
+    if (!grid) { return; }
+    var cols = SUPPORTED_COLUMNS.includes(columns) ? columns : DEFAULT_GRID_SETTINGS.columns;
+    grid.opts.columnOpts = columnOptsFor(cols);
+    if (isMobileGridViewport()) {
+      if (typeof grid.checkDynamicColumn === "function") { grid.checkDynamicColumn(); }
+      return;
+    }
+    if (grid.getColumn() !== cols) {
+      grid.column(cols, "moveScale");
+    }
+  }
+
+  function gridColumnCount() {
+    return grid ? grid.getColumn() : null;
+  }
+
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
@@ -210,15 +241,13 @@
 
   function applyGridSettings(settings, skipPersist) {
     var clean = sanitizeGridSettings(settings);
-    var previousColumns = activeGridSettings.columns;
     activeGridSettings = clean;
     applyTilePadding(clean.tilePadding);
     if (grid) {
+      grid.opts.columnOpts = columnOptsFor(clean.columns);
       grid.cellHeight(clean.cellHeight);
       grid.margin(clean.tileGap);
-      if (previousColumns !== clean.columns) {
-        grid.column(clean.columns, "moveScale");
-      }
+      syncGridColumnConfig(clean.columns);
     }
     if (!skipPersist) { writeActiveGridSettings(clean); }
     resizeVisuals();
@@ -254,6 +283,7 @@
   }
 
   function populateSettingsForm(settings, themeMode) {
+    if (settingsFormDirty) { return; }
     var clean = sanitizeGridSettings(settings);
     document.getElementById("settingsColumns").value = String(clean.columns);
     document.getElementById("settingsCellHeight").value = String(clean.cellHeight);
@@ -617,7 +647,10 @@
     document.addEventListener("click", function (event) {
       document.querySelectorAll("details[data-dismissable][open]").forEach(function (open) {
         if (event.target instanceof Node && !open.contains(event.target)) {
-          if (open.matches("[data-settings-menu]")) { populateSettingsForm(activeGridSettings, readThemeMode()); }
+          if (open.matches("[data-settings-menu]")) {
+            settingsFormDirty = false;
+            populateSettingsForm(activeGridSettings, readThemeMode());
+          }
           open.removeAttribute("open");
         }
       });
@@ -625,14 +658,19 @@
     document.addEventListener("keydown", function (event) {
       if (event.key !== "Escape") { return; }
       document.querySelectorAll("details[data-dismissable][open]").forEach(function (open) {
-        if (open.matches("[data-settings-menu]")) { populateSettingsForm(activeGridSettings, readThemeMode()); }
+        if (open.matches("[data-settings-menu]")) {
+          settingsFormDirty = false;
+          populateSettingsForm(activeGridSettings, readThemeMode());
+        }
         open.removeAttribute("open");
       });
     });
     document.querySelectorAll("details[data-settings-menu]").forEach(function (menu) {
       menu.addEventListener("toggle", function () {
         if (menu.open) {
-          populateSettingsForm(activeGridSettings, readThemeMode());
+          if (!settingsFormDirty) { populateSettingsForm(activeGridSettings, readThemeMode()); }
+        } else {
+          settingsFormDirty = false;
         }
       });
     });
@@ -640,16 +678,22 @@
 
   function bindSettingsControls() {
     var menu = document.getElementById("settingsMenu");
+    menu.querySelectorAll("input, select").forEach(function (node) {
+      node.addEventListener("input", function () { settingsFormDirty = true; });
+      node.addEventListener("change", function () { settingsFormDirty = true; });
+    });
     document.getElementById("settingsApply").addEventListener("click", function () {
       var nextSettings = readSettingsFromForm();
       var nextTheme = readThemeFromForm();
       applyGridSettings(nextSettings);
       applyTheme(nextTheme);
+      settingsFormDirty = false;
       populateSettingsForm(activeGridSettings, readThemeMode());
       menu.removeAttribute("open");
       setLayoutStatus("Board settings applied.");
     });
     document.getElementById("settingsCancel").addEventListener("click", function () {
+      settingsFormDirty = false;
       populateSettingsForm(activeGridSettings, readThemeMode());
       menu.removeAttribute("open");
     });
@@ -686,7 +730,7 @@
     }
     grid = window.GridStack.init({
       column: activeGridSettings.columns,
-      columnOpts: { breakpoints: [{ w: MOBILE_BREAKPOINT, c: 1 }], layout: "list" },
+      columnOpts: columnOptsFor(activeGridSettings.columns),
       cellHeight: activeGridSettings.cellHeight,
       margin: activeGridSettings.tileGap,
       float: false,
@@ -699,6 +743,7 @@
       grid.load(stored, false);
       restoringLayout = false;
     }
+    syncGridColumnConfig(activeGridSettings.columns);
     grid.on("change dragstop resizestop", saveLayout);
     grid.on("resizestop", function () { resizeVisuals(); });
     document.getElementById("resetLayout").addEventListener("click", function () {
@@ -1151,7 +1196,10 @@
         if (latestSnapshot) { renderPositions(latestSnapshot); }
       });
     });
-    window.addEventListener("resize", resizeVisuals);
+    window.addEventListener("resize", function () {
+      syncGridColumnConfig(desktopColumnCount());
+      resizeVisuals();
+    });
   }
 
   async function refreshHistory() {
@@ -1199,6 +1247,8 @@
     readThemeMode: readThemeMode,
     resolveTheme: resolveTheme,
     desktopColumnCount: desktopColumnCount,
+    gridColumnCount: gridColumnCount,
+    syncGridColumnConfig: syncGridColumnConfig,
     todayUtcMidnight: todayUtcMidnight
   });
   initTheme();

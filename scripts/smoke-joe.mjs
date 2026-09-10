@@ -342,17 +342,19 @@ try {
         const board = document.getElementById('joeGrid');
         const grid = board.gridstack;
         const hero = document.querySelector('[gs-id="hero"]');
-        grid.update(hero, { h: 3 });
+        grid.update(hero, { h: 4 });
         await new Promise(resolve => setTimeout(resolve, 50));
         const saved = JSON.parse(localStorage.getItem('joe-board-layout-v1'));
+        const savedHero = saved && saved.find(item => item.id === 'hero');
         document.getElementById('resetLayout').click();
         await new Promise(resolve => setTimeout(resolve, 50));
         const resetResult = {
-          savedHeight: saved.find(item => item.id === 'hero')?.h,
+          savedHeight: savedHero?.h,
           resetHeight: hero.gridstackNode.h,
+          defaultHeight: window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.id === 'default')?.items.find((item) => item.id === 'hero')?.h,
           storageRepersisted: localStorage.getItem('joe-board-layout-v1') !== null
         };
-        grid.update(hero, { h: 3 });
+        grid.update(hero, { h: 4 });
         await new Promise(resolve => setTimeout(resolve, 50));
         document.getElementById('saveLayout').click();
         document.getElementById('layoutNameInput').value = 'Night layout';
@@ -391,13 +393,13 @@ try {
         const restored = document.querySelectorAll('button[data-series][aria-pressed="true"]').length;
         return { resetResult, afterSave, afterRename, heightBeforeLoad, loadedHeight, afterDelete, cleared, restored };
       })()`);
-      if (layout.resetResult.savedHeight !== 3 || layout.resetResult.resetHeight !== 3 || !layout.resetResult.storageRepersisted) {
+      if (layout.resetResult.savedHeight !== 4 || layout.resetResult.resetHeight !== 3 || layout.resetResult.defaultHeight !== 3 || !layout.resetResult.storageRepersisted) {
         throw new Error(`Layout persistence mismatch: ${JSON.stringify(layout.resetResult)}`);
       }
       if (layout.afterSave.renameDisabled || layout.afterSave.selectedName !== 'Night layout') {
         throw new Error(`Save layout control state mismatch: ${JSON.stringify(layout.afterSave)}`);
       }
-      if (layout.afterRename !== 'Morning layout' || layout.heightBeforeLoad !== 2 || layout.loadedHeight !== 3) {
+      if (layout.afterRename !== 'Morning layout' || layout.heightBeforeLoad !== 2 || layout.loadedHeight !== 4) {
         throw new Error(`Rename/load layout mismatch: ${JSON.stringify({ afterRename: layout.afterRename, heightBeforeLoad: layout.heightBeforeLoad, loadedHeight: layout.loadedHeight })}`);
       }
       if (layout.afterDelete.selectedName !== 'Default' || !layout.afterDelete.renameDisabled || !layout.afterDelete.deleteDisabled) {
@@ -429,6 +431,7 @@ try {
         document.getElementById('settingsApply').click();
         await new Promise((resolve) => setTimeout(resolve, 50));
         const applied = window.JoeBoard.readActiveGridSettings();
+        const appliedGridColumns = window.JoeBoard.gridColumnCount();
         document.getElementById('layoutMenu').setAttribute('open', '');
         document.getElementById('saveLayout').click();
         document.getElementById('layoutNameInput').value = 'Wide six';
@@ -440,6 +443,7 @@ try {
         document.getElementById('loadLayout').click();
         await new Promise((resolve) => setTimeout(resolve, 50));
         const loadedSettings = window.JoeBoard.readActiveGridSettings();
+        const loadedGridColumns = window.JoeBoard.gridColumnCount();
         document.getElementById('renameLayout').click();
         document.getElementById('layoutNameInput').value = 'Wide six renamed';
         document.getElementById('layoutFormConfirm').click();
@@ -450,8 +454,10 @@ try {
           legacySettings: legacyEntry?.settings,
           cancelledColumns: cancelled.columns,
           applied,
+          appliedGridColumns,
           savedSettings: savedEntry?.settings,
           loadedSettings,
+          loadedGridColumns,
           renamedSettings: renamed?.settings,
           historyPointCount: ${historyPoints.length}
         };
@@ -459,10 +465,10 @@ try {
       if (!preferences.legacyWrite || preferences.legacySettings?.columns !== 12) {
         throw new Error(`Legacy layout migration mismatch: ${JSON.stringify(preferences)}`);
       }
-      if (preferences.cancelledColumns === 6 || preferences.applied.columns !== 6 || preferences.applied.cellHeight !== 96) {
+      if (preferences.cancelledColumns === 6 || preferences.applied.columns !== 6 || preferences.applied.cellHeight !== 96 || preferences.appliedGridColumns !== 6) {
         throw new Error(`Settings apply/cancel mismatch: ${JSON.stringify(preferences)}`);
       }
-      if (preferences.savedSettings?.columns !== 6 || preferences.loadedSettings.columns !== 6 || preferences.renamedSettings?.columns !== 6) {
+      if (preferences.savedSettings?.columns !== 6 || preferences.loadedSettings.columns !== 6 || preferences.loadedGridColumns !== 6 || preferences.renamedSettings?.columns !== 6) {
         throw new Error(`Layout settings persistence mismatch: ${JSON.stringify(preferences)}`);
       }
       if (preferences.historyPointCount !== historyPoints.length) {
@@ -475,10 +481,33 @@ try {
       const reloaded = await value(`(() => ({
         settings: window.JoeBoard.readActiveGridSettings(),
         desktopColumns: window.JoeBoard.desktopColumnCount(),
+        gridColumns: window.JoeBoard.gridColumnCount(),
         historyPointCount: document.querySelectorAll('#historyChart').length ? 1 : 0
       }))()`);
-      if (reloaded.settings.columns !== 6 || reloaded.desktopColumns !== 6) {
+      if (reloaded.settings.columns !== 6 || reloaded.desktopColumns !== 6 || reloaded.gridColumns !== 6) {
         throw new Error(`Reloaded settings mismatch: ${JSON.stringify(reloaded)}`);
+      }
+
+      const geometryBeforeMobile = await value(`(() => document.getElementById('joeGrid').gridstack.engine.nodes.map((node) => ({ id: node.id, x: node.x, w: node.w })).sort((a, b) => a.id.localeCompare(b.id)))()`);
+      await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+      await delay(300);
+      const mobileColumns = await value(`(() => ({
+        gridColumns: window.JoeBoard.gridColumnCount(),
+        desktopColumns: window.JoeBoard.desktopColumnCount(),
+        storedColumns: JSON.parse(localStorage.getItem('joe-board-grid-settings-v1') || 'null')?.columns
+      }))()`);
+      await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await delay(300);
+      const afterMobile = await value(`(() => ({
+        gridColumns: window.JoeBoard.gridColumnCount(),
+        desktopColumns: window.JoeBoard.desktopColumnCount(),
+        geometry: document.getElementById('joeGrid').gridstack.engine.nodes.map((node) => ({ id: node.id, x: node.x, w: node.w })).sort((a, b) => a.id.localeCompare(b.id))
+      }))()`);
+      if (mobileColumns.gridColumns !== 1 || mobileColumns.desktopColumns !== 6 || mobileColumns.storedColumns !== 6) {
+        throw new Error(`Mobile column roundtrip mismatch (narrow): ${JSON.stringify(mobileColumns)}`);
+      }
+      if (afterMobile.gridColumns !== 6 || afterMobile.desktopColumns !== 6 || JSON.stringify(afterMobile.geometry) !== JSON.stringify(geometryBeforeMobile)) {
+        throw new Error(`Mobile column roundtrip mismatch (desktop restore): ${JSON.stringify({ afterMobile, geometryBeforeMobile })}`);
       }
 
       await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
