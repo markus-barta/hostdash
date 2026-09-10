@@ -450,7 +450,7 @@ try {
   // Let a few sweeps run, then read one card. Reused after each status.json rewrite.
   const sampleCard = async name => {
     await new Promise(resolve => setTimeout(resolve, sweepMs * 3));
-    return value(`(() => {
+    const readCard = () => value(`(() => {
       const card = [...document.querySelectorAll(".svc")]
         .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(name)});
       return {
@@ -462,6 +462,15 @@ try {
         hostTruth: document.documentElement.dataset.hostTruth || null,
       };
     })()`);
+    // A host-confirmed HTTP 200 still runs the browser reachability probe (4s timeout).
+    // Wait for its result instead of treating an in-flight probe as a failed contract.
+    const deadline = Date.now() + 8000;
+    let card = await readCard();
+    while (card.state === "checking" && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      card = await readCard();
+    }
+    return card;
   };
   const sampleTruth = () => sampleCard(expected.truthCard);
 

@@ -96,37 +96,12 @@ response at all) as `Fault · no answer`, and a good code paired with a failing
 browser probe as `OK on host`: running and answering, just not reachable from
 here. Omit the section entirely and every card falls back to probe-only behavior.
 
-## Joe household board
+## JoeDesk
 
-The only Joe board is the quiet split-flap view at `/joe/`, canonical on
-`http://hsb1.lan/joe/`. It reads an hsb1-local `/joe/data.json` projection of the
-paper-trading book. Canonical hosts also include `cs0.barta.cm`, Tailscale mesh
-names for hsb1 (`100.64.0.0/10` and `*.ts.net` with `hsb1`), and localhost for
-development. Other hostnames render a private canonical-link stub and do not
-fetch the data file.
-
-The contract, synthetic sample, and atomic sync/deploy hand-off are documented
-in [`docs/joe-data-contract.md`](docs/joe-data-contract.md). GitHub Actions runs
-`node --check scripts/smoke-joe.mjs` and the browser smoke on Ubuntu Chrome for
-changes under `public/joe/`. Run its dedicated browser test with:
-
-```bash
-node --check scripts/smoke-joe.mjs
-node scripts/smoke-joe.mjs
-JOE_SMOKE_VIEWPORT=mobile node scripts/smoke-joe.mjs
-JOE_SMOKE_VIEWPORT=privacy node scripts/smoke-joe.mjs
-```
-
-Joe stores board chrome locally in the browser:
-
-| Key | Purpose |
-| --- | --- |
-| `joe-board-layout-v1` | Active widget geometry for the current desktop column count |
-| `joe-board-named-layouts-v1` | Saved layouts (`inspr.joe.layouts.v1`) including per-layout grid settings |
-| `joe-board-grid-settings-v1` | Active grid settings: columns, row height, tile padding, tile gap |
-| `joe-board-theme-v1` | Theme preference: `dark`, `light`, or `system` |
-
-Mobile stacking uses GridStack's responsive breakpoint only for display; saved geometry and grid settings keep the chosen desktop column count.
+[JoeDesk](https://github.com/markus-barta/joedesk) is independently maintained
+and released. [Open the board](https://cs0.barta.cm/joe/) at its existing protected
+address. HostDash keeps only a navigation page at `/joe/`; application assets,
+contracts and tests live in JoeDesk. HostDash updates no longer release the board.
 
 ## QA Checklist
 
@@ -134,10 +109,6 @@ Before pushing or redeploying, run:
 
 ```bash
 node --check scripts/smoke-ui.mjs
-node --check scripts/smoke-joe.mjs
-node scripts/smoke-joe.mjs
-JOE_SMOKE_VIEWPORT=mobile node scripts/smoke-joe.mjs
-JOE_SMOKE_VIEWPORT=privacy node scripts/smoke-joe.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb8 node scripts/smoke-ui.mjs
