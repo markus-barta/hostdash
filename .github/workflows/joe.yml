@@ -1,0 +1,56 @@
+name: Joe board
+
+on:
+  push:
+    paths:
+      - "public/joe/**"
+      - "scripts/check-joe-layout.mjs"
+      - "scripts/smoke-joe.mjs"
+      - ".github/workflows/joe.yml"
+  pull_request:
+    paths:
+      - "public/joe/**"
+      - "scripts/check-joe-layout.mjs"
+      - "scripts/smoke-joe.mjs"
+      - ".github/workflows/joe.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Syntax check
+        run: |
+          node --check public/joe/joe.js
+          node --check public/joe/joe-version.js
+          node --check scripts/check-joe-layout.mjs
+          node --check scripts/smoke-joe.mjs
+
+      - name: Layout checks
+        run: node scripts/check-joe-layout.mjs
+
+      - name: Desktop smoke
+        run: node scripts/smoke-joe.mjs
+        env:
+          BROWSER_PATH: /usr/bin/google-chrome
+
+      - name: Mobile smoke
+        run: JOE_SMOKE_VIEWPORT=mobile node scripts/smoke-joe.mjs
+        env:
+          BROWSER_PATH: /usr/bin/google-chrome
+
+      - name: Privacy stub smoke
+        run: JOE_SMOKE_VIEWPORT=privacy node scripts/smoke-joe.mjs
+        env:
+          BROWSER_PATH: /usr/bin/google-chrome
