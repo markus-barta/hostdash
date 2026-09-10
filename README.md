@@ -100,14 +100,16 @@ here. Omit the section entirely and every card falls back to probe-only behavior
 
 [JoeDesk](https://github.com/markus-barta/joedesk) is independently maintained
 and released. [Open the board](https://cs0.barta.cm/joe/) at its existing protected
-address. HostDash keeps only a navigation page at `/joe/`; application assets,
-contracts and tests live in JoeDesk. HostDash updates no longer release the board.
+address. Host-specific dashboard navigation stays in `hosts/<host>/config.js`;
+HostDash packages no `/joe/` page or application subtree. Application assets,
+contracts, and tests live in JoeDesk. HostDash updates no longer release the board.
 
 ## QA Checklist
 
 Before pushing or redeploying, run:
 
 ```bash
+scripts/check-package.sh
 node --check scripts/smoke-ui.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
