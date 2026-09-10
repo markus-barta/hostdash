@@ -49,7 +49,7 @@
   var DEFAULT_GRID_SETTINGS = { columns: 12, cellHeight: 82, tilePadding: 10, tileGap: 10 };
   var DESK_IDS = ["j", "joe", "joel"];
   var DEFAULT_LAYOUT = [
-    { id: "hero", x: 0, y: 0, w: 12, h: 2 },
+    { id: "hero", x: 0, y: 0, w: 12, h: 3 },
     { id: "desk-j", x: 0, y: 2, w: 4, h: 4 },
     { id: "desk-joe", x: 4, y: 2, w: 4, h: 4 },
     { id: "desk-joel", x: 8, y: 2, w: 4, h: 4 },
