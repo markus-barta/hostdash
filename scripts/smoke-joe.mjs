@@ -266,7 +266,7 @@ try {
       healthy.selectedSeries !== 3 || healthy.allBotsPressed !== "true" ||
       healthy.historyTitle !== "History" || /drag here|compare up to two/i.test(healthy.historyHelp || "") ||
       healthy.deskLabel !== "Desks" || healthy.rangeLabel !== "Range" ||
-      !/v0\.2\.0/.test(healthy.versionSummary || "") || healthy.versionEntries < 4 ||
+      !/v0\.3\.0/.test(healthy.versionSummary || "") || healthy.versionEntries < 4 ||
       !healthy.layoutSelectOptions || healthy.layoutSelectOptions < 1 ||
       !healthy.layoutMenu || !healthy.settingsMenu || !healthy.brandLogo || healthy.marketingCopy ||
       healthy.heroId !== "hero" ||
