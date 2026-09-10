@@ -296,11 +296,38 @@ try {
       };
       details.open = false;
       updatedAt.textContent = priorUpdatedAt;
+      const panelBounds = (selector) => {
+        const panel = document.querySelector(selector);
+        if (!panel) return { missing: true };
+        const rect = panel.getBoundingClientRect();
+        return {
+          x: rect.x,
+          right: rect.right,
+          overflow: rect.x < -1 || rect.right > viewportWidth + 1,
+        };
+      };
+      document.getElementById('layoutMenu').setAttribute('open', '');
+      if (window.JoeBoard.positionHeaderMenus) window.JoeBoard.positionHeaderMenus();
+      const layoutPanel = panelBounds('#layoutMenu .header-menu-panel');
+      document.getElementById('layoutMenu').removeAttribute('open');
+      document.getElementById('settingsMenu').setAttribute('open', '');
+      if (window.JoeBoard.positionHeaderMenus) window.JoeBoard.positionHeaderMenus();
+      const settingsPanel = panelBounds('#settingsMenu .header-menu-panel');
+      document.getElementById('settingsMenu').removeAttribute('open');
+      const defaultHero = window.JoeBoard.readLayoutsCatalog().layouts.find((entry) => entry.id === 'default')?.items.find((item) => item.id === 'hero');
+      const liveHero = document.querySelector('[gs-id="hero"]')?.gridstackNode;
       return {
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       gridColumns: document.getElementById('joeGrid')?.gridstack?.getColumn(),
       desktopColumns: window.JoeBoard.desktopColumnCount(),
       storedColumns: JSON.parse(localStorage.getItem('joe-board-grid-settings-v1') || 'null')?.columns,
+      layoutPanel,
+      settingsPanel,
+      defaultHeroY: defaultHero?.y,
+      defaultHeroH: defaultHero?.h,
+      liveHeroY: liveHero?.y,
+      liveHeroH: liveHero?.h,
+      headerStatusVisible: Boolean(document.querySelector('.header-status')),
       gateHidden: document.getElementById('privateGate').hidden,
       heroClipped: (() => { const hero = document.querySelector('[gs-id="hero"] .grid-stack-item-content'); return hero.scrollHeight > hero.clientHeight + 1; })(),
       heroOpen: document.getElementById('totalOpen')?.textContent,
@@ -309,7 +336,12 @@ try {
       offenders: [...document.querySelectorAll('body *')].filter(node => node.getBoundingClientRect().right > document.documentElement.clientWidth + 1).slice(0, 8).map(node => ({ tag: node.tagName, id: node.id, className: String(node.className), right: Math.round(node.getBoundingClientRect().right), width: Math.round(node.getBoundingClientRect().width) })),
       };
       })()`);
-      if (mobile.overflow || mobile.gridColumns !== 1 || mobile.desktopColumns !== 12 || mobile.storedColumns !== 12 || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness || mobile.versionPanel?.overflow) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
+      if (
+        mobile.overflow || mobile.gridColumns !== 1 || mobile.desktopColumns !== 12 || mobile.storedColumns !== 12 ||
+        mobile.layoutPanel?.overflow || mobile.settingsPanel?.overflow ||
+        mobile.defaultHeroY !== 0 || mobile.defaultHeroH !== 3 || mobile.liveHeroY !== 0 || mobile.liveHeroH !== 3 ||
+        !mobile.headerStatusVisible || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness || mobile.versionPanel?.overflow
+      ) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
     } else {
       const staleSnapshot = structuredClone(sample);
       staleSnapshot.generatedAt = new Date(Date.now() - 3600_000).toISOString();

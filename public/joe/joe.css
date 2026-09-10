@@ -100,6 +100,7 @@ button { color: inherit; }
 .layout-name-input { min-width: 120px; flex: 1 1 120px; border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; color: var(--paper); background: var(--ink-2); font: 11px var(--mono); }
 .layout-status { min-height: 1.2em; margin: 0; color: var(--green); font: 10px var(--mono); }
 .layout-status.is-error { color: var(--red); }
+.header-status { flex: 1 1 100%; width: 100%; min-height: 0; }
 .settings-group { margin: 0 0 12px; padding: 0; border: 0; min-width: 0; }
 .settings-group legend { margin: 0 0 8px; padding: 0; color: var(--quiet); font: 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
 .settings-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(7rem, 9rem); gap: 8px; align-items: center; margin-bottom: 8px; font-size: 11px; }
@@ -217,14 +218,15 @@ tr[data-desk="joel"] td:first-child { color: var(--desk-joel); }
   .header-menu-panel,
   .settings-panel {
     position: fixed;
-    top: 56px;
+    top: var(--joe-header-bottom, 64px);
     left: 16px;
     right: 16px;
     width: auto;
     min-width: 0;
     max-width: none;
+    max-height: min(70vh, calc(100vh - var(--joe-header-bottom, 64px) - 16px));
+    overflow-y: auto;
   }
-  .grid-stack-item[gs-id="hero"] { min-height: 220px; }
   .hero-widget { overflow: auto; }
   .layout-select, .layout-name-input { max-width: 100%; }
   .hero-values { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 7px 7px 5px; }

@@ -50,12 +50,12 @@
   var DESK_IDS = ["j", "joe", "joel"];
   var DEFAULT_LAYOUT = [
     { id: "hero", x: 0, y: 0, w: 12, h: 3 },
-    { id: "desk-j", x: 0, y: 2, w: 4, h: 4 },
-    { id: "desk-joe", x: 4, y: 2, w: 4, h: 4 },
-    { id: "desk-joel", x: 8, y: 2, w: 4, h: 4 },
-    { id: "attribution", x: 0, y: 6, w: 4, h: 3 },
-    { id: "history", x: 4, y: 6, w: 8, h: 5 },
-    { id: "positions", x: 0, y: 11, w: 12, h: 5 }
+    { id: "desk-j", x: 0, y: 3, w: 4, h: 4 },
+    { id: "desk-joe", x: 4, y: 3, w: 4, h: 4 },
+    { id: "desk-joel", x: 8, y: 3, w: 4, h: 4 },
+    { id: "attribution", x: 0, y: 7, w: 4, h: 3 },
+    { id: "history", x: 4, y: 7, w: 8, h: 5 },
+    { id: "positions", x: 0, y: 12, w: 12, h: 5 }
   ];
   var stateCopy = { working: "Working", "sit-out": "Sitting out", stuck: "Stuck" };
   var money = new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
@@ -69,6 +69,7 @@
   var historyState = { selected: DESK_IDS.slice(), range: "all", points: [], chart: null };
   var layoutFormMode = null;
   var activeGridSettings = Object.assign({}, DEFAULT_GRID_SETTINGS);
+  var activeThemeMode = "dark";
   var settingsFormDirty = false;
 
   var gate = document.getElementById("privateGate");
@@ -249,19 +250,28 @@
       grid.margin(clean.tileGap);
       syncGridColumnConfig(clean.columns);
     }
-    if (!skipPersist) { writeActiveGridSettings(clean); }
+    if (!skipPersist && !writeActiveGridSettings(clean)) {
+      setLayoutStatus("Settings storage is unavailable.", true);
+      resizeVisuals();
+      if (historyState.chart) { drawHistory(); }
+      return false;
+    }
     resizeVisuals();
     if (historyState.chart) { drawHistory(); }
     return true;
   }
 
-  function readThemeMode() {
+  function readStoredThemeMode() {
     try {
       var stored = localStorage.getItem(THEME_KEY);
       return THEME_MODES.includes(stored) ? stored : "dark";
     } catch (_) {
       return "dark";
     }
+  }
+
+  function readThemeMode() {
+    return activeThemeMode;
   }
 
   function resolveTheme(mode) {
@@ -273,13 +283,19 @@
 
   function applyTheme(mode, skipPersist) {
     var clean = THEME_MODES.includes(mode) ? mode : "dark";
+    activeThemeMode = clean;
     document.documentElement.dataset.themeMode = clean;
     document.documentElement.dataset.theme = resolveTheme(clean);
     if (!skipPersist) {
-      try { localStorage.setItem(THEME_KEY, clean); } catch (_) { /* storage unavailable */ }
+      try {
+        localStorage.setItem(THEME_KEY, clean);
+      } catch (_) {
+        return false;
+      }
     }
     if (historyState.chart) { drawHistory(); }
     drawSparklines();
+    return true;
   }
 
   function populateSettingsForm(settings, themeMode) {
@@ -289,24 +305,41 @@
     document.getElementById("settingsCellHeight").value = String(clean.cellHeight);
     document.getElementById("settingsTilePadding").value = String(clean.tilePadding);
     document.getElementById("settingsTileGap").value = String(clean.tileGap);
-    var mode = THEME_MODES.includes(themeMode) ? themeMode : readThemeMode();
+    var mode = THEME_MODES.includes(themeMode) ? themeMode : activeThemeMode;
     document.getElementById("themeLight").checked = mode === "light";
     document.getElementById("themeDark").checked = mode === "dark";
     document.getElementById("themeSystem").checked = mode === "system";
   }
 
+  function readSettingsField(id, current, min, max) {
+    var value = document.getElementById(id).value;
+    if (value === "") { return current; }
+    return boundedInt(value, min, max, current);
+  }
+
   function readSettingsFromForm() {
     return sanitizeGridSettings({
       columns: Number(document.getElementById("settingsColumns").value),
-      cellHeight: Number(document.getElementById("settingsCellHeight").value),
-      tilePadding: Number(document.getElementById("settingsTilePadding").value),
-      tileGap: Number(document.getElementById("settingsTileGap").value)
+      cellHeight: readSettingsField("settingsCellHeight", activeGridSettings.cellHeight, 48, 140),
+      tilePadding: readSettingsField("settingsTilePadding", activeGridSettings.tilePadding, 0, 24),
+      tileGap: readSettingsField("settingsTileGap", activeGridSettings.tileGap, 0, 24)
     });
   }
 
   function readThemeFromForm() {
     var selected = document.querySelector('input[name="themeMode"]:checked');
-    return selected && THEME_MODES.includes(selected.value) ? selected.value : readThemeMode();
+    return selected && THEME_MODES.includes(selected.value) ? selected.value : activeThemeMode;
+  }
+
+  function positionHeaderMenus() {
+    if (window.innerWidth > MOBILE_BREAKPOINT) {
+      document.documentElement.style.removeProperty("--joe-header-bottom");
+      return;
+    }
+    var header = document.querySelector(".topline");
+    if (!header) { return; }
+    var bottom = Math.ceil(header.getBoundingClientRect().bottom + 8);
+    document.documentElement.style.setProperty("--joe-header-bottom", bottom + "px");
   }
 
   function sanitizeLayoutItems(value, columns) {
@@ -620,6 +653,7 @@
         document.getElementById("layoutFormConfirm").click();
       } else if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         hideLayoutForm();
       }
     });
@@ -668,10 +702,16 @@
     document.querySelectorAll("details[data-settings-menu]").forEach(function (menu) {
       menu.addEventListener("toggle", function () {
         if (menu.open) {
-          if (!settingsFormDirty) { populateSettingsForm(activeGridSettings, readThemeMode()); }
+          positionHeaderMenus();
+          if (!settingsFormDirty) { populateSettingsForm(activeGridSettings, activeThemeMode); }
         } else {
           settingsFormDirty = false;
         }
+      });
+    });
+    document.querySelectorAll("details.header-menu").forEach(function (menu) {
+      menu.addEventListener("toggle", function () {
+        if (menu.open) { positionHeaderMenus(); }
       });
     });
   }
@@ -685,12 +725,18 @@
     document.getElementById("settingsApply").addEventListener("click", function () {
       var nextSettings = readSettingsFromForm();
       var nextTheme = readThemeFromForm();
-      applyGridSettings(nextSettings);
-      applyTheme(nextTheme);
+      var settingsOk = applyGridSettings(nextSettings);
+      var themeOk = applyTheme(nextTheme);
       settingsFormDirty = false;
-      populateSettingsForm(activeGridSettings, readThemeMode());
-      menu.removeAttribute("open");
-      setLayoutStatus("Board settings applied.");
+      populateSettingsForm(activeGridSettings, activeThemeMode);
+      if (settingsOk && themeOk) {
+        menu.removeAttribute("open");
+        setLayoutStatus("Board settings applied.");
+      } else if (!settingsOk && !themeOk) {
+        setLayoutStatus("Settings applied for this session but storage is unavailable.", true);
+      } else if (!themeOk) {
+        setLayoutStatus("Theme applied for this session but storage is unavailable.", true);
+      }
     });
     document.getElementById("settingsCancel").addEventListener("click", function () {
       settingsFormDirty = false;
@@ -699,14 +745,15 @@
     });
     var media = window.matchMedia("(prefers-color-scheme: light)");
     var onSystemThemeChange = function () {
-      if (readThemeMode() === "system") { applyTheme("system", true); }
+      if (activeThemeMode === "system") { applyTheme("system", true); }
     };
     if (media.addEventListener) { media.addEventListener("change", onSystemThemeChange); }
     else { media.addListener(onSystemThemeChange); }
   }
 
   function initTheme() {
-    applyTheme(readThemeMode(), true);
+    activeThemeMode = readStoredThemeMode();
+    applyTheme(activeThemeMode, true);
   }
 
   function saveLayout() {
@@ -1197,6 +1244,7 @@
       });
     });
     window.addEventListener("resize", function () {
+      positionHeaderMenus();
       syncGridColumnConfig(desktopColumnCount());
       resizeVisuals();
     });
@@ -1245,10 +1293,12 @@
     applyGridSettings: applyGridSettings,
     applyTheme: applyTheme,
     readThemeMode: readThemeMode,
+    readStoredThemeMode: readStoredThemeMode,
     resolveTheme: resolveTheme,
     desktopColumnCount: desktopColumnCount,
     gridColumnCount: gridColumnCount,
     syncGridColumnConfig: syncGridColumnConfig,
+    positionHeaderMenus: positionHeaderMenus,
     todayUtcMidnight: todayUtcMidnight
   });
   initTheme();

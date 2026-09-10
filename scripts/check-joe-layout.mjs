@@ -46,13 +46,26 @@ if (!version?.APP_VERSION || !Array.isArray(version.VERSION_HISTORY) || version.
 
 const sample = [
   { id: "hero", x: 0, y: 0, w: 12, h: 3 },
-  { id: "desk-j", x: 0, y: 2, w: 4, h: 4 },
-  { id: "desk-joe", x: 4, y: 2, w: 4, h: 4 },
-  { id: "desk-joel", x: 8, y: 2, w: 4, h: 4 },
-  { id: "attribution", x: 0, y: 6, w: 4, h: 3 },
-  { id: "history", x: 4, y: 6, w: 8, h: 5 },
-  { id: "positions", x: 0, y: 11, w: 12, h: 5 },
+  { id: "desk-j", x: 0, y: 3, w: 4, h: 4 },
+  { id: "desk-joe", x: 4, y: 3, w: 4, h: 4 },
+  { id: "desk-joel", x: 8, y: 3, w: 4, h: 4 },
+  { id: "attribution", x: 0, y: 7, w: 4, h: 3 },
+  { id: "history", x: 4, y: 7, w: 8, h: 5 },
+  { id: "positions", x: 0, y: 12, w: 12, h: 5 },
 ];
+
+function layoutTilesOverlap(items) {
+  for (let left = 0; left < items.length; left += 1) {
+    const a = items[left];
+    for (let right = left + 1; right < items.length; right += 1) {
+      const b = items[right];
+      const overlapX = a.x < b.x + b.w && b.x < a.x + a.w;
+      const overlapY = a.y < b.y + b.h && b.y < a.y + a.h;
+      if (overlapX && overlapY) return true;
+    }
+  }
+  return false;
+}
 
 if (!api.sanitizeLayoutItems(sample, 12)) throw new Error("valid layout rejected");
 if (api.sanitizeLayoutItems(sample.slice(0, 6), 12)) throw new Error("incomplete layout accepted");
@@ -63,14 +76,18 @@ if (api.sanitizeLayoutItems(sample.map((item) => item.id === "hero" ? { ...item,
 
 const sixCol = [
   { id: "hero", x: 0, y: 0, w: 6, h: 3 },
-  { id: "desk-j", x: 0, y: 2, w: 2, h: 4 },
-  { id: "desk-joe", x: 2, y: 2, w: 2, h: 4 },
-  { id: "desk-joel", x: 4, y: 2, w: 2, h: 4 },
-  { id: "attribution", x: 0, y: 6, w: 2, h: 3 },
-  { id: "history", x: 2, y: 6, w: 4, h: 5 },
-  { id: "positions", x: 0, y: 11, w: 6, h: 5 },
+  { id: "desk-j", x: 0, y: 3, w: 2, h: 4 },
+  { id: "desk-joe", x: 2, y: 3, w: 2, h: 4 },
+  { id: "desk-joel", x: 4, y: 3, w: 2, h: 4 },
+  { id: "attribution", x: 0, y: 7, w: 2, h: 3 },
+  { id: "history", x: 2, y: 7, w: 4, h: 5 },
+  { id: "positions", x: 0, y: 12, w: 6, h: 5 },
 ];
 if (!api.sanitizeLayoutItems(sixCol, 6)) throw new Error("valid six-column layout rejected");
+
+const defaultEntry = api.defaultLayoutEntry();
+if (layoutTilesOverlap(defaultEntry.items)) throw new Error("default layout tiles overlap");
+if (defaultEntry.items.find((item) => item.id === "desk-j").y !== 3) throw new Error("default desks must start below hero");
 
 const alteredDefault = api.normalizeLayoutEntry({
   id: "default",
@@ -120,4 +137,4 @@ if (canonical.layouts[0].items.find((item) => item.id === "hero").h !== 3) throw
 const tooMany = { schema: "inspr.joe.layouts.v1", layouts: Array.from({ length: 25 }, (_, index) => ({ id: `layout-${index}`, name: `Layout ${index}`, items: sample })) };
 if (api.writeLayoutsCatalog(tooMany)) throw new Error("catalog over limit accepted");
 
-console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, checks: 16 }, null, 2));
+console.log(JSON.stringify({ ok: true, appVersion: version.APP_VERSION, checks: 18 }, null, 2));
