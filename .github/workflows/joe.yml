@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - "public/joe/**"
+      - "scripts/check-joe-layout.mjs"
       - "scripts/smoke-joe.mjs"
       - ".github/workflows/joe.yml"
   pull_request:
     paths:
       - "public/joe/**"
+      - "scripts/check-joe-layout.mjs"
       - "scripts/smoke-joe.mjs"
       - ".github/workflows/joe.yml"
 

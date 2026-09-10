@@ -100,8 +100,10 @@ here. Omit the section entirely and every card falls back to probe-only behavior
 
 The only Joe board is the quiet split-flap view at `/joe/`, canonical on
 `http://hsb1.lan/joe/`. It reads an hsb1-local `/joe/data.json` projection of the
-paper-trading book. Non-hsb1 hostnames render a private canonical-link stub and
-do not fetch the data file; in particular, cs0 must never serve household PnL.
+paper-trading book. Canonical hosts also include `cs0.barta.cm`, Tailscale mesh
+names for hsb1 (`100.64.0.0/10` and `*.ts.net` with `hsb1`), and localhost for
+development. Other hostnames render a private canonical-link stub and do not
+fetch the data file.
 
 The contract, synthetic sample, and atomic sync/deploy hand-off are documented
 in [`docs/joe-data-contract.md`](docs/joe-data-contract.md). GitHub Actions runs

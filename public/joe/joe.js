@@ -269,10 +269,24 @@
   function updateLayoutControlState() {
     var select = document.getElementById("layoutSelect");
     if (!select) { return; }
+    if (!grid) {
+      setLayoutToolbarEnabled(false);
+      document.getElementById("resetLayout").disabled = true;
+      return;
+    }
+    setLayoutToolbarEnabled(true);
     var catalog = readLayoutsCatalog();
     var selected = catalog.layouts.find(function (entry) { return entry.id === select.value; });
     document.getElementById("deleteLayout").disabled = !selected || selected.builtin;
     document.getElementById("renameLayout").disabled = !selected || selected.builtin;
+  }
+
+  function setLayoutToolbarEnabled(enabled) {
+    var toolbar = document.getElementById("layoutToolbar");
+    if (!toolbar) { return; }
+    toolbar.querySelectorAll("button, select, input").forEach(function (node) {
+      node.disabled = !enabled;
+    });
   }
 
   function renderLayoutSelect(selectedId) {
@@ -301,6 +315,7 @@
   }
 
   function showLayoutForm(mode) {
+    if (!grid) { return; }
     layoutFormMode = mode;
     var input = document.getElementById("layoutNameInput");
     var select = document.getElementById("layoutSelect");
@@ -325,6 +340,7 @@
   }
 
   function saveNamedLayout(name) {
+    if (!grid) { return false; }
     var trimmed = String(name || "").trim();
     if (!trimmed) {
       setLayoutStatus("Enter a layout name.", true);
@@ -349,6 +365,7 @@
   }
 
   function renameSelectedLayout(name) {
+    if (!grid) { return false; }
     var trimmed = String(name || "").trim();
     if (!trimmed) {
       setLayoutStatus("Enter a layout name.", true);
@@ -373,6 +390,7 @@
   }
 
   function loadSelectedLayout() {
+    if (!grid) { return false; }
     var select = document.getElementById("layoutSelect");
     var catalog = readLayoutsCatalog();
     var entry = catalog.layouts.find(function (item) { return item.id === select.value; });
@@ -389,6 +407,7 @@
   }
 
   function deleteSelectedLayout() {
+    if (!grid) { return false; }
     var select = document.getElementById("layoutSelect");
     var catalog = readLayoutsCatalog();
     var entry = catalog.layouts.find(function (item) { return item.id === select.value; });
@@ -477,6 +496,7 @@
     if (!window.GridStack) {
       document.getElementById("joeGrid").classList.add("grid-fallback");
       document.getElementById("resetLayout").disabled = true;
+      setLayoutToolbarEnabled(false);
       return;
     }
     grid = window.GridStack.init({
@@ -750,31 +770,34 @@
       var domain = chartVisibleDomain(chart);
       if (!domain || domain.max <= domain.min) { return; }
       var context = chart.ctx;
+      var maxShadingSpanMs = 400 * 86400000;
       context.save();
       context.beginPath();
       context.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
       context.clip();
-      context.fillStyle = "rgba(169, 201, 154, 0.06)";
-      var day = utcDayStart(domain.min);
-      var lastDay = utcDayStart(domain.max);
-      while (day <= lastDay) {
-        var weekday = new Date(day).getUTCDay();
-        if (weekday >= 1 && weekday <= 5) {
-          var session = easternSessionBounds(day);
-          var start = Math.max(domain.min, session.open);
-          var end = Math.min(domain.max, session.close);
-          if (end > start) {
-            var left = scale.getPixelForValue(start);
-            var right = scale.getPixelForValue(end);
-            var x = Math.max(area.left, Math.min(left, right));
-            var x2 = Math.min(area.right, Math.max(left, right));
-            var width = x2 - x;
-            if (width > 0) {
-              context.fillRect(x, area.top, width, area.bottom - area.top);
+      if (domain.max - domain.min <= maxShadingSpanMs) {
+        context.fillStyle = "rgba(169, 201, 154, 0.06)";
+        var day = utcDayStart(domain.min);
+        var lastDay = utcDayStart(domain.max);
+        while (day <= lastDay) {
+          var weekday = new Date(day).getUTCDay();
+          if (weekday >= 1 && weekday <= 5) {
+            var session = easternSessionBounds(day);
+            var start = Math.max(domain.min, session.open);
+            var end = Math.min(domain.max, session.close);
+            if (end > start) {
+              var left = scale.getPixelForValue(start);
+              var right = scale.getPixelForValue(end);
+              var x = Math.max(area.left, Math.min(left, right));
+              var x2 = Math.min(area.right, Math.max(left, right));
+              var width = x2 - x;
+              if (width > 0) {
+                context.fillRect(x, area.top, width, area.bottom - area.top);
+              }
             }
           }
+          day += 86400000;
         }
-        day += 86400000;
       }
       var todayMs = todayUtcMidnight();
       if (todayMs >= domain.min && todayMs <= domain.max) {
