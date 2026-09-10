@@ -149,7 +149,8 @@ tr[data-desk="joel"] td:first-child { color: var(--amber); }
   .positions-head { align-items: flex-start; flex-direction: column; }
   .footer { align-items: flex-start; flex-direction: column; }
   .footer-meta { margin-left: 0; justify-content: flex-start; }
-  .version__panel { right: auto; left: 0; width: min(26rem, calc(100vw - 32px)); }
+  .footer-meta .version { display: block; width: 100%; }
+  .version__panel { right: auto; left: 50%; transform: translateX(-50%); width: min(26rem, calc(100vw - 32px)); }
   .history-controls { width: 100%; }
   .history-head #resetZoom { margin-left: 0; width: 100%; }
 }

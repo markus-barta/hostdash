@@ -269,16 +269,31 @@ try {
     }
 
     if (mobileViewport) {
-      mobile = await value(`(() => ({
+      mobile = await value(`(() => {
+      const details = document.querySelector('details.version');
+      details.open = true;
+      const panel = document.getElementById('versionPanel');
+      const panelRect = panel.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+      const versionPanel = {
+        x: panelRect.x,
+        right: panelRect.right,
+        width: panelRect.width,
+        overflow: panelRect.x < -1 || panelRect.right > viewportWidth + 1,
+      };
+      details.open = false;
+      return {
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       gridColumns: document.getElementById('joeGrid')?.gridstack?.getColumn(),
       gateHidden: document.getElementById('privateGate').hidden,
       heroClipped: (() => { const hero = document.querySelector('[gs-id="hero"] .grid-stack-item-content'); return hero.scrollHeight > hero.clientHeight + 1; })(),
       heroOpen: document.getElementById('totalOpen')?.textContent,
       heroFreshness: document.getElementById('freshValue')?.textContent,
+      versionPanel,
       offenders: [...document.querySelectorAll('body *')].filter(node => node.getBoundingClientRect().right > document.documentElement.clientWidth + 1).slice(0, 8).map(node => ({ tag: node.tagName, id: node.id, className: String(node.className), right: Math.round(node.getBoundingClientRect().right), width: Math.round(node.getBoundingClientRect().width) })),
-      }))()`);
-      if (mobile.overflow || mobile.gridColumns !== 1 || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
+      };
+      })()`);
+      if (mobile.overflow || mobile.gridColumns !== 1 || !mobile.gateHidden || mobile.heroClipped || !mobile.heroOpen || !mobile.heroFreshness || mobile.versionPanel?.overflow) throw new Error(`Mobile layout mismatch: ${JSON.stringify(mobile)}`);
     } else {
       const staleSnapshot = structuredClone(sample);
       staleSnapshot.generatedAt = new Date(Date.now() - 3600_000).toISOString();
@@ -320,6 +335,8 @@ try {
           resetHeight: hero.gridstackNode.h,
           storageRepersisted: localStorage.getItem('joe-board-layout-v1') !== null
         };
+        grid.update(hero, { h: 3 });
+        await new Promise(resolve => setTimeout(resolve, 50));
         document.getElementById('saveLayout').click();
         document.getElementById('layoutNameInput').value = 'Night layout';
         document.getElementById('layoutFormConfirm').click();
@@ -333,6 +350,9 @@ try {
         document.getElementById('layoutFormConfirm').click();
         await new Promise(resolve => setTimeout(resolve, 50));
         const afterRename = document.getElementById('layoutSelect').selectedOptions[0]?.textContent;
+        grid.update(hero, { h: 2 });
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const heightBeforeLoad = hero.gridstackNode.h;
         document.getElementById('loadLayout').click();
         await new Promise(resolve => setTimeout(resolve, 50));
         const loadedHeight = hero.gridstackNode.h;
@@ -352,7 +372,7 @@ try {
         document.getElementById('seriesAll').click();
         await new Promise(resolve => setTimeout(resolve, 25));
         const restored = document.querySelectorAll('button[data-series][aria-pressed="true"]').length;
-        return { resetResult, afterSave, afterRename, loadedHeight, afterDelete, cleared, restored };
+        return { resetResult, afterSave, afterRename, heightBeforeLoad, loadedHeight, afterDelete, cleared, restored };
       })()`);
       if (layout.resetResult.savedHeight !== 3 || layout.resetResult.resetHeight !== 2 || !layout.resetResult.storageRepersisted) {
         throw new Error(`Layout persistence mismatch: ${JSON.stringify(layout.resetResult)}`);
@@ -360,8 +380,8 @@ try {
       if (layout.afterSave.renameDisabled || layout.afterSave.selectedName !== 'Night layout') {
         throw new Error(`Save layout control state mismatch: ${JSON.stringify(layout.afterSave)}`);
       }
-      if (layout.afterRename !== 'Morning layout' || layout.loadedHeight !== 3) {
-        throw new Error(`Rename/load layout mismatch: ${JSON.stringify({ afterRename: layout.afterRename, loadedHeight: layout.loadedHeight })}`);
+      if (layout.afterRename !== 'Morning layout' || layout.heightBeforeLoad !== 2 || layout.loadedHeight !== 3) {
+        throw new Error(`Rename/load layout mismatch: ${JSON.stringify({ afterRename: layout.afterRename, heightBeforeLoad: layout.heightBeforeLoad, loadedHeight: layout.loadedHeight })}`);
       }
       if (layout.afterDelete.selectedName !== 'Default' || !layout.afterDelete.renameDisabled || !layout.afterDelete.deleteDisabled) {
         throw new Error(`Delete layout control state mismatch: ${JSON.stringify(layout.afterDelete)}`);
