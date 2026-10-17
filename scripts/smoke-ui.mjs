@@ -24,23 +24,26 @@ const manifestContractMode = manifestMode && host === "hsb1";
 // host-truth assertions below deterministic and network-independent.
 const defaults = {
   hsb0: {
-    cards: 9,
-    total: 9,
+    cards: 18,
+    total: 18,
     searchName: "AdGuard Home",
     searchTerm: "adguard",
-    certService: "OpenClaw Gateway",
+    certService: null,
     sameHostService: "AdGuard Home",
     sameHostPort: "3000",
     sameHostPath: "/",
+    // Served by this dashboard's own nginx: same origin, no port of its own.
+    pathOnlyService: "hausnetz",
+    pathOnlyPath: "/ops/",
     staticStates: {},
     truthContainer: "restic-cron-hetzner",
     truthCard: "restic",
-    httpContainer: "openclaw-gateway",
-    httpCard: "OpenClaw Gateway",
+    httpContainer: "ncps",
+    httpCard: "NCPS",
   },
   hsb1: {
-    cards: 19,
-    total: 18,
+    cards: 27,
+    total: 27,
     searchName: "Plex",
     searchTerm: "plex",
     certService: "Scrypted",
@@ -76,8 +79,8 @@ const defaults = {
     },
   },
   hsb9: {
-    cards: 4,
-    total: 4,
+    cards: 5,
+    total: 5,
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
@@ -93,12 +96,13 @@ const defaults = {
       "Home Assistant": { container: "homeassistant" },
       Mosquitto: { container: "mosquitto" },
       "pharos-beacon": { container: "pharos-beacon" },
+      restic: { container: "restic-cron-hetzner" },
       "Container updates": { unit: "compose-hsb9-update.timer" },
     },
   },
   csb0: {
-    cards: 11,
-    total: 10,
+    cards: 14,
+    total: 14,
     searchName: "Node-RED",
     searchTerm: "node-red",
     certService: null,
@@ -115,17 +119,21 @@ const defaults = {
       Headscale: { container: "headscale" },
       "Tesla Fleet Key": { container: "csb0-tesla-fleet-key-1" },
       "docker socket proxy": { container: "csb0-docker-proxy-traefik-1" },
+      "HostDash login": { container: "csb0-hostdash-auth-1" },
       "Node-RED": { container: "csb0-nodered-1" },
       Mosquitto: { container: "csb0-mosquitto-1" },
       "Uptime Kuma": { container: "csb0-uptime-kuma-1" },
+      "Joe board": { container: "csb0-joe-board-1" },
       "pharos-beacon": { container: "pharos-beacon" },
+      "ops-alerts": { unit: "ops-alerts.timer" },
+      "fleet-heartbeat": { unit: "fleet-heartbeat.socket" },
       restic: { container: "csb0-restic-cron-hetzner-1" },
       "Container updates": { unit: "compose-csb0-update.timer" },
     },
   },
   csb1: {
-    cards: 26,
-    total: 26,
+    cards: 47,
+    total: 47,
     searchName: "Docmost",
     searchTerm: "knowledge",
     certService: null,
@@ -133,7 +141,6 @@ const defaults = {
     sameHostPort: null,
     sameHostPath: null,
     staticStates: {
-      Janus: "protected",
       "INSPR site": "external",
     },
     truthContainer: "csb1-docmost-db-1",
@@ -145,17 +152,29 @@ const defaults = {
       Zitadel: { container: "zitadel" },
       "inspr-auth": { container: "inspr-auth" },
       "docker socket proxy": { container: "csb1-docker-proxy-traefik-1" },
+      "HostDash login": { container: "csb1-hostdash-auth-1" },
       Docmost: { container: "csb1-docmost-1" },
       Paperless: { container: "csb1-paperless-1" },
       Excalidraw: { container: "csb1-excalidraw-1" },
-      PPM: { container: "ppm" },
-      Janus: { container: "janus" },
+      Aeon: { container: "aeon" },
+      "aeon-watch": { unit: "aeon-watch.timer" },
+      "Janus placeholder": { container: "janus-placeholder" },
+      "Janus transactiond": { container: "janus-managed-transactiond" },
+      "Janus host agent": { unit: "janus-managed-host-agent.service" },
       MinIO: { container: "minio" },
       Pharos: { container: "pharosd" },
+      "Pharos provisioning": { unit: "pharos-provisioning-executor.timer" },
+      "Pharos retirement": { unit: "pharos-retirement-executor.timer" },
+      Aithema: { unit: "aithema-workspace.service" },
       "WEG Portal": { container: "hausv-org" },
+      "hausv-alerts": { unit: "hausv-alerts.timer" },
+      "GitHub runner": { unit: "github-runner-csb1-hausv.service" },
       "INSPR site": { container: "inspr-www" },
       "PAIMOS site": { container: "paimos-www" },
       "jobs.at": { container: "csb1-jobs-at-1" },
+      "barta.cm": { container: "csb1-barta-public-1" },
+      BYTEPOETS: { container: "csb1-bytepoets-memorial-1" },
+      "jhw22 heat pump": { container: "csb1-jhw22-wp-1" },
       "Docmost Postgres": { container: "csb1-docmost-db-1" },
       "Docmost Redis": { container: "csb1-docmost-redis-1" },
       "Paperless Postgres": { container: "csb1-paperless-db-1" },
@@ -163,10 +182,19 @@ const defaults = {
       "Paperless Tika": { container: "csb1-paperless-tika-1" },
       "Paperless Gotenberg": { container: "csb1-paperless-gotenberg-1" },
       "Zitadel Postgres": { container: "zitadel-postgres" },
+      "Aeon Postgres": { container: "aeon-db" },
+      "HAUSV Postgres": { container: "hausv-postgres" },
       restic: { container: "csb1-restic-cron-hetzner-1" },
       "SMTP relay": { container: "csb1-smtp-1" },
       "Container updates": { unit: "compose-csb1-update.timer" },
       "pharos-beacon": { container: "pharos-beacon" },
+      "Aeon DB snapshot": { unit: "aeon-postgres-backup-snapshot.timer" },
+      "HAUSV DB snapshot": { unit: "hausv-postgres-backup-snapshot.timer" },
+      "HAUSV snapshot": { unit: "hausv-backup-snapshot.timer" },
+      "fleet-peer-watch": { unit: "fleet-peer-watch.timer" },
+      "tailnet-watch": { unit: "tailnet-watch.timer" },
+      "fleet-drift": { unit: "fleet-drift.timer" },
+      "fleet-heartbeat": { unit: "fleet-heartbeat.socket" },
     },
   },
 };
@@ -534,7 +562,17 @@ try {
         const name = card.querySelector("h3")?.textContent;
         return name && Object.keys(binding).length ? [[name, binding]] : [];
       })),
-      sameHostHref: sameHostCard?.href || null
+      sameHostHref: sameHostCard?.href || null,
+      pathOnly: (() => {
+        const name = ${JSON.stringify(expected.pathOnlyService || null)};
+        const card = name ? [...document.querySelectorAll(".svc")]
+          .find(item => item.querySelector("h3")?.textContent === name) : null;
+        return card ? {
+          href: card.href,
+          probe: card.dataset.probe || null,
+          foot: card.querySelector(".svc-foot .port")?.textContent || null,
+        } : null;
+      })()
     };
   })()`);
 
@@ -617,6 +655,22 @@ try {
       actual.pathname !== expected.sameHostPath
     ) {
       throw new Error(`Same-host URL resolution failed: ${JSON.stringify({ pageUrl, initial })}`);
+    }
+  }
+  // A path-only service keeps the dashboard's own origin (port included) for both the
+  // link and the probe. That probe is same-origin and so readable: this test server
+  // answers it 404, which must not read as Online.
+  if (expected.pathOnlyService && /^https?:/.test(pageUrl)) {
+    const want = new URL(expected.pathOnlyPath, pageUrl).href;
+    const card = initial.pathOnly;
+    if (!card || card.href !== want || card.probe !== want || card.foot !== expected.pathOnlyPath) {
+      throw new Error(`Path-only URL resolution failed: ${JSON.stringify({ want, pathOnly: card })}`);
+    }
+    if (localPage) {
+      const sampled = await sampleCard(expected.pathOnlyService);
+      if (sampled.state !== "down") {
+        throw new Error(`Same-origin 404 was not reported as down: ${JSON.stringify(sampled)}`);
+      }
     }
   }
 

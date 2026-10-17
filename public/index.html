@@ -1228,7 +1228,7 @@ WINGS.forEach(wing => {
     const tracked = !!(service.container || service.unit || service.extra);
     const card = active ? el("a", "svc") : el("div", "svc passive");
     card.style.setProperty("--c", wing.color);
-    card.dataset.name = `${service.name} ${service.purpose} ${service.port || service.foot || ""}`.toLowerCase();
+    card.dataset.name = `${service.name} ${service.purpose} ${service.port || service.path || service.foot || ""}`.toLowerCase();
 
     if (service.container) card.dataset.container = service.container;
     if (service.unit) card.dataset.unit = service.unit;
@@ -1256,7 +1256,7 @@ WINGS.forEach(wing => {
     const status = service.status || (active || tracked ? "checking" : "passive");
     const statusLabel = statusText(status);
     const foot = active
-      ? `<span class="port">${service.port}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
+      ? `<span class="port">${service.port || service.path || ""}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
       : `<span class="port">${service.foot || ""}</span>`;
 
     card.innerHTML = `
@@ -1283,7 +1283,9 @@ function serviceTargetUrl(service) {
 
   const target = new URL(window.location.href);
   target.protocol = service.scheme || target.protocol;
-  target.port = String(service.hostPort || service.port || "").replace(/^:/, "").split(/\s+/)[0];
+  // A path-only service (no port) lives on this dashboard's own server: keep its port.
+  const port = String(service.hostPort || service.port || "").replace(/^:/, "").split(/\s+/)[0];
+  if (/^\d+$/.test(port)) target.port = port;
   target.pathname = service.path || "/";
   target.search = service.search || "";
   target.hash = "";
@@ -1554,7 +1556,12 @@ function probe(card, hostState, hostHttp) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
   fetch(card.dataset.probe, { mode: "no-cors", signal: controller.signal })
-    .then(() => setStatus(card, "up"))
+    .then(response => {
+      // Same-origin (a path on this dashboard's own nginx) is readable. Its 403 or 502
+      // is that nginx refusing or missing the upstream, not the service being reachable.
+      if (response.type === "basic" && !response.ok) throw new Error(`HTTP ${response.status}`);
+      setStatus(card, "up");
+    })
     .catch(() => {
       if (hostState !== "running") return setStatus(card, "down");
       if (hostHttp?.kind === "ok") {

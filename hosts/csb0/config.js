@@ -26,15 +26,18 @@ window.HOSTDASH_CONFIG = {
     { wing: "edge", name: "Headscale", container: "headscale", purpose: "Tailnet control plane", icon: "radio-tower", url: "https://hs.barta.cm/", port: ":443" },
     { wing: "edge", name: "Tesla Fleet Key", container: "csb0-tesla-fleet-key-1", purpose: "Tesla Fleet API domain-verification key host", icon: "key-round", url: "https://ev.barta.cm/.well-known/appspecific/com.tesla.3p.public-key.pem", port: ":443" },
     { wing: "edge", name: "docker socket proxy", container: "csb0-docker-proxy-traefik-1", purpose: "Read-only Docker API for Traefik discovery", icon: "server", passive: true, foot: "internal · :2375" },
+    { wing: "edge", name: "HostDash login", container: "csb0-hostdash-auth-1", purpose: "OIDC sign-in for HostDash and Joe via auth.inspr.at", icon: "key-round", passive: true, foot: "/oauth2 · forward-auth" },
 
     { wing: "smart", name: "Node-RED", container: "csb0-nodered-1", purpose: "Cloud automation flows and Telegram hooks", icon: "logo-nodered", url: "https://home.barta.cm/", port: ":443" },
     { wing: "smart", name: "Mosquitto", container: "csb0-mosquitto-1", purpose: "MQTT broker for smart-home telemetry", icon: "logo-mqtt", passive: true, foot: ":8883 tls · :1883 internal" },
 
     { wing: "ops", name: "Uptime Kuma", container: "csb0-uptime-kuma-1", purpose: "Cloud and public service uptime checks", icon: "bell-ring", url: "https://uptime.barta.cm/", port: ":443" },
+    { wing: "ops", name: "Joe board", container: "csb0-joe-board-1", purpose: "JoeDesk household board and push inbox", icon: "briefcase", url: "https://cs0.barta.cm/joe/", port: ":443 /joe/" },
     { wing: "ops", name: "pharos-beacon", container: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
+    { wing: "ops", name: "ops-alerts", unit: "ops-alerts.timer", purpose: "Fleet alert poller for the Home Assistants, to Telegram", icon: "bell-ring", passive: true, foot: "15 min timer · alerts" },
+    { wing: "ops", name: "fleet-heartbeat", unit: "fleet-heartbeat.socket", purpose: "Alert-poller heartbeat for csb1's peer watch", icon: "radar", passive: true, foot: "tailnet :9107 · heartbeat" },
 
     { wing: "housekeeping", name: "restic", container: "csb0-restic-cron-hetzner-1", purpose: "Nightly backup to Hetzner Storage Box", icon: "hard-drive-download", passive: true, foot: "01:30 daily · backup" },
-    { wing: "housekeeping", name: "SMTP relay", purpose: "Outbound container mail through Hover", icon: "mail", passive: true, foot: ":25 internal · relay" },
-    { wing: "housekeeping", name: "Container updates", unit: "compose-csb0-update.timer", purpose: "Weekly updates for the compose stack", icon: "refresh-cw", passive: true, foot: "Sat 08:00 · scheduled" },
+    { wing: "housekeeping", name: "Container updates", unit: "compose-csb0-update.timer", purpose: "Weekly updates for the compose stack", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
   ],
 };

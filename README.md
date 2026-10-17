@@ -15,6 +15,11 @@ used for the dashboard itself, so `http://hsb8.lan/`, `http://192.168.1.100/`,
 and `http://100.64.0.3/` probe `:8123` on the matching address instead of
 hardcoding one network.
 
+A service served by the dashboard's own nginx declares `path` and no `port`
+(hsb0's hausnetz at `/ops/`, In flight at `/inflight/`). It keeps the
+dashboard's own origin, port included. Its probe is same-origin and so readable:
+a `403` or `502` from that nginx counts as a failed probe, not as online.
+
 ## Build
 
 ```bash

@@ -26,6 +26,7 @@ window.HOSTDASH_CONFIG = {
 
     { wing: "ops", name: "pharos-beacon", container: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
 
+    { wing: "housekeeping", name: "restic", container: "restic-cron-hetzner", purpose: "Nightly backup to Hetzner Storage Box", icon: "hard-drive-download", passive: true, foot: "03:00 daily · backup" },
     { wing: "housekeeping", name: "Container updates", unit: "compose-hsb9-update.timer", purpose: "Weekly updates for the compose stack", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
   ],
 };

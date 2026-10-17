@@ -32,23 +32,31 @@ window.HOSTDASH_CONFIG = {
     { wing: "media", name: "Plex", container: "plex", purpose: "Media library & streaming", icon: "logo-plex", url: "http://hsb1.lan:32400/web", sameHost: true, port: ":32400", path: "/web" },
     { wing: "media", name: "pixdcon", container: "pixdcon", purpose: "Pixoo pixel-display controller", icon: "logo-pixdcon", url: "http://hsb1.lan:8080/", sameHost: true, port: ":8080" },
     { wing: "media", name: "funkeykid", container: "funkeykid", purpose: "Kids audio/voice toy console", icon: "toy-brick", url: "http://hsb1.lan:8081/", sameHost: true, port: ":8081" },
+    { wing: "media", name: "IR bridge", unit: "ir-bridge.service", purpose: "FLIRC remote to Sony Bravia and Home Assistant", icon: "radio", passive: true, foot: "daemon · no UI" },
+    { wing: "media", name: "ir-bridge-watch", unit: "ir-bridge-watch.timer", purpose: "Pages when the FLIRC to TV path breaks", icon: "bell-ring", passive: true, foot: "5 min timer · watchdog" },
 
     { wing: "signals", name: "Apprise", container: "apprise", purpose: "Unified notification gateway", icon: "logo-apprise", url: "http://hsb1.lan:8001/", sameHost: true, port: ":8001" },
     { wing: "signals", name: "Mosquitto", container: "mosquitto", purpose: "MQTT broker and message bus", icon: "logo-mqtt", passive: true, foot: ":1883 · :9001 ws · broker" },
     { wing: "signals", name: "opus-stream-to-mqtt", container: "opus-stream-to-mqtt", purpose: "OPUS gateway to MQTT bridge", icon: "audio-waveform", passive: true, foot: "agent · no UI" },
     { wing: "signals", name: "SMTP relay", container: "docker-smtp-1", purpose: "Outbound container mail", icon: "mail", passive: true, foot: ":25 internal · relay" },
+    { wing: "signals", name: "turbogmailify", container: "turbogmailify", purpose: "Imports residue Hover mail into Gmail", icon: "mail", passive: true, foot: "IMAP IDLE · outbound only" },
+    { wing: "signals", name: "mailbridge-watch", unit: "mailbridge-watch.timer", purpose: "Watches mail-bridge authorization and queues", icon: "bell-ring", passive: true, foot: "5 min timer · watchdog" },
 
     // The babycam kiosk has no HTTP endpoint and could never be probed by a browser.
     // It publishes real health instead (NIX-151): decoder counters proving frames and
     // audio are actually MOVING, plus the volume the user ASKED for vs what VLC is doing.
     // `desired_volume: 0` is a deliberate nightly mute, NOT a fault — see extraState().
     { wing: "safety", name: "Babycam", purpose: "Kiosk feed \u2014 audio + video watchdog", icon: "camera", passive: true, extra: "babycam", foot: "kiosk \u00b7 self-healing" },
+    { wing: "safety", name: "Kiosk volume", unit: "mqtt-volume-control.service", purpose: "Babycam kiosk VLC volume over MQTT", icon: "sliders", passive: true, foot: "MQTT listener · no UI" },
     { wing: "safety", name: "Scrypted", container: "scrypted", purpose: "Camera/NVR hub to HomeKit/HA", icon: "logo-scrypted", url: "https://hsb1.lan:10443/", sameHost: true, scheme: "https:", port: ":10443", certIssue: true, note: "service answers with a self-signed localhost certificate" },
     { wing: "safety", name: "fritz-tripwire", container: "fritz-tripwire", purpose: "Snapshots mesh on device drop", icon: "shield-alert", url: "http://hsb1.lan:9000/", sameHost: true, port: ":9000", note: "plain-text status endpoint" },
 
-    { wing: "infra", name: "Watchtower", container: "watchtower-weekly", purpose: "Weekly container auto-updates", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
+    { wing: "infra", name: "Container updates", unit: "compose-hsb1-update.timer", purpose: "Weekly updates for the compose stack", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
     { wing: "infra", name: "restic", container: "restic-cron-hetzner", purpose: "Nightly backup to Hetzner", icon: "hard-drive-download", passive: true, foot: "01:30 daily · backup" },
     { wing: "infra", name: "pharos-beacon", container: "pharos-beacon", purpose: "Host status to pharosd on csb1", icon: "radar", passive: true, foot: "beacon · outbound only" },
-    { wing: "infra", name: "claude-code", purpose: "Idle Claude Code shell", icon: "terminal", passive: true, foot: "shell · no UI" },
+    { wing: "infra", name: "UPS MQTT", unit: "apc-to-mqtt.timer", purpose: "APC UPS status published into MQTT", icon: "logo-mqtt", passive: true, foot: "1 min timer · no UI" },
+    { wing: "infra", name: "Samba", unit: "samba-smbd.service", purpose: "Time Machine and media SMB shares", icon: "hard-drive-download", passive: true, foot: ":445 · smb" },
+    { wing: "infra", name: "tm-watch", unit: "tm-watch.timer", purpose: "Pages before Time Machine fills or a Mac stops backing up", icon: "bell-ring", passive: true, foot: "10 min timer · watchdog" },
+    { wing: "infra", name: "tailnet-watch", unit: "tailnet-watch.timer", purpose: "Pages when hsb1's tailnet view breaks", icon: "bell-ring", passive: true, foot: "10 min timer · watchdog" },
   ],
 };
