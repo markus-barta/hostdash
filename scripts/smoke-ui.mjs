@@ -79,14 +79,17 @@ const defaults = {
     },
   },
   hsb9: {
-    cards: 5,
-    total: 5,
+    cards: 6,
+    total: 6,
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
     sameHostService: "Home Assistant",
     sameHostPort: "8123",
     sameHostPath: "/",
+    // The recordings library is served by hsb9-home's own nginx (HOSTD-79).
+    pathOnlyService: "Fernsehaufnahmen",
+    pathOnlyPath: "/fernsehen/",
     staticStates: {},
     truthContainer: "mosquitto",
     truthCard: "Mosquitto",
@@ -94,6 +97,7 @@ const defaults = {
     httpCard: "Home Assistant",
     bindings: {
       "Home Assistant": { container: "homeassistant" },
+      Fernsehaufnahmen: { container: "hsb9-media" },
       Mosquitto: { container: "mosquitto" },
       "pharos-beacon": { container: "pharos-beacon" },
       restic: { container: "restic-cron-hetzner" },
