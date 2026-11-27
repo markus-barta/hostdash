@@ -257,6 +257,42 @@
     padding: 0 0 18px;
     border-bottom: 1px solid var(--line);
   }
+  .language {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .language-buttons {
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-3);
+  }
+  .language button {
+    min-width: 42px;
+    min-height: 34px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted);
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+  }
+  .language button[aria-pressed="true"] {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(23, 32, 22, 0.04);
+  }
+  .language button:focus-visible {
+    outline: 3px solid rgba(212, 92, 63, 0.16);
+    outline-offset: 2px;
+  }
   .search {
     position: relative;
     min-width: 0;
@@ -502,6 +538,7 @@
   .icon {
     display: grid;
     place-items: center;
+    flex-shrink: 0;
     width: 40px;
     height: 40px;
     border-radius: 8px;
@@ -522,6 +559,7 @@
     font-weight: 750;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    white-space: nowrap;
     flex-shrink: 0;
   }
   .dot {
@@ -804,57 +842,64 @@
     <div class="brand">
       <div class="mark"><svg><use href="#i-server"></use></svg></div>
       <div>
-        <h1 id="hostName">Host</h1>
-        <p id="hostRole">services</p>
+        <h1 id="hostName">HostDash</h1>
+        <p id="hostRole"></p>
       </div>
     </div>
-    <section class="status-panel" aria-label="Host status">
-      <div class="status-row"><span>Online</span><strong><b id="onCount">0</b>/<span id="totCount">0</span></strong></div>
+    <section class="status-panel" data-i18n-aria="hostStatus">
+      <div class="status-row"><span data-i18n="online"></span><strong><b id="onCount">0</b>/<span id="totCount">0</span></strong></div>
       <!-- HOSTD-8: say where these numbers come from. A dashboard that silently falls
            back to guessing looks identical to one that knows, and that is the whole
            bug being fixed. -->
-      <div class="truth" id="truthRow" data-t="none"><span class="truth-dot"></span><span id="truthLabel">checking…</span></div>
+      <div class="truth" id="truthRow" data-t="none"><span class="truth-dot"></span><span id="truthLabel" data-i18n="checkingSource"></span></div>
       <div class="clock" id="clock"></div>
     </section>
-    <section class="controls" aria-label="Dashboard controls">
+    <section class="controls" data-i18n-aria="dashboardControls">
+      <div class="language" role="group" aria-labelledby="languageLabel">
+        <span id="languageLabel" data-i18n="language"></span>
+        <div class="language-buttons">
+          <button type="button" data-language="de" lang="de" aria-pressed="false" data-i18n-aria="german">DE</button>
+          <button type="button" data-language="en" lang="en" aria-pressed="false" data-i18n-aria="english">EN</button>
+        </div>
+      </div>
       <label class="search">
-        <input id="q" type="search" placeholder="Search services" autocomplete="off" aria-label="Search services">
+        <input id="q" type="search" data-i18n-placeholder="searchServices" autocomplete="off" data-i18n-aria="searchServices">
         <span class="kbd">/</span>
         <svg><use href="#i-search"></use></svg>
       </label>
-      <div class="zoom" role="group" aria-label="View zoom">
+      <div class="zoom" role="group" data-i18n-aria="viewZoom">
         <div class="zoom-head">
-          <div class="zoom-title"><svg><use href="#i-eye"></use></svg><span>View</span></div>
+          <div class="zoom-title"><svg><use href="#i-eye"></use></svg><span data-i18n="view"></span></div>
           <output id="zoomValue" for="zoomRange">100%</output>
         </div>
         <div class="zoom-row">
-          <button id="zoomOut" type="button" title="Zoom out" aria-label="Zoom out"><svg><use href="#i-minus"></use></svg></button>
+          <button id="zoomOut" type="button" data-i18n-title="zoomOut" data-i18n-aria="zoomOut"><svg><use href="#i-minus"></use></svg></button>
           <div class="zoom-slider">
-            <input id="zoomRange" type="range" min="50" max="200" step="5" value="100" aria-label="Zoom">
+            <input id="zoomRange" type="range" min="50" max="200" step="5" value="100" data-i18n-aria="zoom">
             <div class="zoom-bounds" aria-hidden="true"><span>50%</span><span>200%</span></div>
           </div>
-          <button id="zoomIn" type="button" title="Zoom in" aria-label="Zoom in"><svg><use href="#i-plus"></use></svg></button>
+          <button id="zoomIn" type="button" data-i18n-title="zoomIn" data-i18n-aria="zoomIn"><svg><use href="#i-plus"></use></svg></button>
         </div>
         <div class="zoom-actions">
-          <button id="zoomFit" type="button" title="Fit all services" aria-label="Fit all services"><svg><use href="#i-maximize"></use></svg><span>Fit</span></button>
-          <button id="zoomReset" type="button" title="Reset zoom" aria-label="Reset zoom"><svg><use href="#i-refresh-cw"></use></svg><span>100%</span></button>
+          <button id="zoomFit" type="button" data-i18n-title="fitAll" data-i18n-aria="fitAll"><svg><use href="#i-maximize"></use></svg><span data-i18n="fit"></span></button>
+          <button id="zoomReset" type="button" data-i18n-title="resetZoom" data-i18n-aria="resetZoom"><svg><use href="#i-refresh-cw"></use></svg><span>100%</span></button>
         </div>
       </div>
     </section>
-    <nav class="nav" id="sideChips" aria-label="Service categories"></nav>
+    <nav class="nav" id="sideChips" data-i18n-aria="serviceCategories"></nav>
   </aside>
 
   <main class="main">
     <header class="topbar">
       <div class="title">
         <div class="eyebrow" id="hostEyebrow">HostDash</div>
-        <h2 id="mainTitle">Services</h2>
-        <p id="hostSubtitle">Host service dashboard</p>
+        <h2 id="mainTitle"></h2>
+        <p id="hostSubtitle"></p>
       </div>
     </header>
-    <section class="workspace" id="workspace" aria-label="Service overview">
+    <section class="workspace" id="workspace" data-i18n-aria="serviceOverview">
       <div id="wings"></div>
-      <div class="empty" id="empty">No services match the current filter.</div>
+      <div class="empty" id="empty" data-i18n="empty"></div>
       <footer class="meta" id="meta"></footer>
     </section>
   </main>
@@ -862,6 +907,109 @@
 
 <script src="./config.js"></script>
 <script type="module">
+const STRINGS = {
+  en: {
+    language: "Language", german: "German", english: "English", online: "Online", view: "View", fit: "Fit",
+    services: "Services", serviceRole: "services", allServices: "All services",
+    hostStatus: "Host status", dashboardControls: "Dashboard controls",
+    searchServices: "Search services", viewZoom: "View zoom", zoom: "Zoom",
+    zoomOut: "Zoom out", zoomIn: "Zoom in", fitAll: "Fit all services", resetZoom: "Reset zoom",
+    serviceCategories: "Service categories", serviceOverview: "Service overview",
+    dashboardSubtitle: "Host service dashboard", empty: "No services match the current filter.",
+    open: "Open", checkingSource: "checking…",
+    noArtifact: "no status artifact", unknownSchema: "unknown status schema",
+    probesOnly: "no status artifact — probes only",
+    staleStatus: "status {age} old — ignoring", liveStatus: "host truth · {age} ago",
+    ageSeconds: "{n}s", ageMinutes: "{n}m", ageHours: "{n}h",
+    liveExplanation: "The host itself reports which containers and units are running. States on this board are measured, not guessed.",
+    missingExplanation: "No usable host status. Every state below is inferred from a browser probe, which cannot read a status code — a service may be running and still show as unreachable.",
+    hostOkExplanation: "Running, and the host itself gets HTTP {code} from it. Only this browser cannot reach it — self-signed certificate, wrong network, or VPN.",
+    status_up: "Online", status_running: "Running", status_unreachable: "Unreachable",
+    status_stopped: "Stopped", status_muted: "Muted", status_fault: "Fault", status_unknown: "Unknown",
+    status_down: "Down", status_cert: "TLS cert", status_external: "External",
+    status_protected: "Protected", status_checking: "Checking", status_passive: "Passive",
+    noTelemetry: "No telemetry", mutedOnPurpose: "Muted (on purpose)", listening: "Listening",
+    noAnswer: "no answer", hostOk: "OK on host", httpStatus: "HTTP {code}",
+    health_AUDIO_DEAD: "audio dead", health_VIDEO_STALE: "video stale", health_VOLUME_DRIFT: "volume drift",
+    healthFault: "{health}",
+  },
+  de: {
+    language: "Sprache", german: "Deutsch", english: "Englisch", online: "In Betrieb", view: "Ansicht", fit: "Einpassen",
+    services: "Dienste", serviceRole: "Dienste", allServices: "Alle Dienste",
+    hostStatus: "Gerätestatus", dashboardControls: "Übersicht steuern",
+    searchServices: "Dienste suchen", viewZoom: "Ansichtsgröße", zoom: "Vergrößerung",
+    zoomOut: "Verkleinern", zoomIn: "Vergrößern", fitAll: "Alle Dienste einpassen", resetZoom: "Ansichtsgröße zurücksetzen",
+    serviceCategories: "Dienstkategorien", serviceOverview: "Dienstübersicht",
+    dashboardSubtitle: "Dienstübersicht des Geräts", empty: "Keine Dienste entsprechen dem aktuellen Filter.",
+    open: "Öffnen", checkingSource: "wird geprüft…",
+    noArtifact: "keine Statusdatei", unknownSchema: "unbekanntes Statusformat",
+    probesOnly: "keine Statusdatei — nur Browserprüfungen",
+    staleStatus: "Status {age} alt — wird ignoriert", liveStatus: "Gerätestatus · vor {age}",
+    ageSeconds: "{n} Sek.", ageMinutes: "{n} Min.", ageHours: "{n} Std.",
+    liveExplanation: "Das Gerät selbst meldet, welche Container und Systemdienste laufen. Die Zustände dieser Übersicht sind gemessen.",
+    missingExplanation: "Kein nutzbarer Gerätestatus. Die Zustände beruhen auf Browserprüfungen, die keinen HTTP-Statuscode lesen können. Ein Dienst kann laufen und trotzdem als ausgefallen erscheinen.",
+    hostOkExplanation: "Der Dienst läuft, und das Gerät selbst erhält HTTP {code}. Nur dieser Browser kann ihn nicht erreichen — etwa wegen eines selbstsignierten Zertifikats, des falschen Netzwerks oder einer VPN-Verbindung.",
+    status_up: "Erreichbar", status_running: "Läuft", status_unreachable: "Nicht erreichbar",
+    status_stopped: "Gestoppt", status_muted: "Stumm", status_fault: "Fehler", status_unknown: "Unbekannt",
+    status_down: "Ausgefallen", status_cert: "TLS-Zertifikat", status_external: "Extern",
+    status_protected: "Geschützt", status_checking: "Wird geprüft", status_passive: "Passiv",
+    noTelemetry: "Keine Messdaten", mutedOnPurpose: "Absichtlich stumm", listening: "Hört zu",
+    noAnswer: "keine Antwort", hostOk: "Am Gerät erreichbar", httpStatus: "HTTP {code}",
+    health_AUDIO_DEAD: "Ton ausgefallen", health_VIDEO_STALE: "Bild veraltet", health_VOLUME_DRIFT: "Lautstärke abweichend",
+    healthFault: "Fehler gemeldet ({healthCode})",
+  },
+};
+const LANGUAGE_KEY = "hostdash.lang";
+const validLanguage = value => value === "de" || value === "en";
+
+function browserLanguage() {
+  for (const entry of navigator.languages?.length ? navigator.languages : [navigator.language]) {
+    const primary = String(entry || "").split("-")[0].toLowerCase();
+    if (validLanguage(primary)) return primary;
+  }
+  return "en";
+}
+
+function preferredLanguage() {
+  try {
+    const stored = localStorage.getItem(LANGUAGE_KEY);
+    if (validLanguage(stored)) return stored;
+  } catch { /* A blocked preference store still permits browser-language defaults. */ }
+  return browserLanguage();
+}
+
+let language = preferredLanguage();
+document.documentElement.lang = language;
+
+function t(key, vars = {}) {
+  const text = STRINGS[language][key] ?? STRINGS.en[key] ?? key;
+  return text.replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
+}
+
+function localize(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  return [value[language], value.en, ...Object.values(value)]
+    .find(item => typeof item === "string") ?? "";
+}
+
+function renderChrome() {
+  for (const [attribute, target] of [
+    ["data-i18n", null], ["data-i18n-aria", "aria-label"],
+    ["data-i18n-title", "title"], ["data-i18n-placeholder", "placeholder"],
+  ]) {
+    document.querySelectorAll(`[${attribute}]`).forEach(node => {
+      const text = t(node.getAttribute(attribute));
+      if (target) node.setAttribute(target, text);
+      else node.textContent = text;
+    });
+  }
+  document.querySelectorAll("[data-language]").forEach(button => {
+    button.setAttribute("aria-pressed", button.dataset.language === language);
+  });
+}
+renderChrome();
+
 const FALLBACK_CONFIG = window.HOSTDASH_CONFIG || null;
 const MANIFEST_URL = window.HOSTDASH_MANIFEST_URL || "./manifest.json";
 
@@ -870,14 +1018,18 @@ const isHex = value => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(val
 const objectOr = value => isObject(value) ? value : {};
 const arrayOrEmpty = value => Array.isArray(value) ? value : [];
 const stringOr = (value, fallback = "") => typeof value === "string" ? value : fallback;
+const isLocalizable = value => typeof value === "string" ||
+  (isObject(value) && Object.values(value).some(item => typeof item === "string"));
+const localizedOr = (value, fallback = "") => isLocalizable(value) ? value : fallback;
 
 function cleanMeta(meta) {
   return arrayOrEmpty(meta)
     .map(item => {
       if (typeof item === "string") return item;
-      if (isObject(item) && typeof item.text === "string") {
+      if (isObject(item) && isLocalizable(item.text)) {
         return { text: item.text, code: item.code === true };
       }
+      if (isLocalizable(item)) return item;
       return null;
     })
     .filter(Boolean);
@@ -885,7 +1037,7 @@ function cleanMeta(meta) {
 
 function cleanWings(wings) {
   return arrayOrEmpty(wings)
-    .filter(wing => isObject(wing) && typeof wing.id === "string" && typeof wing.name === "string")
+    .filter(wing => isObject(wing) && typeof wing.id === "string" && isLocalizable(wing.name))
     .map(wing => ({
       id: wing.id,
       name: wing.name,
@@ -896,7 +1048,7 @@ function cleanWings(wings) {
 
 function cleanServices(services) {
   return arrayOrEmpty(services)
-    .filter(service => isObject(service) && typeof service.wing === "string" && typeof service.name === "string")
+    .filter(service => isObject(service) && typeof service.wing === "string" && isLocalizable(service.name))
     .map(service => {
       const rawStatusPolicy = objectOr(service.statusPolicy);
       const statusPolicy = {
@@ -913,7 +1065,7 @@ function cleanServices(services) {
       return {
         wing: service.wing,
         name: service.name,
-        purpose: stringOr(service.purpose),
+        purpose: localizedOr(service.purpose),
         icon: stringOr(service.icon, "server"),
         urls: objectOr(service.urls),
         sameHost: service.sameHost === true,
@@ -929,10 +1081,10 @@ function cleanServices(services) {
         ...(typeof service.hostPort === "string" ? { hostPort: service.hostPort } : {}),
         ...(typeof service.path === "string" ? { path: service.path } : {}),
         ...(typeof service.search === "string" ? { search: service.search } : {}),
-        ...(typeof service.foot === "string" ? { foot: service.foot } : {}),
+        ...(isLocalizable(service.foot) ? { foot: service.foot } : {}),
         ...(status ? { status } : {}),
         ...(probe !== null ? { probe } : {}),
-        ...(typeof service.note === "string" ? { note: service.note } : {}),
+        ...(isLocalizable(service.note) ? { note: service.note } : {}),
       };
     });
 }
@@ -1031,7 +1183,7 @@ const STATUS_MAX_AGE_MS = 5 * 60 * 1000;
 const SWEEP_MS = Number(window.HOSTDASH_SWEEP_MS) || 25000 + Math.random() * 10000;
 
 let HOST_STATUS = null;
-let TRUTH = { state: "none", detail: "" }; // "live" | "stale" | "none"
+let TRUTH = { state: "none", key: "checkingSource" }; // "live" | "stale" | "none"
 
 async function loadHostStatus() {
   // Bounded, because this now runs on every sweep rather than once. A same-origin
@@ -1043,12 +1195,12 @@ async function loadHostStatus() {
   try {
     const response = await fetch(STATUS_URL, { cache: "no-store", signal: controller.signal });
     if (!response.ok) {
-      TRUTH = { state: "none", detail: "no status artifact" };
+      TRUTH = { state: "none", key: "noArtifact" };
       return null;
     }
     const data = await response.json();
     if (data.schema !== "inspr.hostdash.status.v1") {
-      TRUTH = { state: "none", detail: "unknown status schema" };
+      TRUTH = { state: "none", key: "unknownSchema" };
       return null;
     }
     const ageSec = Math.max(0, Math.round(Date.now() / 1000 - (Number(data.generated) || 0)));
@@ -1059,17 +1211,17 @@ async function loadHostStatus() {
     // exact bug this ticket exists to remove, reintroduced one layer down. So we drop
     // it entirely and go back to guessing — but we SAY that we are guessing.
     if (ageSec * 1000 > STATUS_MAX_AGE_MS) {
-      TRUTH = { state: "stale", detail: `status ${fmtAge(ageSec)} old — ignoring` };
+      TRUTH = { state: "stale", key: "staleStatus", ageSec };
       console.warn(`[hostdash] status artifact is stale (${ageSec}s) — ignoring`);
       return null;
     }
 
-    TRUTH = { state: "live", detail: `host truth · ${fmtAge(ageSec)} ago` };
+    TRUTH = { state: "live", key: "liveStatus", ageSec };
     return data;
   } catch {
     // Absent or unreachable is FINE — we fall back to probe-only and simply know less.
     // Degrading to ignorance is correct. Degrading to green is not.
-    TRUTH = { state: "none", detail: "no status artifact — probes only" };
+    TRUTH = { state: "none", key: "probesOnly" };
     return null;
   } finally {
     clearTimeout(timeout);
@@ -1095,20 +1247,17 @@ async function refreshHostStatus() {
 }
 
 function fmtAge(sec) {
-  if (sec < 90) return `${sec}s`;
-  if (sec < 5400) return `${Math.round(sec / 60)}m`;
-  return `${Math.round(sec / 3600)}h`;
+  if (sec < 90) return t("ageSeconds", { n: sec });
+  if (sec < 5400) return t("ageMinutes", { n: Math.round(sec / 60) });
+  return t("ageHours", { n: Math.round(sec / 3600) });
 }
 
 function renderTruth() {
   const row = document.getElementById("truthRow");
   if (!row) return;
   row.dataset.t = TRUTH.state;
-  setText("truthLabel", TRUTH.detail || TRUTH.state);
-  row.title =
-    TRUTH.state === "live"
-      ? "The host itself reports which containers and units are running. States on this board are measured, not guessed."
-      : "No usable host status. Every state below is inferred from a browser probe, which cannot read a status code — a service may be running and still show as unreachable.";
+  setText("truthLabel", t(TRUTH.key, { age: fmtAge(TRUTH.ageSec || 0) }));
+  row.title = t(TRUTH.state === "live" ? "liveExplanation" : "missingExplanation");
 }
 
 // "running" | "stopped" | null (= no host truth for this service; do not guess)
@@ -1149,20 +1298,21 @@ function setText(id, value) {
 
 function renderHostInfo() {
   const host = CONFIG.host || {};
-  const eyebrow = host.eyebrow || [host.os, host.fqdn, host.ip].filter(Boolean).join(" · ");
-  const subtitle = host.subtitle || [host.role, host.fqdn, host.ip, host.os].filter(Boolean).join(" · ");
+  const eyebrow = localize(host.eyebrow) || [host.os, host.fqdn, host.ip].map(localize).filter(Boolean).join(" · ");
+  const subtitle = localize(host.subtitle) || [host.role, host.fqdn, host.ip, host.os].map(localize).filter(Boolean).join(" · ");
 
-  document.title = host.title || `${host.name || "HostDash"} · ${host.role || "services"}`;
-  setText("hostName", host.name || "HostDash");
-  setText("hostRole", host.role || "services");
+  document.title = localize(host.title) || `${localize(host.name) || "HostDash"} · ${localize(host.role) || t("serviceRole")}`;
+  setText("hostName", localize(host.name) || "HostDash");
+  setText("hostRole", localize(host.role) || t("serviceRole"));
   setText("hostEyebrow", eyebrow || "HostDash");
-  setText("mainTitle", host.heading || "Services");
-  setText("hostSubtitle", subtitle || "Host service dashboard");
+  setText("mainTitle", localize(host.heading) || t("services"));
+  setText("hostSubtitle", subtitle || t("dashboardSubtitle"));
 
   const meta = document.getElementById("meta");
+  meta.replaceChildren();
   (CONFIG.meta || []).forEach(item => {
     const span = el("span");
-    const text = typeof item === "string" ? item : item.text;
+    const text = localize(isObject(item) && "text" in item ? item.text : item);
     if (typeof item === "object" && item.code) {
       const code = el("code");
       code.textContent = text;
@@ -1179,6 +1329,8 @@ const sideChips = document.getElementById("sideChips");
 const empty = document.getElementById("empty");
 let filter = localStorage.getItem(wingKey) || "all";
 const cardIndex = [];
+const cardServices = new Map();
+const statusLabels = new WeakMap();
 
 function makeChip(id, label, color) {
   const button = el("button", "chip");
@@ -1186,7 +1338,8 @@ function makeChip(id, label, color) {
   button.dataset.wing = id;
   button.style.setProperty("--c", color || "var(--ink)");
   button.setAttribute("aria-pressed", id === filter);
-  button.innerHTML = `<span class="swatch"></span><span class="label">${label}</span><span class="n" data-n="${id}">0</span>`;
+  button.innerHTML = `<span class="swatch"></span><span class="label"></span><span class="n" data-n="${id}">0</span>`;
+  button.querySelector(".label").textContent = label;
   button.addEventListener("click", () => {
     filter = id;
     localStorage.setItem(wingKey, id);
@@ -1196,8 +1349,8 @@ function makeChip(id, label, color) {
 }
 
 function renderChips(target) {
-  target.appendChild(makeChip("all", "All services", "var(--ink)"));
-  WINGS.forEach(wing => target.appendChild(makeChip(wing.id, wing.name, wing.color)));
+  target.appendChild(makeChip("all", t("allServices"), "var(--ink)"));
+  WINGS.forEach(wing => target.appendChild(makeChip(wing.id, localize(wing.name), wing.color)));
 }
 renderHostInfo();
 renderChips(sideChips);
@@ -1212,11 +1365,12 @@ WINGS.forEach(wing => {
   heading.innerHTML = `
     <div class="heading-left">
       <svg><use href="#i-${wing.icon}"></use></svg>
-      <h2>${wing.name}</h2>
+      <h2></h2>
       <span class="n">${services.length}</span>
     </div>
     <div class="rule"></div>`;
   section.appendChild(heading);
+  heading.querySelector("h2").textContent = localize(wing.name);
 
   const deck = el("div", "deck");
   services.forEach(service => {
@@ -1225,14 +1379,15 @@ WINGS.forEach(wing => {
     // This is what finally lights up the passive half of the board — Mosquitto,
     // restic, Watchtower, pharos-beacon and friends, which have no HTTP endpoint
     // and so were never checked at all, merely drawn.
-    const tracked = !!(service.container || service.unit || service.extra);
+    const extraKey = stringOr(service.extra);
+    const tracked = !!(service.container || service.unit || extraKey);
     const card = active ? el("a", "svc") : el("div", "svc passive");
     card.style.setProperty("--c", wing.color);
-    card.dataset.name = `${service.name} ${service.purpose} ${service.port || service.path || service.foot || ""}`.toLowerCase();
+    cardServices.set(card, service);
 
     if (service.container) card.dataset.container = service.container;
     if (service.unit) card.dataset.unit = service.unit;
-    if (service.extra) card.dataset.extra = service.extra;
+    if (extraKey) card.dataset.extra = extraKey;
 
     if (active) {
       const targetUrl = serviceTargetUrl(service);
@@ -1249,15 +1404,15 @@ WINGS.forEach(wing => {
       if (service.certIssue) card.dataset.certIssue = "1";
     }
     if (service.note) {
-      card.title = service.note;
-      card.dataset.note = service.note; // kept so HOSTD-12 can compose, not clobber
+      card.title = localize(service.note);
+      card.dataset.note = localize(service.note); // kept so HOSTD-12 can compose, not clobber
     }
 
     const status = service.status || (active || tracked ? "checking" : "passive");
     const statusLabel = statusText(status);
     const foot = active
-      ? `<span class="port">${service.port || service.path || ""}</span><span class="action">Open <svg><use href="#i-arrow"></use></svg></span>`
-      : `<span class="port">${service.foot || ""}</span>`;
+      ? `<span class="port"></span><span class="action"><span data-i18n="open">${t("open")}</span> <svg><use href="#i-arrow"></use></svg></span>`
+      : `<span class="port"></span>`;
 
     card.innerHTML = `
       <div class="svc-top">
@@ -1265,10 +1420,11 @@ WINGS.forEach(wing => {
         <span class="state" data-s="${status}"><span class="dot"></span><span class="state-label">${statusLabel}</span></span>
       </div>
       <div>
-        <h3>${service.name}</h3>
-        <p class="purpose">${service.purpose}</p>
+        <h3></h3>
+        <p class="purpose"></p>
       </div>
       <div class="svc-foot">${foot}</div>`;
+    renderService(card, service);
     deck.appendChild(card);
     if (active || tracked) cardIndex.push(card);
   });
@@ -1293,19 +1449,59 @@ function serviceTargetUrl(service) {
 }
 
 function statusText(state) {
-  if (state === "up") return "Online";
-  if (state === "running") return "Running"; // host says so; nothing here to open
-  if (state === "unreachable") return "Unreachable"; // running — but not from THIS browser
-  if (state === "stopped") return "Stopped"; // host says so. authoritative.
-  if (state === "muted") return "Muted"; // healthy and deliberately silent — NOT a fault
-  if (state === "fault") return "Fault"; // self-reported failure; the card names it
-  if (state === "unknown") return "Unknown"; // no host truth, nothing probeable — say so
-  if (state === "down") return "Down";
-  if (state === "cert") return "TLS cert";
-  if (state === "external") return "External";
-  if (state === "protected") return "Protected";
-  if (state === "checking") return "Checking";
-  return "Passive";
+  const key = `status_${state}`;
+  return t(key in STRINGS.en ? key : "status_passive");
+}
+
+function renderService(card, service) {
+  const name = localize(service.name);
+  const purpose = localize(service.purpose);
+  const foot = localize(service.passive ? service.foot : service.port || service.path);
+  card.querySelector("h3").textContent = name;
+  card.querySelector(".purpose").textContent = purpose;
+  card.querySelector(".svc-foot .port").textContent = foot;
+  card.dataset.name = `${name} ${purpose} ${foot}`.toLowerCase();
+  card.dataset.note = localize(service.note);
+  renderCardTitle(card);
+}
+
+function renderCardTitle(card) {
+  const note = card.dataset.note || "";
+  card.title = card.dataset.hostOk
+    ? t("hostOkExplanation", { code: card.dataset.hostOk }) + (note ? ` (${note})` : "")
+    : note;
+}
+
+function renderLanguage() {
+  document.documentElement.lang = language;
+  renderChrome();
+  renderHostInfo();
+  document.querySelectorAll(".chip").forEach(chip => {
+    const wing = WINGS.find(item => item.id === chip.dataset.wing);
+    chip.querySelector(".label").textContent = wing ? localize(wing.name) : t("allServices");
+  });
+  document.querySelectorAll(".wing").forEach(section => {
+    const wing = WINGS.find(item => item.id === section.dataset.wing);
+    section.querySelector(".heading h2").textContent = localize(wing.name);
+  });
+  cardServices.forEach((service, card) => {
+    renderService(card, service);
+    const label = statusLabels.get(card);
+    const state = card.querySelector(".state").dataset.s;
+    card.querySelector(".state-label").textContent = label ? t(label.key, label.vars) : statusText(state);
+  });
+  renderTruth();
+  tick();
+  applyFilter();
+}
+
+function switchLanguage(next, persist = false) {
+  if (!validLanguage(next)) return;
+  if (persist) {
+    try { localStorage.setItem(LANGUAGE_KEY, next); } catch { /* Still switch this tab. */ }
+  }
+  language = next;
+  renderLanguage();
 }
 
 function counts() {
@@ -1440,12 +1636,16 @@ document.addEventListener("keydown", event => {
   }
 });
 
-function setStatus(card, state, label) {
+function setStatus(card, state, labelKey, vars = {}) {
   const badge = card.querySelector(".state");
   badge.dataset.s = state;
-  // `label` lets a service that publishes real telemetry name its own condition —
+  // `labelKey` lets a service that publishes real telemetry name its own condition —
   // "audio dead" is a diagnosis; "Down" is a shrug.
-  badge.querySelector(".state-label").textContent = label || statusText(state);
+  if (labelKey) statusLabels.set(card, { key: labelKey, vars });
+  else statusLabels.delete(card);
+  badge.querySelector(".state-label").textContent = labelKey ? t(labelKey, vars) : statusText(state);
+  if (state !== "unreachable") delete card.dataset.hostOk;
+  renderCardTitle(card);
 }
 
 // What the host says about this card: "running" | "stopped" | null.
@@ -1483,17 +1683,20 @@ function extraState(card) {
   const key = card.dataset.extra;
   if (!key) return null;
   const x = HOST_STATUS.extras?.[key];
-  if (!x || typeof x !== "object") return { state: "unknown", label: "No telemetry" };
+  if (!x || typeof x !== "object") return { state: "unknown", key: "noTelemetry" };
 
   if (x.health && x.health !== "OK") {
     // Show the actual failure mode (AUDIO_DEAD, VIDEO_STALE, VOLUME_DRIFT …) rather
     // than a generic "Down". Naming the fault is most of the diagnosis.
-    return { state: "fault", label: String(x.health).replace(/_/g, " ").toLowerCase() };
+    const key = `health_${x.health}`;
+    return { state: "fault", key: key in STRINGS.en ? key : "healthFault", vars: {
+      health: String(x.health).replace(/_/g, " ").toLowerCase(), healthCode: String(x.health),
+    } };
   }
   if (typeof x.desired_volume === "number" && x.desired_volume === 0) {
-    return { state: "muted", label: "Muted (on purpose)" };
+    return { state: "muted", key: "mutedOnPurpose" };
   }
-  return { state: "up", label: "Listening" };
+  return { state: "up", key: "listening" };
 }
 
 // ── HOST-SIDE HTTP TRUTH (HOSTD-12) ─────────────────────────────────────────
@@ -1566,12 +1769,7 @@ function probe(card, hostState, hostHttp) {
       if (hostState !== "running") return setStatus(card, "down");
       if (hostHttp?.kind === "ok") {
         card.dataset.hostOk = String(hostHttp.code);
-        const note = card.dataset.note;
-        card.title =
-          `Running, and the host itself gets HTTP ${hostHttp.code} from it. Only this browser ` +
-          `cannot reach it — self-signed certificate, wrong network, or VPN.` +
-          (note ? ` (${note})` : "");
-        return setStatus(card, "unreachable", "OK on host");
+        return setStatus(card, "unreachable", "hostOk");
       }
       setStatus(card, "unreachable");
     })
@@ -1605,7 +1803,7 @@ async function sweep() {
       // merely that it exists.
       const extra = extraState(card);
       if (extra) {
-        setStatus(card, extra.state, extra.label);
+        setStatus(card, extra.state, extra.key, extra.vars);
         counts();
         return;
       }
@@ -1628,14 +1826,14 @@ async function sweep() {
       // 500 exactly as it does on a 200, so the board called it "Online".
       const hostHttp = hostHttpFor(card);
       if (host === "running" && hostHttp?.kind === "fault") {
-        setStatus(card, "fault", `HTTP ${hostHttp.code}`);
+        setStatus(card, "fault", "httpStatus", { code: hostHttp.code });
         counts();
         return;
       }
       // Running, and the host got nothing back at all. Not a routing problem — there is
       // simply nothing answering behind a container that claims to be up.
       if (host === "running" && hostHttp?.kind === "silent") {
-        setStatus(card, "fault", "no answer");
+        setStatus(card, "fault", "noAnswer");
         counts();
         return;
       }
@@ -1659,14 +1857,25 @@ async function sweep() {
 function tick() {
   const now = new Date();
   document.getElementById("clock").textContent =
-    now.toLocaleDateString("de-AT", { weekday: "short", day: "2-digit", month: "2-digit" }) +
+    now.toLocaleDateString(language === "de" ? "de-AT" : "en-GB", { weekday: "short", day: "2-digit", month: "2-digit" }) +
     " · " +
-    now.toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" });
+    now.toLocaleTimeString(language === "de" ? "de-AT" : "en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-applyFilter();
+document.querySelectorAll("[data-language]").forEach(button => {
+  button.addEventListener("click", () => switchLanguage(button.dataset.language, true));
+});
+window.addEventListener("storage", event => {
+  if ((event.key === LANGUAGE_KEY || event.key === null) &&
+      (!event.storageArea || event.storageArea === localStorage)) {
+    switchLanguage(validLanguage(event.newValue) ? event.newValue : browserLanguage());
+  }
+});
+// A same-origin tab may have changed the preference while the manifest was loading.
+language = preferredLanguage();
+
+renderLanguage();
 counts();
-tick();
 sweep();
 setInterval(tick, 60000);
 setInterval(sweep, SWEEP_MS);

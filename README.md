@@ -20,6 +20,21 @@ A service served by the dashboard's own nginx declares `path` and no `port`
 dashboard's own origin, port included. Its probe is same-origin and so readable:
 a `403` or `502` from that nginx counts as a failed probe, not as online.
 
+## Language
+
+Use the sidebar's DE / EN buttons to switch language without reloading. HostDash
+uses the first supported language in the browser's language list, defaulting to
+English, until a choice is saved in the origin-wide `localStorage` key
+`hostdash.lang` (`de` or `en`). Same-origin apps such as `/fernsehen/` may share
+this key; changes in another tab update the dashboard too. Switching keeps the
+current search, category filter, and zoom.
+
+User-visible config strings can remain plain strings or use translation objects,
+for example `purpose: { en: "Home automation", de: "Hausautomation" }`. Host,
+metadata, wing, and service text resolves to the selected language, then English,
+then the first available string. Search uses the displayed language. Plain-string
+manifests continue to work unchanged.
+
 ## Build
 
 ```bash
