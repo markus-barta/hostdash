@@ -474,10 +474,90 @@ try {
   // rather than an injected tag. Compresses the ~30s production sweep to something a test
   // can sit through without making the app aware it is being tested.
   await send("Page.addScriptToEvaluateOnNewDocument", {
-    source: `window.HOSTDASH_SWEEP_MS = ${sweepMs};`,
+    source: `
+      window.HOSTDASH_SWEEP_MS = ${sweepMs};
+      Object.defineProperty(navigator, "languages", { get: () => ["fr-FR", "de-AT", "en-GB"] });
+      Object.defineProperty(navigator, "language", { get: () => "fr-FR" });
+    `,
   });
   await send("Page.navigate", { url: pageUrl });
   await new Promise(resolve => setTimeout(resolve, 2500));
+
+  const languageState = () => value(`(() => {
+    const text = selector => document.querySelector(selector)?.textContent || "";
+    const recordings = [...document.querySelectorAll(".svc")]
+      .find(card => card.querySelector("h3")?.textContent === "Fernsehaufnahmen");
+    const chrome = [...document.querySelectorAll(
+      ".status-row > span, #truthLabel, .zoom-title, #zoomFit, #languageLabel, .action, .state-label, #empty, .chip[data-wing='all'] .label"
+    )].map(node => node.textContent.trim());
+    return {
+      language: document.documentElement.lang,
+      stored: localStorage.getItem("hostdash.lang"),
+      heading: text("#mainTitle"),
+      wings: [...document.querySelectorAll(".heading h2")].map(node => node.textContent),
+      purpose: recordings?.querySelector(".purpose")?.textContent || null,
+      cardNames: [...document.querySelectorAll(".svc h3")].map(node => node.textContent),
+      role: text("#hostRole"), title: document.title,
+      meta: text("#meta"),
+      searchPlaceholder: document.getElementById("q").placeholder,
+      groupLabel: text("#languageLabel"),
+      pressed: [...document.querySelectorAll("[data-language][aria-pressed='true']")]
+        .map(button => button.dataset.language),
+      englishChrome: chrome.filter(text => /^(Online|View|Fit|Open|All services|Running|Stopped|Checking|Unknown|Down|Unreachable|Passive|External|Protected|Fault|no answer|OK on host|No telemetry|Listening)$/.test(text) ||
+        /no status artifact|host truth|No services match/.test(text)),
+      englishAttributes: [...document.querySelectorAll("[aria-label], [title], [placeholder]")]
+        .flatMap(node => [node.getAttribute("aria-label"), node.getAttribute("title"), node.getAttribute("placeholder")])
+        .filter(text => text && /^(Search services|Host status|Dashboard controls|View zoom|Zoom out|Zoom in|Fit all services|Reset zoom|Service categories|Service overview)$/.test(text)),
+    };
+  })()`);
+  const assertGerman = state => {
+    if (state.language !== "de" || state.searchPlaceholder !== "Dienste suchen" ||
+        state.groupLabel !== "Sprache" || JSON.stringify(state.pressed) !== '["de"]' ||
+        state.englishChrome.length || state.englishAttributes.length) {
+      throw new Error(`German UI chrome did not translate: ${JSON.stringify(state)}`);
+    }
+    if (host === "hsb9" && (state.heading !== "Dienste" || !state.wings.includes("Zuhause & Medien") ||
+        state.purpose !== "Aufnahmen ansehen, umbenennen, aufräumen" || state.role !== "Zuhause" ||
+        state.title !== "hsb9 · Zuhause" || !state.meta.includes("Europa/Wien") ||
+        !state.cardNames.includes("Container-Updates"))) {
+      throw new Error(`hsb9 German config did not translate: ${JSON.stringify(state)}`);
+    }
+  };
+  const assertEnglish = state => {
+    if (state.language !== "en" || state.stored !== "en" || state.searchPlaceholder !== "Search services" ||
+        state.groupLabel !== "Language" || JSON.stringify(state.pressed) !== '["en"]') {
+      throw new Error(`English language choice did not apply: ${JSON.stringify(state)}`);
+    }
+  };
+  const defaultLanguage = await languageState();
+  assertGerman(defaultLanguage);
+  if (defaultLanguage.stored !== null) {
+    throw new Error(`Browser default unexpectedly stored a preference: ${JSON.stringify(defaultLanguage)}`);
+  }
+  await value(`document.querySelector('[data-language="en"]').click()`);
+  assertEnglish(await languageState());
+
+  const reloadDashboard = async () => {
+    await value("window.__beforeLanguageReload = true");
+    await send("Page.reload");
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      try {
+        if (await value(`!window.__beforeLanguageReload && document.querySelectorAll(".svc").length === ${expected.cards} &&
+            Boolean(document.documentElement.dataset.configSource) &&
+            document.querySelector('[data-language="en"]')?.getAttribute("aria-pressed") === "true"`)) return;
+      } catch (error) {
+        if (!/Execution context was destroyed|Cannot find context/.test(error.message)) throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error("Dashboard did not finish reloading with the stored English preference");
+  };
+  await reloadDashboard();
+  const persistedLanguage = await languageState();
+  assertEnglish(persistedLanguage);
+  // All pre-existing host checks below run in English, including translated card
+  // names such as hsb9's Container updates. German config is checked above.
 
   // Let a few sweeps run, then read one card. Reused after each status.json rewrite.
   const sampleCard = async name => {
@@ -778,6 +858,12 @@ try {
       controlsWidth: controlsBox ? Math.round(controlsBox.width) : 0,
       searchVisible: Boolean(document.querySelector(".side .controls #q")?.offsetParent),
       zoomVisible: Boolean(document.querySelector(".side .controls #zoomRange")?.offsetParent),
+      languageVisible: ["de", "en"].every(language => {
+        const button = document.querySelector('.side [data-language="' + language + '"]');
+        const box = button?.getBoundingClientRect();
+        return Boolean(button?.offsetParent && box.width >= 34 && box.height >= 34 &&
+          box.left >= 0 && box.right <= document.documentElement.clientWidth);
+      }),
     };
   })()`);
   if (
@@ -786,7 +872,8 @@ try {
     mobileLayout.sideWidth < 300 ||
     mobileLayout.controlsWidth < 250 ||
     !mobileLayout.searchVisible ||
-    !mobileLayout.zoomVisible
+    !mobileLayout.zoomVisible ||
+    !mobileLayout.languageVisible
   ) {
     throw new Error(`Sidebar controls are not usable on mobile: ${JSON.stringify(mobileLayout)}`);
   }
@@ -874,12 +961,101 @@ try {
     throw new Error(`Escape reset failed: ${JSON.stringify(escapeState)}`);
   }
 
+  const retainedState = await value(`(() => {
+    document.querySelector('.chip:not([data-wing="all"])').click();
+    const q = document.getElementById("q");
+    q.value = ${JSON.stringify(expected.searchTerm)};
+    q.dispatchEvent(new Event("input", { bubbles: true }));
+    const zoom = document.getElementById("zoomRange");
+    zoom.value = "75";
+    zoom.dispatchEvent(new Event("input", { bubbles: true }));
+    window.__languageSwitchMarker = "same document";
+    const before = {
+      search: q.value,
+      filter: document.querySelector('.chip[aria-pressed="true"]').dataset.wing,
+      zoom: zoom.value,
+    };
+    document.querySelector('[data-language="de"]').click();
+    return { before, after: {
+      search: q.value,
+      filter: document.querySelector('.chip[aria-pressed="true"]').dataset.wing,
+      zoom: zoom.value,
+    }, marker: window.__languageSwitchMarker, stored: localStorage.getItem("hostdash.lang") };
+  })()`);
+  assertGerman(await languageState());
+  if (JSON.stringify(retainedState.before) !== JSON.stringify(retainedState.after) ||
+      retainedState.marker !== "same document" || retainedState.stored !== "de") {
+    throw new Error(`Language switch lost current view state: ${JSON.stringify(retainedState)}`);
+  }
+  let localizedSearch = null;
+  if (host === "hsb9") {
+    localizedSearch = await value(`(() => {
+      const q = document.getElementById("q");
+      q.value = "aufräumen";
+      q.dispatchEvent(new Event("input", { bubbles: true }));
+      const visible = () => [...document.querySelectorAll(".svc")]
+        .filter(card => !card.classList.contains("hidden") && !card.closest(".wing").classList.contains("hidden"))
+        .map(card => card.querySelector("h3").textContent);
+      const german = visible();
+      document.querySelector('[data-language="en"]').click();
+      return { german, english: visible(), query: q.value };
+    })()`);
+    if (JSON.stringify(localizedSearch.german) !== '["Fernsehaufnahmen"]' ||
+        localizedSearch.english.length || localizedSearch.query !== "aufräumen") {
+      throw new Error(`Search did not follow displayed config language: ${JSON.stringify(localizedSearch)}`);
+    }
+  }
+  await value(`(() => {
+    document.querySelector('[data-language="en"]').click();
+    document.querySelector('.chip[data-wing="all"]').click();
+    const q = document.getElementById("q");
+    q.value = "";
+    q.dispatchEvent(new Event("input", { bubbles: true }));
+    document.getElementById("zoomReset").click();
+  })()`);
+
+  // A separate same-origin document produces a real storage event, like another
+  // dashboard tab or /fernsehen/. A synthetic event alone would miss browser wiring.
+  const siblingPreference = next => value(`new Promise((resolve, reject) => {
+    const frame = document.createElement("iframe");
+    frame.hidden = true;
+    frame.srcdoc = "<!doctype html><title>Shared language preference</title>";
+    const finish = () => {
+      clearTimeout(timeout);
+      window.removeEventListener("storage", changed);
+      frame.remove();
+    };
+    const changed = event => {
+      if (event.key !== "hostdash.lang") return;
+      finish();
+      resolve(document.documentElement.lang);
+    };
+    const timeout = setTimeout(() => { finish(); reject(new Error("No shared-language storage event")); }, 3000);
+    window.addEventListener("storage", changed);
+    frame.onload = () => {
+      const next = ${JSON.stringify(next)};
+      if (next === null) frame.contentWindow.localStorage.removeItem("hostdash.lang");
+      else frame.contentWindow.localStorage.setItem("hostdash.lang", next);
+    };
+    document.body.appendChild(frame);
+  })`);
+  await siblingPreference("de");
+  const sharedLanguage = await languageState();
+  assertGerman(sharedLanguage);
+  await siblingPreference("fr");
+  assertGerman(await languageState());
+  await siblingPreference(null);
+  assertGerman(await languageState());
+  await siblingPreference("en");
+  assertEnglish(await languageState());
+
   if (exceptions.length) {
     throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   }
 
   console.log(
-    JSON.stringify({ host, pageUrl, initial, truthStates, httpStates, searchState, escapeState }, null, 2),
+    JSON.stringify({ host, pageUrl, initial, truthStates, httpStates, searchState, escapeState,
+      defaultLanguage, persistedLanguage, retainedState, localizedSearch, sharedLanguage }, null, 2),
   );
   await send("Browser.close").catch(() => {});
 } finally {
