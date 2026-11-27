@@ -558,6 +558,7 @@
     font-weight: 750;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    white-space: nowrap;
     flex-shrink: 0;
   }
   .dot {
@@ -932,7 +933,7 @@ const STRINGS = {
     healthFault: "{health}",
   },
   de: {
-    language: "Sprache", german: "Deutsch", english: "Englisch", online: "Erreichbar", view: "Ansicht", fit: "Einpassen",
+    language: "Sprache", german: "Deutsch", english: "Englisch", online: "In Betrieb", view: "Ansicht", fit: "Einpassen",
     services: "Dienste", serviceRole: "Dienste", allServices: "Alle Dienste",
     hostStatus: "Gerätestatus", dashboardControls: "Übersicht steuern",
     searchServices: "Dienste suchen", viewZoom: "Ansichtsgröße", zoom: "Vergrößerung",
@@ -947,14 +948,14 @@ const STRINGS = {
     liveExplanation: "Das Gerät selbst meldet, welche Container und Systemdienste laufen. Die Zustände dieser Übersicht sind gemessen.",
     missingExplanation: "Kein nutzbarer Gerätestatus. Die Zustände beruhen auf Browserprüfungen, die keinen HTTP-Statuscode lesen können. Ein Dienst kann laufen und trotzdem als nicht erreichbar erscheinen.",
     hostOkExplanation: "Der Dienst läuft, und das Gerät selbst erhält HTTP {code}. Nur dieser Browser kann ihn nicht erreichen — etwa wegen eines selbstsignierten Zertifikats, des falschen Netzwerks oder einer VPN-Verbindung.",
-    status_up: "Erreichbar", status_running: "Läuft", status_unreachable: "Nicht erreichbar",
+    status_up: "Erreichbar", status_running: "Läuft", status_unreachable: "Nur am Gerät erreichbar",
     status_stopped: "Gestoppt", status_muted: "Stumm", status_fault: "Fehler", status_unknown: "Unbekannt",
-    status_down: "Nicht erreichbar", status_cert: "TLS-Zertifikat", status_external: "Extern",
+    status_down: "Ausgefallen", status_cert: "TLS-Zertifikat", status_external: "Extern",
     status_protected: "Geschützt", status_checking: "Wird geprüft", status_passive: "Passiv",
-    noTelemetry: "Keine Messdaten", mutedOnPurpose: "Absichtlich stumm", listening: "Hört mit",
+    noTelemetry: "Keine Messdaten", mutedOnPurpose: "Absichtlich stumm", listening: "Hört zu",
     noAnswer: "keine Antwort", hostOk: "Am Gerät erreichbar", httpStatus: "HTTP {code}",
     health_AUDIO_DEAD: "Ton ausgefallen", health_VIDEO_STALE: "Bild veraltet", health_VOLUME_DRIFT: "Lautstärke abweichend",
-    healthFault: "Dienst meldet einen Fehler ({healthCode})",
+    healthFault: "Fehler gemeldet ({healthCode})",
   },
 };
 const LANGUAGE_KEY = "hostdash.lang";
@@ -1073,7 +1074,7 @@ function cleanServices(services) {
         ...(url ? { url } : {}),
         ...(typeof service.container === "string" ? { container: service.container } : {}),
         ...(typeof service.unit === "string" ? { unit: service.unit } : {}),
-        ...(isLocalizable(service.extra) ? { extra: service.extra } : {}),
+        ...(typeof service.extra === "string" ? { extra: service.extra } : {}),
         ...(typeof service.scheme === "string" ? { scheme: service.scheme } : {}),
         ...(typeof service.port === "string" ? { port: service.port } : {}),
         ...(typeof service.hostPort === "string" ? { hostPort: service.hostPort } : {}),
@@ -1377,14 +1378,15 @@ WINGS.forEach(wing => {
     // This is what finally lights up the passive half of the board — Mosquitto,
     // restic, Watchtower, pharos-beacon and friends, which have no HTTP endpoint
     // and so were never checked at all, merely drawn.
-    const tracked = !!(service.container || service.unit || service.extra);
+    const extraKey = stringOr(service.extra);
+    const tracked = !!(service.container || service.unit || extraKey);
     const card = active ? el("a", "svc") : el("div", "svc passive");
     card.style.setProperty("--c", wing.color);
     cardServices.set(card, service);
 
     if (service.container) card.dataset.container = service.container;
     if (service.unit) card.dataset.unit = service.unit;
-    if (service.extra) card.dataset.extra = localize(service.extra);
+    if (extraKey) card.dataset.extra = extraKey;
 
     if (active) {
       const targetUrl = serviceTargetUrl(service);
@@ -1459,7 +1461,6 @@ function renderService(card, service) {
   card.querySelector(".svc-foot .port").textContent = foot;
   card.dataset.name = `${name} ${purpose} ${foot}`.toLowerCase();
   card.dataset.note = localize(service.note);
-  if (service.extra) card.dataset.extra = localize(service.extra);
   renderCardTitle(card);
 }
 
@@ -1869,6 +1870,8 @@ window.addEventListener("storage", event => {
     switchLanguage(validLanguage(event.newValue) ? event.newValue : browserLanguage());
   }
 });
+// A same-origin tab may have changed the preference while the manifest was loading.
+language = preferredLanguage();
 
 renderLanguage();
 counts();

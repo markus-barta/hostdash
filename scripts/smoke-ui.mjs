@@ -10,6 +10,14 @@ const browserPath =
   process.env.BROWSER_PATH || "/Applications/Helium.app/Contents/MacOS/Helium";
 const cdpPort = Number(process.env.CDP_PORT || 9349);
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
+const dashboardHtml = await readFile(join(repoRoot, "public", "index.html"), "utf8");
+const stringsSource = dashboardHtml.match(/const STRINGS = (\{[\s\S]*?\n\});/);
+if (!stringsSource) throw new Error("Dashboard translations not found");
+const germanStrings = vm.runInNewContext(`(${stringsSource[1]}).de`);
+if (germanStrings.online !== "In Betrieb" ||
+    new Set([germanStrings.status_down, germanStrings.status_unreachable, germanStrings.online]).size !== 3) {
+  throw new Error("German down, unreachable and header labels must be distinct");
+}
 const host = process.env.HOSTDASH_HOST || "hsb1";
 const configMode = process.env.HOSTDASH_CONFIG_MODE || "config";
 const manifestMode = configMode === "manifest";
@@ -476,7 +484,7 @@ try {
   await send("Page.addScriptToEvaluateOnNewDocument", {
     source: `
       window.HOSTDASH_SWEEP_MS = ${sweepMs};
-      Object.defineProperty(navigator, "languages", { get: () => ["fr-FR", "de-AT", "en-GB"] });
+      Object.defineProperty(navigator, "languages", { configurable: true, get: () => ["fr-FR", "de-AT", "en-GB"] });
       Object.defineProperty(navigator, "language", { get: () => "fr-FR" });
     `,
   });
@@ -501,6 +509,8 @@ try {
       meta: text("#meta"),
       searchPlaceholder: document.getElementById("q").placeholder,
       groupLabel: text("#languageLabel"),
+      onlineLabel: text('[data-i18n="online"]'),
+      statusSourceTitle: document.getElementById("truthRow")?.title || "",
       pressed: [...document.querySelectorAll("[data-language][aria-pressed='true']")]
         .map(button => button.dataset.language),
       englishChrome: chrome.filter(text => /^(Online|View|Fit|Open|All services|Running|Stopped|Checking|Unknown|Down|Unreachable|Passive|External|Protected|Fault|no answer|OK on host|No telemetry|Listening)$/.test(text) ||
@@ -513,6 +523,8 @@ try {
   const assertGerman = state => {
     if (state.language !== "de" || state.searchPlaceholder !== "Dienste suchen" ||
         state.groupLabel !== "Sprache" || JSON.stringify(state.pressed) !== '["de"]' ||
+        state.onlineLabel !== germanStrings.online ||
+        !/^(Das Gerät selbst meldet|Kein nutzbarer Gerätestatus\.)/.test(state.statusSourceTitle) ||
         state.englishChrome.length || state.englishAttributes.length) {
       throw new Error(`German UI chrome did not translate: ${JSON.stringify(state)}`);
     }
@@ -523,8 +535,8 @@ try {
       throw new Error(`hsb9 German config did not translate: ${JSON.stringify(state)}`);
     }
   };
-  const assertEnglish = state => {
-    if (state.language !== "en" || state.stored !== "en" || state.searchPlaceholder !== "Search services" ||
+  const assertEnglish = (state, stored = "en") => {
+    if (state.language !== "en" || state.stored !== stored || state.searchPlaceholder !== "Search services" ||
         state.groupLabel !== "Language" || JSON.stringify(state.pressed) !== '["en"]') {
       throw new Error(`English language choice did not apply: ${JSON.stringify(state)}`);
     }
@@ -553,6 +565,15 @@ try {
     }
     throw new Error("Dashboard did not finish reloading with the stored English preference");
   };
+  const unsupportedLanguagesScript = await send("Page.addScriptToEvaluateOnNewDocument", {
+    source: `Object.defineProperty(navigator, "languages", { get: () => ["fr-FR"] });`,
+  });
+  await value('localStorage.removeItem("hostdash.lang")');
+  await reloadDashboard();
+  const fallbackLanguage = await languageState();
+  assertEnglish(fallbackLanguage, null);
+  await send("Page.removeScriptToEvaluateOnNewDocument", { identifier: unsupportedLanguagesScript.identifier });
+  await value(`document.querySelector('[data-language="en"]').click()`);
   await reloadDashboard();
   const persistedLanguage = await languageState();
   assertEnglish(persistedLanguage);
@@ -1055,7 +1076,7 @@ try {
 
   console.log(
     JSON.stringify({ host, pageUrl, initial, truthStates, httpStates, searchState, escapeState,
-      defaultLanguage, persistedLanguage, retainedState, localizedSearch, sharedLanguage }, null, 2),
+      defaultLanguage, fallbackLanguage, persistedLanguage, retainedState, localizedSearch, sharedLanguage }, null, 2),
   );
   await send("Browser.close").catch(() => {});
 } finally {
