@@ -90,7 +90,11 @@ For every host, the smoke test also serves a synthetic `status/status.json` and
 rewrites it mid-session to check
 that the board re-reads host truth on every sweep rather than once at load, that
 an artifact older than `STATUS_MAX_AGE_MS` degrades to `unknown` instead of being
-trusted, and that host-side HTTP codes render as `Fault`/`OK on host`.
+trusted, and that host-side HTTP codes render as `Fault`/`OK on host`. It also
+removes the artifact and checks the neutral-display rule in both languages: no
+pill and no `Unknown`/`Unbekannt` on a card without evidence, a calm status-source
+line with the operator detail kept in its tooltip, and every real failure
+(`down`, `stopped`, `fault`) still rendered with a visible label.
 
 ## Host Status Artifact
 
@@ -115,6 +119,22 @@ from an unreachable one. `code >= 500` renders as `Fault`, `code: 0` (curl got n
 response at all) as `Fault · no answer`, and a good code paired with a failing
 browser probe as `OK on host`: running and answering, just not reachable from
 here. Omit the section entirely and every card falls back to probe-only behavior.
+
+## Status Display
+
+A card shows a state pill only on evidence: a fresh artifact entry for its
+container or unit, a host-side HTTP result, the service's own telemetry, or a
+settled browser probe. Without evidence (still checking, no artifact, a stale
+artifact, a passive card the artifact does not list) the card shows no pill at
+all. Its tooltip names the reason, and it stays out of the online count. A missing
+or stale artifact turns the sidebar's source line neutral ("Checked in this
+browser" / "Im Browser geprüft"), and its tooltip keeps the precise reason. Down,
+stopped and fault are always shown, mark the card with a red edge, and drive the
+hero summary ("1 service needs attention" / "1 Dienst gestört") and a red dot on the
+tab icon.
+
+Boards with eight services or fewer (hsb8, hsb9) render in a comfortable density
+with larger tiles and an always-visible "Open" cue; larger boards stay compact.
 
 ## JoeDesk
 

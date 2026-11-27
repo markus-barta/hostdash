@@ -380,6 +380,8 @@ async function localPageUrl() {
           http,
         }),
       ),
+    // No artifact at all: the board must fall back to probes and stay calm about it.
+    removeStatus: async () => rm(join(site, "status", "status.json"), { force: true }),
     cleanup: async () => {
       await server.cleanup();
       await rm(site, { recursive: true, force: true });
@@ -510,6 +512,7 @@ try {
       searchPlaceholder: document.getElementById("q").placeholder,
       groupLabel: text("#languageLabel"),
       onlineLabel: text('[data-i18n="online"]'),
+      summary: text("#summaryText"),
       statusSourceTitle: document.getElementById("truthRow")?.title || "",
       pressed: [...document.querySelectorAll("[data-language][aria-pressed='true']")]
         .map(button => button.dataset.language),
@@ -524,6 +527,7 @@ try {
     if (state.language !== "de" || state.searchPlaceholder !== "Dienste suchen" ||
         state.groupLabel !== "Sprache" || JSON.stringify(state.pressed) !== '["de"]' ||
         state.onlineLabel !== germanStrings.online ||
+        /needs? attention|No problems reported|Checking services|unreachable from here/.test(state.summary) ||
         !/^(Das Gerät selbst meldet|Kein nutzbarer Gerätestatus\.)/.test(state.statusSourceTitle) ||
         state.englishChrome.length || state.englishAttributes.length) {
       throw new Error(`German UI chrome did not translate: ${JSON.stringify(state)}`);
@@ -541,8 +545,50 @@ try {
       throw new Error(`English language choice did not apply: ${JSON.stringify(state)}`);
     }
   };
+  // ── NEUTRAL DISPLAY (HOSTD-81) ──────────────────────────────────────────────
+  //
+  // A pill is a claim, made only on evidence. A card with no evidence (checking, no or
+  // stale artifact, a passive card the artifact does not mention) shows NO pill and no
+  // "Unknown"/"Unbekannt" anywhere on it, in either language. Real failures (down,
+  // stopped, fault) must still be rendered, visibly and with a label.
+  const neutralViolations = () => value(`(() => {
+    const neutral = new Set(["checking", "unknown", "passive"]);
+    const failed = new Set(["down", "stopped", "fault"]);
+    return [...document.querySelectorAll(".svc")].map(card => {
+      const pill = card.querySelector(".state");
+      return {
+        name: card.querySelector("h3")?.textContent,
+        state: pill?.dataset.s || null,
+        shown: Boolean(pill && !pill.hidden && pill.getClientRects().length),
+        visible: Boolean(card.getClientRects().length),
+        label: pill?.querySelector(".state-label")?.textContent || "",
+        alarming: /\\b(unknown|unbekannt)\\b/i.test(card.textContent),
+      };
+    }).filter(card => card.alarming ||
+      (neutral.has(card.state) && (card.shown || card.label)) ||
+      (failed.has(card.state) && card.visible && (!card.shown || !card.label)));
+  })()`);
+  const assertNeutral = async where => {
+    const violations = await neutralViolations();
+    if (violations.length) {
+      throw new Error(`Neutral display rule broken (${where}): ${JSON.stringify(violations)}`);
+    }
+  };
+  // The sidebar says where states come from, calmly; the operator detail stays in the tooltip.
+  const truthLine = () => value(`({
+    text: document.getElementById("truthRow")?.innerText.trim() || "",
+    title: document.getElementById("truthRow")?.title || "",
+  })`);
+  const assertCalmTruth = (line, detail, where) => {
+    if (/keine Statusdatei|no status artifact|ignor|stale|veraltet|unbekannt|unknown/i.test(line.text) ||
+        !detail.test(line.title)) {
+      throw new Error(`Status source line is alarming or lost its operator detail (${where}): ${JSON.stringify(line)}`);
+    }
+  };
+
   const defaultLanguage = await languageState();
   assertGerman(defaultLanguage);
+  await assertNeutral("German, initial artifact");
   if (defaultLanguage.stored !== null) {
     throw new Error(`Browser default unexpectedly stored a preference: ${JSON.stringify(defaultLanguage)}`);
   }
@@ -589,6 +635,8 @@ try {
       return {
         state: card?.querySelector(".state")?.dataset.s || null,
         label: card?.querySelector(".state-label")?.textContent || null,
+        shown: Boolean(card?.querySelector(".state:not([hidden])")?.getClientRects().length),
+        busy: card?.getAttribute("aria-busy") === "true",
         hostOk: card?.dataset.hostOk || null,
         title: card?.title || null,
         truth: document.getElementById("truthRow")?.dataset.t || null,
@@ -597,9 +645,11 @@ try {
     })()`);
     // A host-confirmed HTTP 200 still runs the browser reachability probe (4s timeout).
     // Wait for its result instead of treating an in-flight probe as a failed contract.
+    // A re-check keeps the previous answer on screen and marks the card aria-busy
+    // (HOSTD-81), so wait out "busy" as well as "checking".
     const deadline = Date.now() + 8000;
     let card = await readCard();
-    while (card.state === "checking" && Date.now() < deadline) {
+    while ((card.state === "checking" || card.busy) && Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 100));
       card = await readCard();
     }
@@ -773,8 +823,8 @@ try {
     }
     if (localPage) {
       const sampled = await sampleCard(expected.pathOnlyService);
-      if (sampled.state !== "down") {
-        throw new Error(`Same-origin 404 was not reported as down: ${JSON.stringify(sampled)}`);
+      if (sampled.state !== "down" || !sampled.shown || sampled.label !== "Down") {
+        throw new Error(`Same-origin 404 was not reported as a visible down: ${JSON.stringify(sampled)}`);
       }
     }
   }
@@ -791,7 +841,7 @@ try {
   let truthStates = null;
   if (truthCheck) {
     const stopped = await sampleTruth();
-    if (stopped.state !== "stopped" || stopped.truth !== "live") {
+    if (stopped.state !== "stopped" || stopped.truth !== "live" || !stopped.shown || stopped.label !== "Stopped") {
       throw new Error(
         `Expected ${expected.truthCard} stopped under live host truth, got ${JSON.stringify(stopped)}`,
       );
@@ -811,8 +861,30 @@ try {
     if (stale.state !== "unknown" || stale.truth !== "stale" || stale.hostTruth !== "absent") {
       throw new Error(`Stale host truth was not discarded, got ${JSON.stringify(stale)}`);
     }
+    // ...and discarded quietly: no pill, no "Unknown", operator detail in the tooltip.
+    if (stale.shown || stale.label) {
+      throw new Error(`Card without evidence still shows a state pill, got ${JSON.stringify(stale)}`);
+    }
+    await assertNeutral("stale artifact");
+    const staleLine = await truthLine();
+    assertCalmTruth(staleLine, /10m old/, "stale artifact");
 
-    truthStates = { stopped, running, stale };
+    // No artifact at all (404): same quiet fallback, in both languages.
+    await localPage.removeStatus();
+    const none = await sampleTruth();
+    if (none.state !== "unknown" || none.truth !== "none" || none.hostTruth !== "absent" || none.shown || none.label) {
+      throw new Error(`Missing artifact did not fall back quietly, got ${JSON.stringify(none)}`);
+    }
+    await assertNeutral("no artifact");
+    const noneLine = await truthLine();
+    assertCalmTruth(noneLine, /no status artifact/, "no artifact");
+    await value(`document.querySelector('[data-language="de"]').click()`);
+    await assertNeutral("German, no artifact");
+    const noneLineDe = await truthLine();
+    assertCalmTruth(noneLineDe, /keine Statusdatei/, "German, no artifact");
+    await value(`document.querySelector('[data-language="en"]').click()`);
+
+    truthStates = { stopped, running, stale, none, staleLine, noneLine, noneLineDe };
   }
 
   // ── HOST-SIDE HTTP TRUTH (HOSTD-12) ─────────────────────────────────────────
@@ -834,14 +906,14 @@ try {
 
     // The service itself reports failure. Outranks the probe entirely.
     const fault = await withHttp(503);
-    if (fault.state !== "fault" || fault.label !== "HTTP 503") {
+    if (fault.state !== "fault" || fault.label !== "HTTP 503" || !fault.shown) {
       throw new Error(`Expected ${expected.httpCard} to report HTTP 503, got ${JSON.stringify(fault)}`);
     }
 
     // Container up, nothing answering behind it — curl's 000. A service failure, not a
     // routing one, and invisible to every other signal on the board.
     const silent = await withHttp(0);
-    if (silent.state !== "fault" || silent.label !== "no answer") {
+    if (silent.state !== "fault" || silent.label !== "no answer" || !silent.shown) {
       throw new Error(`Expected ${expected.httpCard} to report no answer, got ${JSON.stringify(silent)}`);
     }
 
@@ -1004,6 +1076,7 @@ try {
     }, marker: window.__languageSwitchMarker, stored: localStorage.getItem("hostdash.lang") };
   })()`);
   assertGerman(await languageState());
+  await assertNeutral("German, after language switch");
   if (JSON.stringify(retainedState.before) !== JSON.stringify(retainedState.after) ||
       retainedState.marker !== "same document" || retainedState.stored !== "de") {
     throw new Error(`Language switch lost current view state: ${JSON.stringify(retainedState)}`);
