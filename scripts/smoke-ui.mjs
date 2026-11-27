@@ -15,8 +15,8 @@ const stringsSource = dashboardHtml.match(/const STRINGS = (\{[\s\S]*?\n\});/);
 if (!stringsSource) throw new Error("Dashboard translations not found");
 const germanStrings = vm.runInNewContext(`(${stringsSource[1]}).de`);
 if (germanStrings.online !== "In Betrieb" ||
-    new Set([germanStrings.status_down, germanStrings.status_unreachable, germanStrings.online]).size !== 3) {
-  throw new Error("German down, unreachable and header labels must be distinct");
+    new Set([germanStrings.status_down, germanStrings.status_unreachable, germanStrings.online, germanStrings.hostOk]).size !== 4) {
+  throw new Error("German down, unreachable, OK-on-host and header labels must be distinct");
 }
 const host = process.env.HOSTDASH_HOST || "hsb1";
 const configMode = process.env.HOSTDASH_CONFIG_MODE || "config";

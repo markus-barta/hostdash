@@ -538,6 +538,7 @@
   .icon {
     display: grid;
     place-items: center;
+    flex-shrink: 0;
     width: 40px;
     height: 40px;
     border-radius: 8px;
@@ -946,9 +947,9 @@ const STRINGS = {
     staleStatus: "Status {age} alt — wird ignoriert", liveStatus: "Gerätestatus · vor {age}",
     ageSeconds: "{n} Sek.", ageMinutes: "{n} Min.", ageHours: "{n} Std.",
     liveExplanation: "Das Gerät selbst meldet, welche Container und Systemdienste laufen. Die Zustände dieser Übersicht sind gemessen.",
-    missingExplanation: "Kein nutzbarer Gerätestatus. Die Zustände beruhen auf Browserprüfungen, die keinen HTTP-Statuscode lesen können. Ein Dienst kann laufen und trotzdem als nicht erreichbar erscheinen.",
+    missingExplanation: "Kein nutzbarer Gerätestatus. Die Zustände beruhen auf Browserprüfungen, die keinen HTTP-Statuscode lesen können. Ein Dienst kann laufen und trotzdem als ausgefallen erscheinen.",
     hostOkExplanation: "Der Dienst läuft, und das Gerät selbst erhält HTTP {code}. Nur dieser Browser kann ihn nicht erreichen — etwa wegen eines selbstsignierten Zertifikats, des falschen Netzwerks oder einer VPN-Verbindung.",
-    status_up: "Erreichbar", status_running: "Läuft", status_unreachable: "Nur am Gerät erreichbar",
+    status_up: "Erreichbar", status_running: "Läuft", status_unreachable: "Nicht erreichbar",
     status_stopped: "Gestoppt", status_muted: "Stumm", status_fault: "Fehler", status_unknown: "Unbekannt",
     status_down: "Ausgefallen", status_cert: "TLS-Zertifikat", status_external: "Extern",
     status_protected: "Geschützt", status_checking: "Wird geprüft", status_passive: "Passiv",
