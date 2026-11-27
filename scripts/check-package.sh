@@ -23,8 +23,12 @@ for host in "${hosts[@]}"; do
   [[ -s "${package}/index.html" ]] || fail "${host}: packaged dashboard is missing"
   [[ -s "${package}/config.js" ]] || fail "${host}: packaged navigation is missing"
   [[ ! -e "${package}/joe" ]] || fail "${host}: package contains retired joe subtree"
-  cmp -s "${repo}/public/index.html" "${package}/index.html" ||
-    fail "${host}: packaged dashboard differs from source"
+  # The package versions the config URL by content (HOSTD-81); otherwise identical.
+  config_hash="$(sha256sum "${source_config}" | cut -c1-16)"
+  grep -Fq "<script src=\"./config.js?v=${config_hash}\"></script>" "${package}/index.html" ||
+    fail "${host}: packaged dashboard does not version config.js by its content"
+  cmp -s "${repo}/public/index.html" <(sed "s|./config.js?v=${config_hash}|./config.js|" "${package}/index.html") ||
+    fail "${host}: packaged dashboard differs from source beyond the config version"
   cmp -s "${source_config}" "${package}/config.js" ||
     fail "${host}: packaged navigation differs from source"
 done
