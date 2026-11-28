@@ -1509,6 +1509,170 @@ try {
       await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
       await sampleTruth();
     }
+
+    // ── GATE ROUND 3 (HOSTD-83): every sentence claims only what its evidence holds ──
+    // The real page on this board's own audience (family or operator), read in English
+    // AND German, every probe answered here. Expected sentences come from the page's own
+    // STRINGS; a key the page lacks reads «no key» and cannot match. scripts/
+    // test-claims.mjs covers the same rules for both audiences on every board without a
+    // browser; this proves the page itself says them.
+    {
+      const say = (lang, key, vars = {}) => (allStrings[lang]?.[key] ?? `«no ${key}»`).replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
+      const NOT_RUNNING = { en: /not running/i, de: /l(a|ä)uf(t|en) (gerade )?nicht\b/i };
+      const CAUSES = /broken, not the service|only this device|gestört, nicht der Dienst|nur dieses Gerät/i;
+      const pathOnlyKey = expected.pathOnlyService ? await cardKey(expected.pathOnlyService) : null;
+      const cards = await value(`[...document.querySelectorAll("#services [data-item]")].map(item => ({
+        key: item.dataset.item, container: item.dataset.container || null, unit: item.dataset.unit || null, probe: item.dataset.probe || null }))`);
+      const bound = cards.filter(card => card.container || card.unit);
+      const containers = bound.filter(card => card.container && card.key !== pathOnlyKey);
+      const recordKey = card => card.container || card.unit;
+      // Cards whose row says running in this fixture (hostEntry reads the container first).
+      const runningRows = fixture => cards.filter(card => card.container ? fixture.containers[card.container]?.running === true
+        : card.unit ? fixture.units[card.unit]?.running === true : false).length;
+      const contact = englishOf(hostConfig.contact?.name) || "";
+      const readHero = () => value(`(() => ({
+        lang: document.documentElement.lang, verdict: document.documentElement.dataset.v || null,
+        headline: document.getElementById("heroH")?.textContent || "",
+        sub: document.querySelector("#hero .hero-sub")?.textContent || "",
+        guide: [...document.querySelectorAll("#hero .guide li")].map(li => li.textContent),
+        chips: [...document.querySelectorAll("#hero .att-chip .badge")].map(node => node.textContent),
+        names: Object.fromEntries([...document.querySelectorAll("#services [data-item]")].map(node => [node.dataset.item, node.querySelector("[data-name]")?.dataset.name || ""])),
+        labels: Object.fromEntries([...document.querySelectorAll("#services [data-item]")].map(node => [node.dataset.item,
+          node.getAttribute("aria-label") || node.querySelector(".row")?.getAttribute("aria-label") || ""])),
+        sheet: document.getElementById("sheet").hidden ? null : document.getElementById("sheet").textContent.replace(/\\s+/g, " ").trim(),
+      }))()`);
+      const inBoth = async () => {
+        const out = {};
+        for (const lang of ["en", "de"]) {
+          await value(`document.querySelector('[data-language="${lang}"]').click()`);
+          out[lang] = await readHero();
+        }
+        await value(`document.querySelector('[data-language="en"]').click()`);
+        return out;
+      };
+      const run = async (change, { http = {}, jobs = null, policy = () => "ok" } = {}) => {
+        await controlProbes(policy);
+        const fixture = await healthyFixture();
+        change(fixture);
+        await writeFixture(fixture, { http, jobs });
+        await sampleBoard();
+        return { fixture, said: await inBoth() };
+      };
+      const claims = {};
+      const expectEach = (label, said, test) => {
+        for (const lang of ["en", "de"]) {
+          const hero = said[lang];
+          const problem = test(lang, hero);
+          const text = [hero.headline, hero.sub, ...hero.guide, hero.sheet || ""].join(" | ");
+          if (problem) round1Fail(`r3 ${label} (${family ? "family" : "operator"}, ${lang}): ${problem}: ${JSON.stringify({ headline: hero.headline, sub: hero.sub, guide: hero.guide, chips: hero.chips, sheet: hero.sheet })}`);
+          else if (CAUSES.test(text)) round1Fail(`r3 ${label} (${lang}): a sentence names a cause for "unreachable": ${text}`);
+        }
+      };
+      const n = cards.length;
+
+      // M1 — two HTTP 503 under running containers: faults, not "not running", and the
+      // running count counts the running rows (the faulted ones included).
+      if (containers.length >= 2) {
+        const [a, b] = containers;
+        const { fixture, said } = await run(() => {}, { http: { [recordKey(a)]: { code: 503 }, [recordKey(b)]: { code: 503 } } });
+        claims.twoFaults = said;
+        const r = runningRows(fixture);
+        expectEach("M1 two HTTP 503 under running containers", said, (lang, hero) => {
+          if (family) {
+            if (hero.headline !== say(lang, "h_badManyFault", { b: 2 })) return "headline is not the fault count";
+            if (!hero.sub.startsWith(say(lang, "s_badF", { r, n }))) return `subline does not count ${r} running rows`;
+            if (NOT_RUNNING[lang].test([hero.headline, hero.sub, ...hero.guide].join(" "))) return 'says "not running"';
+          } else if (hero.headline !== say(lang, "h_badOp", { b: 2, n }) || hero.chips.filter(chip => chip === "HTTP 503").length !== 2) return "headline or chips do not name the two faults";
+          return null;
+        });
+      }
+
+      // M1 — failed jobs under running units (or containers): faults, still running.
+      if (bound.length >= 2) {
+        const pair = [...bound.filter(card => card.unit && !card.container), ...bound.filter(card => card.container)].slice(0, 2);
+        const { fixture, said } = await run(() => {}, { jobs: Object.fromEntries(pair.map(card => [card.unit || card.container, { ok: false, last: now() - 3600 }])) });
+        claims.failedJobs = said;
+        const r = runningRows(fixture);
+        expectEach("M1 failed jobs under running units", said, (lang, hero) => {
+          if (family) {
+            if (hero.headline !== say(lang, "h_badManyFault", { b: 2 })) return "headline is not the fault count";
+            if (!hero.sub.startsWith(say(lang, "s_badF", { r, n }))) return `subline does not count ${r} running rows`;
+          } else if (hero.headline !== say(lang, "h_badOp", { b: 2, n })) return "headline does not count the two failed runs";
+          return null;
+        });
+      }
+
+      // M1 — one stopped plus one fault: counted apart.
+      if (containers.length >= 2) {
+        const [a, b] = containers;
+        const { fixture, said } = await run(f => { f.containers[a.container] = { running: false }; }, { http: { [recordKey(b)]: { code: 503 } } });
+        claims.stoppedAndFault = said;
+        const r = runningRows(fixture);
+        expectEach("M1 one stopped plus one fault", said, (lang, hero) => {
+          if (family) {
+            if (hero.headline !== say(lang, "h_badMix", { b: 2, s: 1, f: 1 })) return "headline does not count stopped and fault apart";
+            if (!hero.sub.startsWith(say(lang, "s_badF", { r, n }))) return `subline does not count ${r} running rows`;
+          } else if (hero.headline !== say(lang, "h_badOp", { b: 2, n })) return "headline does not count both";
+          return null;
+        });
+      }
+
+      // M2 — a running row, no host HTTP measurement, a failed probe: running per host and
+      // unreachable from this browser, and nothing about where it fails.
+      const target = cards.find(card => card.probe && (card.container || card.unit) && card.key !== pathOnlyKey);
+      if (target) {
+        const policy = url => url.startsWith(target.probe) ? "fail" : "ok";
+        const { said } = await run(() => {}, { policy });
+        await value(`(() => { const item = document.querySelector('#services [data-item="${target.key}"]'); (item.matches("a") ? item : item.querySelector("a"))?.click(); return true; })()`);
+        const withSheet = await inBoth();
+        await value(`(() => { document.querySelector('#sheet [data-act="close"]')?.click(); document.activeElement?.blur(); return true; })()`);
+        claims.unreachable = { said, withSheet };
+        expectEach("M2 running row, no host HTTP, failed probe", said, (lang, hero) => {
+          const name = hero.names[target.key];
+          if (family) {
+            if (hero.headline !== say(lang, "h_away1", { name }) || hero.sub !== say(lang, "s_awayHostF")) return "headline/subline say more than running per host and unreachable";
+            const steps = [say(lang, "g_retry"), say(lang, "g_wifi"), contact ? say(lang, "g_still", { name: contact }) : say(lang, "g_stillNeutral")];
+            if (JSON.stringify(hero.guide) !== JSON.stringify(steps)) return "guidance differs";
+          } else if (hero.headline !== say(lang, "h_awayOp1", { name }) || hero.sub !== say(lang, "s_awayHostO")) return "headline/subline say more than running per host and unreachable";
+          const heard = say(lang, "srState", { word: say(lang, "status_unreachable"), src: say(lang, "src_split") });
+          if (!hero.labels[target.key].includes(heard)) return `the screen reader does not hear "${heard}"`;
+          return null;
+        });
+        expectEach("M2 recovery sheet, no host HTTP", withSheet, (lang, hero) => {
+          if (!hero.sheet) return "the sheet did not open";
+          if (family) return hero.sheet.includes(say(lang, "shAwayHostF")) ? null : "family sheet wording differs";
+          if (!hero.sheet.includes(say(lang, "shAwayHostO")) || !hero.sheet.includes(say(lang, "shAwayOpsHost")) ||
+              hero.sheet.includes(say(lang, "shHostOk", { code: "" }).replace(/\s*\.$/, ""))) return "operator sheet claims a host answer it does not have, or skips the service check";
+          return null;
+        });
+      }
+
+      // M1 — mixed counts: running services, a finished job, a fault.
+      const job = (oneshotService && cards.find(card => card.unit === oneshotService.unit && !card.container))
+        || cards.find(card => card.key !== containers[0]?.key && (card.container || card.unit) && card.key !== pathOnlyKey && !card.probe);
+      if (job && containers.length) {
+        const fault = containers.find(card => card.key !== job.key);
+        const oneshot = Boolean(oneshotService && job.unit === oneshotService.unit && !job.container);
+        const { fixture, said } = await run(f => {
+          if (oneshot) f.units[job.unit] = { running: false, active: "inactive", enabled: "enabled", type: "oneshot" };
+          else if (job.container) delete f.containers[job.container];
+          else delete f.units[job.unit];
+        }, { http: { [recordKey(fault)]: { code: 503 } }, jobs: { [job.unit && !job.container ? job.unit : job.container]: { ok: true, last: now() - 600 } } });
+        claims.mixed = said;
+        const r = runningRows(fixture);
+        expectEach("M1 mixed running, finished job and fault", said, (lang, hero) => {
+          if (family) {
+            if (hero.headline !== say(lang, "h_bad1Fault", { name: hero.names[fault.key], word: "HTTP 503" })) return "headline does not name the fault";
+            if (!hero.sub.startsWith(`${say(lang, "s_badF", { r, n })} ${say(lang, "s_jobs", { list: hero.names[job.key] })}`)) return `subline does not count ${r} running and the job apart`;
+          } else if (hero.headline !== say(lang, "h_badOp", { b: 1, n })) return "headline does not count the one fault";
+          return null;
+        });
+      }
+      round2.claims = claims;
+      await controlProbes(null);
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
+      await sampleTruth();
+    }
   }
 
   // ── LAYOUT: phone width ─────────────────────────────────────────────────────
