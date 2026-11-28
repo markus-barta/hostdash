@@ -15,6 +15,11 @@ used for the dashboard itself, so `http://hsb8.lan/`, `http://192.168.1.100/`,
 and `http://100.64.0.3/` probe `:8123` on the matching address instead of
 hardcoding one network. The `url` is the fallback for `file://` and other
 non-HTTP origins; served over HTTP, `sameHost` with `port`/`path` alone resolves.
+An optional `scheme` switches it to `http` or `https` (any case, with or without
+the colon: `"https"`, `"HTTPS:"`, `"https:"`, as the browser's URL setter reads it);
+any other scheme keeps the dashboard's own. `scripts/url-sweep.mjs` resolves every
+service's link and probe with `origin/main`'s code and this one's, on an http and an
+https dashboard, and fails on any difference it cannot classify as intended.
 
 A service served by the dashboard's own nginx declares `path` and no `port`
 (hsb0's hausnetz at `/ops/`, In flight at `/inflight/`). It keeps the
@@ -60,10 +65,26 @@ lens is an amber ring. A job whose last run was ok is vouched for but is not
 running, so it is counted apart: `All N services report ok: R running, J last run
 ok` (`K of N services running` counts only what runs).
 
-On a family board the hero and the guide say a service "opens" or "works as usual"
-only on this browser's own evidence (it reached the service). While the probe is
-pending, or when it is turned off in the config, the board has the host's word
-only and says that: `Home Assistant läuft laut Gerät` / `… is running, says the host`.
+On a family board the hero and the guide say a service "opens" only on this
+browser's own evidence (it reached the service); reachability is never said as
+health ("works as usual"). While the probe is pending, or when it is turned off in
+the config, the board has the host's word only and says that: `Home Assistant läuft
+laut Gerät` / `… is running, says the host`.
+
+Every sentence follows one rule: it claims only what its evidence establishes.
+Running per host is not healthy, and neither is reachable from this browser. A fault
+(an HTTP code, no answer, a failed health report or last run) under a running row
+is a fault, never "not running": two `HTTP 503` under running containers read `2
+Dienste melden eine Störung` / `2 services report a fault`, and the family subline
+counts running rows, faulted ones included (`3 von 3 Diensten laufen laut Gerät`);
+a stopped one and a fault together read `2 Dienste mit Problemen: 1 ausgefallen, 1
+gestört`. A running row with a failed probe and no HTTP check on the host says
+`Laut Gerät in Betrieb; von diesem Browser nicht erreichbar` and names no cause (a
+hung service looks the same as a broken route); only with the host's own HTTP answer
+does it add that the host gets one. These sentences live in a DOM-free `// <claims>`
+block next to the evidence core; `scripts/claims.mjs` prints the inventory of every
+string key, what it claims and when it is rendered (`--check` fails on a key without
+a row, a row without a key, or a key never rendered).
 
 An unreachable service explains itself in a sheet before it opens. The sheet follows
 the evidence: it is re-worded when the host status expires (then only this browser's
@@ -225,6 +246,18 @@ malformed records, same-origin HTTP codes, same-host and non-web URLs, the hero
 verdict (running and jobs counted apart) and "opens" wording follow the evidence,
 and the rest of the truth model holds. Every check runs; failures are listed together. No browser needed.
 
+`scripts/test-claims.mjs` renders the `// <claims>` block with the page's own
+STRINGS for family and operator audiences, in English and German: small boards with
+the expected sentences written out (two HTTP 503 under running containers, failed
+jobs under running units, one stopped plus one fault, a running row with no host
+HTTP and a failed probe, mixed running/finished-job/fault counts), then every real
+board under the same scenarios against invariants ("not running" only on a stopped
+row, running counts count rows, no cause for "unreachable", no health from
+reachability, every key in both languages). It ends with the claim inventory check
+and its self-test (an unlisted key and a vanished key must both fail). The round-3
+smoke checks render the same scenarios on the real page of each board, in both
+languages.
+
 ## Host Status Artifact
 
 The board reads `./status/status.json` from the same origin, written on the host
@@ -288,6 +321,8 @@ Before pushing or redeploying, run:
 ```bash
 scripts/check-package.sh
 node scripts/test-evidence.mjs
+node scripts/test-claims.mjs
+node scripts/url-sweep.mjs
 node --check scripts/smoke-ui.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
