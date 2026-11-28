@@ -32,8 +32,8 @@ for host in "${hosts[@]}"; do
   [[ -s "${package}/index.html" ]] || fail "${host}: packaged dashboard is missing"
   [[ -s "${package}/config.js" ]] || fail "${host}: packaged navigation is missing"
   [[ ! -e "${package}/joe" ]] || fail "${host}: package contains retired joe subtree"
-  # The package versions the config URL by content (HOSTD-81); otherwise identical.
-  config_hash="$(sha256sum "${source_config}" | cut -c1-16)"
+  # The package versions the config URL by the content it serves (HOSTD-81); otherwise identical.
+  config_hash="$(sha256sum "${package}/config.js" | cut -c1-16)"
   grep -Fq "<script src=\"./config.js?v=${config_hash}\"></script>" "${package}/index.html" ||
     fail "${host}: packaged dashboard does not version config.js by its content"
   cmp -s "${repo}/public/index.html" <(sed "s|./config.js?v=${config_hash}|./config.js|" "${package}/index.html") ||
@@ -42,4 +42,28 @@ for host in "${hosts[@]}"; do
     fail "${host}: packaged navigation differs from source"
 done
 
-echo "check-package: ok (${#hosts[@]} host packages, config.js versioned by content, hsb0 override anchors intact, no retired joe subtree)"
+# HOSTD-83: the stamp hashes the config.js that is SERVED, after any downstream
+# override. Build hsb0 the way a consumer overrides it (rewrite config.js in postInstall,
+# as nixcfg's substituteInPlace on the anchors above does) and compare. Stamping inside
+# installPhase hashed the pre-override file, so this failed.
+override_expr="
+  let
+    flake = builtins.getFlake \"git+file://${repo}\";
+    base = flake.packages.\${builtins.currentSystem}.hsb0;
+  in base.overrideAttrs (old: {
+    postInstall = (old.postInstall or \"\") + ''
+      substituteInPlace \"\$out/share/hostdash-hsb0/config.js\" \\
+        --replace-fail 'name: \"In flight\", purpose:' 'name: \"In flight (override)\", purpose:'
+    '';
+  })"
+override_out="$(nix build --no-link --print-out-paths --impure --expr "${override_expr}")"
+override_pkg="${override_out}/share/hostdash-hsb0"
+grep -Fq 'name: "In flight (override)", purpose:' "${override_pkg}/config.js" ||
+  fail "hsb0 override: test override did not rewrite config.js"
+served_hash="$(sha256sum "${override_pkg}/config.js" | cut -c1-16)"
+source_hash="$(sha256sum "${repo}/hosts/hsb0/config.js" | cut -c1-16)"
+[[ "${served_hash}" != "${source_hash}" ]] || fail "hsb0 override: served config unexpectedly equals source"
+grep -Fq "<script src=\"./config.js?v=${served_hash}\"></script>" "${override_pkg}/index.html" ||
+  fail "hsb0 override: index.html does not version config.js by the overridden content (stamped before the override?)"
+
+echo "check-package: ok (${#hosts[@]} host packages, config.js versioned by served content incl. a downstream override, hsb0 override anchors intact, no retired joe subtree)"
