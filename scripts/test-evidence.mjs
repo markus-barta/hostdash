@@ -229,6 +229,32 @@ const live = status => ({ truth: "live", status });
     oldOnly.l === "off" && oldOnly.src === "" && !core.runsPerHost(oldOnly), oldOnly);
 }
 
+// HOSTD-87: the cloud Traefik APIs are local-only, so only host rows vouch for them.
+for (const host of ["csb0", "csb1"]) {
+  const config = vm.runInNewContext(`${await readFile(join(repoRoot, "hosts", host, "config.js"), "utf8")}\nwindow.HOSTDASH_CONFIG`, { window: {} });
+  const service = config.services.find(service => service.name === "Traefik API");
+  const target = core.resolveTarget(service, `https://${config.host.fqdn}/`);
+  const model = core.serviceModel(service, target);
+  check(`(HOSTD-87) ${host} Traefik API is passive, with no link or browser probe`,
+    service.passive === true && !("url" in service) && !("port" in service)
+      && target === null && model.probeUrl === null, { service, target, model });
+  check(`(HOSTD-87) ${host} Traefik API keeps its container and local-only foot`,
+    service.container === `${host}-traefik-1` && service.foot === "API local-only · 127.0.0.1:8099", service);
+  for (const ctx of [{ truth: "none", status: null }, live(artifact())]) {
+    const derived = core.derive(model, ctx);
+    check(`(HOSTD-87) ${host} Traefik API without a host row (${ctx.truth}) has no LED or word`,
+      derived.l === "off" && derived.word === null && derived.src === "", derived);
+  }
+  for (const [running, state, led, word] of [
+    [true, "running", "on", "status_running"],
+    [false, "stopped", "bad", "status_stopped"],
+  ]) {
+    const derived = core.derive(model, live(artifact({ containers: { [`${host}-traefik-1`]: { running } } })));
+    check(`(HOSTD-87) ${host} Traefik API running=${running}: ${state} from host`,
+      derived.s === state && derived.l === led && derived.word === word && derived.src === "host", derived);
+  }
+}
+
 // ── the rest of the truth model, so a refactor cannot quietly loosen it ────────
 {
   const passive = core.serviceModel({ container: "mosquitto", passive: true }, null);
