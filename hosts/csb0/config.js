@@ -22,7 +22,7 @@ window.HOSTDASH_CONFIG = {
     { id: "housekeeping", name: "Housekeeping", color: "var(--infra)", icon: "refresh-cw" },
   ],
   services: [
-    { wing: "edge", name: "Traefik API", container: "csb0-traefik-1", purpose: "Public TLS edge and Docker router", icon: "shield-alert", url: "https://cs0.barta.cm/api/version", port: ":443 /api" },
+    { wing: "edge", name: "Traefik API", container: "csb0-traefik-1", purpose: "Public TLS edge and Docker router", icon: "shield-alert", passive: true, foot: "API local-only · 127.0.0.1:8099" },
     { wing: "edge", name: "Headscale", container: "headscale", purpose: "Tailnet control plane", icon: "radio-tower", url: "https://hs.barta.cm/", port: ":443" },
     { wing: "edge", name: "Tesla Fleet Key", container: "csb0-tesla-fleet-key-1", purpose: "Tesla Fleet API domain-verification key host", icon: "key-round", url: "https://ev.barta.cm/.well-known/appspecific/com.tesla.3p.public-key.pem", port: ":443" },
     { wing: "edge", name: "docker socket proxy", container: "csb0-docker-proxy-traefik-1", purpose: "Read-only Docker API for Traefik discovery", icon: "server", passive: true, foot: "internal · :2375" },

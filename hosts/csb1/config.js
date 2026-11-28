@@ -24,7 +24,7 @@ window.HOSTDASH_CONFIG = {
     { id: "housekeeping", name: "Housekeeping", color: "var(--soft)", icon: "refresh-cw" },
   ],
   services: [
-    { wing: "edge", name: "Traefik API", container: "csb1-traefik-1", purpose: "Public TLS edge and Docker router", icon: "shield-alert", url: "https://cs1.barta.cm/api/version", port: ":443 /api" },
+    { wing: "edge", name: "Traefik API", container: "csb1-traefik-1", purpose: "Public TLS edge and Docker router", icon: "shield-alert", passive: true, foot: "API local-only · 127.0.0.1:8099" },
     { wing: "edge", name: "Zitadel", container: "zitadel", purpose: "INSPR identity provider", icon: "key-round", url: "https://auth.inspr.at/", port: ":443" },
     { wing: "edge", name: "inspr-auth", container: "inspr-auth", purpose: "Magic-link and session gateway for inspr.at", icon: "shield-alert", url: "https://inspr.at/enter", port: ":443" },
     { wing: "edge", name: "docker socket proxy", container: "csb1-docker-proxy-traefik-1", purpose: "Read-only Docker API for Traefik discovery", icon: "server", passive: true, foot: "internal · :2375" },
