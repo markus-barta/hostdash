@@ -2408,8 +2408,12 @@ $$("[data-density]").forEach(control => control.addEventListener("click", () => 
     applyFilter();
     if (zoomMode === "fit") fitAll(false);
   };
-  if (document.startViewTransition && !reducedMotion()) document.startViewTransition(run);
-  else run();
+  // A transition the browser skips (a hidden tab, or a second switch while one runs)
+  // still applies the update but rejects `ready`; that is not an error, so it must not
+  // surface as an unhandled rejection in the console.
+  if (document.startViewTransition && !reducedMotion() && !document.hidden) {
+    document.startViewTransition(run).ready.catch(() => { /* skipped: nothing to animate */ });
+  } else run();
 }));
 
 $("#viewToggle").addEventListener("click", event => {

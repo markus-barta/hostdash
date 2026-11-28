@@ -1301,6 +1301,27 @@ try {
       (densityState.other === "tiles" ? densityState.switched.tiles : densityState.switched.rows) !== expected.cards) {
     throw new Error(`Tiles/List switch failed: ${JSON.stringify(densityState)}`);
   }
+  // A view transition the browser skips (here: a second switch in the same tick; on
+  // a real tablet also a hidden tab) still applies the update and must not surface as
+  // an unhandled rejection. Seen once locally on hsb8 as "Transition was aborted ...
+  // Document hidden" from the switch above.
+  const exceptionsBeforeSkip = exceptions.length;
+  await value(`(() => {
+    const button = document.querySelector('[data-density="' + ${JSON.stringify(densityState.other)} + '"]');
+    button.click();
+    button.click();
+    return true;
+  })()`);
+  await sleep(600);
+  const skippedTransition = {
+    density: await value("document.documentElement.dataset.density"),
+    newExceptions: exceptions.slice(exceptionsBeforeSkip),
+  };
+  await value(`document.querySelector('[data-density="${expected.density}"]').click(); true`);
+  await sleep(400);
+  if (skippedTransition.density !== densityState.other || skippedTransition.newExceptions.length) {
+    throw new Error(`A skipped view transition surfaced as an error or lost the switch: ${JSON.stringify(skippedTransition)}`);
+  }
   const themeState = await value(`(() => {
     const before = document.documentElement.dataset.theme;
     document.getElementById("themeSwitch").click();
