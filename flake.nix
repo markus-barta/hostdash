@@ -45,6 +45,23 @@
             runHook postInstall
           '';
 
+          # HOSTD-81: version the config URL by its content. Store files carry a 1970
+          # mtime, so a browser that cached config.js heuristically keeps it "fresh"
+          # forever; a new URL is fetched on the next normal reload of index.html.
+          #
+          # HOSTD-83: stamped in a phase of its own after every standard phase, so the
+          # hash is of the config.js that is actually served. A consumer override that
+          # rewrites config.js (nixcfg does for hsb0) in postInstall, postFixup or a
+          # replaced installPhase runs before it. Hashing inside installPhase missed
+          # those, so a change to the override alone left the URL, and the cache, as is.
+          postPhases = [ "hostdashStampConfigPhase" ];
+          hostdashStampConfigPhase = ''
+            cfgHash="$(sha256sum "$out/share/${pname}/config.js" | cut -c1-16)"
+            substituteInPlace "$out/share/${pname}/index.html" \
+              --replace-fail '<script src="./config.js"></script>' \
+              "<script src=\"./config.js?v=$cfgHash\"></script>"
+          '';
+
           meta = {
             description = metaDescription;
             platforms = supportedSystems;
