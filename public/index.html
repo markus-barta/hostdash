@@ -226,6 +226,7 @@ html[data-v="notice"] .hero{--wash:var(--wash-warn)}
 .hero-main{grid-area:main;display:flex;align-items:center;gap:1.125rem;min-width:0}
 .hero-txt{min-width:0}
 .hero-h{font:600 1.875rem/1.15 var(--font-d);letter-spacing:-.022em;text-wrap:balance}
+.hero-h:focus{outline:none}
 .hero-sub{margin-top:.3125rem;font:400 1.0625rem/1.4 var(--font);color:var(--text-2);text-wrap:pretty;max-width:52ch}
 .hero-facts{grid-area:facts;display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1rem;min-width:0}
 .hero-extra{grid-area:extra;min-width:0}
@@ -1971,19 +1972,32 @@ function renderHero(m) {
   const sub = subline(m);
   const html = `<div class="hero-in${m.family && extra ? " has-guide" : ""}">
     <div class="hero-main"><span class="lens" aria-hidden="true"><span class="led" data-l="${lensOf(m)}"></span></span>
-      <div class="hero-txt"><h2 class="hero-h" id="heroH">${headline(m)}</h2>${sub ? `<p class="hero-sub">${esc(sub)}</p>` : ""}</div></div>
+      <div class="hero-txt"><h2 class="hero-h" id="heroH" tabindex="-1">${headline(m)}</h2>${sub ? `<p class="hero-sub">${esc(sub)}</p>` : ""}</div></div>
     <div class="hero-facts">${truthHTML(m)}${panelHTML(m)}</div>
     ${extra ? `<div class="hero-extra">${extra}</div>` : ""}</div>`;
   if (html === heroCache) return;
   heroCache = html;
   const hero = $("#hero");
-  const fk = hero.contains(document.activeElement) ? document.activeElement.dataset?.fk : null;
+  const had = hero.contains(document.activeElement) ? document.activeElement : null;
+  const fk = had ? had.dataset?.fk || "" : null;
   hero.innerHTML = html;
-  if (fk) hero.querySelector(`[data-fk="${CSS.escape(fk)}"]`)?.focus({ preventScroll: true });
+  if (had) refocusHero(fk);
   liveValues();
   const live = $("#heroLive");
   const said = `${$("#heroH").textContent}. ${sub}`.trim();
   if (live.textContent !== said) live.textContent = said;
+}
+
+// A background refresh must never drop keyboard focus to <body> (HOSTD-83 gate r1).
+// When the focused control is gone (its service recovered), focus moves to the nearest
+// stable thing: the service an attention chip pointed at, else the hero heading.
+function refocusHero(fk) {
+  const same = fk ? $(`#hero [data-fk="${CSS.escape(fk)}"]`) : null;
+  if (same) return same.focus({ preventScroll: true });
+  const service = fk && fk.startsWith("att-") ? BY_KEY.get(fk.slice(4)) : null;
+  const target = service ? focusTargetOf(itemOf(service)) : null;
+  if (target && target.getClientRects().length) return target.focus({ preventScroll: true });
+  $("#heroH")?.focus({ preventScroll: true });
 }
 
 function renderRail(m) {
@@ -2002,21 +2016,25 @@ function renderRail(m) {
     }).join("");
   if (host.dataset.cache === html) return;
   host.dataset.cache = html;
-  const fk = host.contains(document.activeElement) ? document.activeElement.dataset?.fk : null;
+  const fk = host.contains(document.activeElement) ? document.activeElement.dataset?.fk || "" : null;
   host.innerHTML = html;
-  if (fk) host.querySelector(`[data-fk="${CSS.escape(fk)}"]`)?.focus({ preventScroll: true });
+  // The Failures group disappears when the last failure clears: focus the group now
+  // selected (All), never <body>.
+  if (fk !== null) (host.querySelector(`[data-fk="${CSS.escape(fk)}"]`) || host.querySelector('.grp[aria-pressed="true"]') || host.querySelector(".grp"))?.focus({ preventScroll: true });
 }
 
 const FAVICON_FILL = {
   on: ["#9BF0B0", "#34C759", "#1C9442"], dim: ["#9BF0B0", "#34C759", "#1C9442"], bad: ["#FFB3AB", "#FF3B30", "#BF1E14"],
   split: ["#FFD9A0", "#FF9F0A", "#C46C00"], off: ["#8E8E95", "#6C6C73", "#48484E"],
+  ring: ["#9BF0B0", "#34C759", "#1C9442"], aring: ["#FFD9A0", "#FF9F0A", "#C46C00"],
 };
 let faviconKey = "";
 function renderFavicon(lens) {
   if (lens === faviconKey) return;
   faviconKey = lens;
   const [a, b, c] = FAVICON_FILL[lens] || FAVICON_FILL.off;
-  const core = lens === "split" ? '<circle cx="16" cy="16" r="3.6" fill="#34C759"/>' : "";
+  const core = lens === "split" ? '<circle cx="16" cy="16" r="3.6" fill="#34C759"/>'
+    : lens === "ring" || lens === "aring" ? '<circle cx="16" cy="16" r="4.2" fill="#2C2C31"/>' : "";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><radialGradient id="g" cx="50%" cy="60%" r="60%"><stop offset="0" stop-color="${a}"/><stop offset=".5" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient></defs><rect width="32" height="32" rx="9" fill="#1C1C1F"/><circle cx="16" cy="16" r="7" fill="url(#g)"/>${core}</svg>`;
   $("#favicon").href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
@@ -2086,11 +2104,12 @@ function renderFoot() {
 const mqDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 const mqReduce = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
 const reducedMotion = () => Boolean(mqReduce?.matches);
-const currentTheme = () => {
-  const stored = store.get(THEME_KEY);
-  if (stored === "dark" || stored === "light") return stored;
-  return mqDark?.matches ? "dark" : "light";
-};
+// The chosen appearance lives in memory and is persisted opportunistically. HOSTD-83
+// gate r1: re-reading a blocked store on every click fell back to the system setting,
+// so light → dark → dark.
+const validTheme = value => value === "dark" || value === "light";
+let themeChoice = validTheme(store.get(THEME_KEY)) ? store.get(THEME_KEY) : null;
+const currentTheme = () => themeChoice || (mqDark?.matches ? "dark" : "light");
 
 function applyTheme(theme = currentTheme()) {
   const root = document.documentElement;
@@ -2358,14 +2377,17 @@ window.addEventListener("storage", event => {
       (!event.storageArea || event.storageArea === localStorage)) {
     switchLanguage(validLanguage(event.newValue) ? event.newValue : browserLanguage());
   }
-  if (event.key === THEME_KEY) applyTheme();
+  if ((event.key === THEME_KEY || event.key === null) && (!event.storageArea || event.storageArea === localStorage)) {
+    themeChoice = validTheme(event.newValue) ? event.newValue : null;
+    applyTheme();
+  }
 });
 $("#themeSwitch").addEventListener("click", () => {
-  const next = currentTheme() === "dark" ? "light" : "dark";
-  store.set(THEME_KEY, next);
-  applyTheme(next);
+  themeChoice = currentTheme() === "dark" ? "light" : "dark";
+  store.set(THEME_KEY, themeChoice);
+  applyTheme(themeChoice);
 });
-mqDark?.addEventListener?.("change", () => { if (!store.get(THEME_KEY)) applyTheme(); });
+mqDark?.addEventListener?.("change", () => { if (!themeChoice) applyTheme(); });
 
 $$("[data-density]").forEach(control => control.addEventListener("click", () => {
   if (control.dataset.density === density) return;

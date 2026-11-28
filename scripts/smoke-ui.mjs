@@ -764,6 +764,17 @@ try {
     }
     return board;
   };
+  // Where keyboard focus is now, in words a failure message can show.
+  const focusState = () => value(`(() => {
+    const node = document.activeElement;
+    return {
+      tag: node?.tagName || null, id: node?.id || null, fk: node?.dataset?.fk || null,
+      item: node?.closest?.("#services [data-item]")?.dataset.item || null,
+      inHero: Boolean(node?.closest?.("#hero")), inRail: Boolean(node?.closest?.("#groups")),
+      group: node?.closest?.("#groups .grp")?.dataset.wing || null,
+      body: node === document.body || node === null,
+    };
+  })()`);
 
   const initial = await value(`(() => {
     ${itemJs}
@@ -974,12 +985,39 @@ try {
     }
     await assertEvidence("host reports a stopped service");
 
+    // HOSTD-83 gate r1 L3: a background refresh never drops keyboard focus. Focus the
+    // failure's own control (an operator's attention chip, a family board's guide
+    // button), let the service recover, and focus must land on something stable (the
+    // service itself, or the hero heading), never on <body>.
+    const truthKey = await value(`(() => { ${itemJs} return byName(${JSON.stringify(expected.truthCard)})?.dataset.item || null; })()`);
+    const focusedControl = await value(`(() => {
+      const control = ${family ? `document.querySelector('#hero .guide [data-act="reload"]')` : `document.querySelector('#hero .att-chip[data-key="' + ${JSON.stringify(truthKey)} + '"]')`};
+      control?.focus();
+      return control ? control.dataset.fk : null;
+    })()`);
+    if (!focusedControl) round1Fail(`No failure control to focus for ${expected.truthCard}`);
+
     // Same tab, no reload: the host changes its mind and the board must follow.
     await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
     const running = await sampleTruth();
     if (running.state !== "running" || running.truth !== "live" || running.led !== "on") {
       throw new Error(`Board did not pick up refreshed host truth, got ${JSON.stringify(running)}`);
     }
+    const heroFocus = await focusState();
+    if (heroFocus.body || !(heroFocus.inHero || heroFocus.item === truthKey)) {
+      round1Fail(`Recovery dropped keyboard focus from ${focusedControl}: ${JSON.stringify(heroFocus)}`);
+    }
+    // The Failures group disappears with the last failure: focus moves to All, not <body>.
+    await localPage.writeStatus({ [expected.truthContainer]: { running: false } });
+    await sampleTruth();
+    const focusedGroup = await value(`(() => { const group = document.querySelector('#groups .grp[data-wing="problems"]'); group?.focus(); return Boolean(group); })()`);
+    await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
+    await sampleTruth();
+    const railFocus = await focusState();
+    if (!focusedGroup || railFocus.body || !railFocus.inRail || !railFocus.group) {
+      round1Fail(`Recovery dropped keyboard focus from the Failures group: ${JSON.stringify({ focusedGroup, railFocus })}`);
+    }
+    await value("document.activeElement?.blur(); true");
 
     // HOSTD-83 finding (b), with evidence: only the host's word may light a static card.
     for (const [name, container] of Object.entries(expected.staticServices || {})) {
@@ -1106,7 +1144,7 @@ try {
     }
     await assertEvidence("round-1 fixtures");
 
-    truthStates = { stopped, failureHelp, running, stale, none, noneDe, unlisted, badTimes, jobStates, pathOnlyRunning, selfReport };
+    truthStates = { stopped, failureHelp, running, heroFocus, railFocus, stale, none, noneDe, unlisted, badTimes, jobStates, pathOnlyRunning, selfReport };
   }
 
   // ── HOST-SIDE HTTP TRUTH (HOSTD-12) ─────────────────────────────────────────
@@ -1263,6 +1301,29 @@ try {
       themeState.checked !== String(themeState.after === "dark") || themeState.restored !== themeState.before) {
     throw new Error(`Light/dark switch failed: ${JSON.stringify(themeState)}`);
   }
+  // HOSTD-83 gate r1 L2: with storage blocked (every method throws) and a light system
+  // appearance, each click still flips the theme. It used to go light → dark → dark.
+  await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
+  const blockedTheme = await value(`(() => {
+    const proto = Storage.prototype;
+    const saved = { getItem: proto.getItem, setItem: proto.setItem, removeItem: proto.removeItem };
+    for (const name of Object.keys(saved)) proto[name] = () => { throw new DOMException("blocked", "SecurityError"); };
+    try {
+      const seen = [document.documentElement.dataset.theme];
+      for (let i = 0; i < 3; i += 1) {
+        document.getElementById("themeSwitch").click();
+        seen.push(document.documentElement.dataset.theme);
+      }
+      return seen;
+    } finally {
+      Object.assign(proto, saved);
+    }
+  })()`);
+  if (blockedTheme.some((theme, i) => i && theme === blockedTheme[i - 1])) {
+    round1Fail(`Theme switch stuck while storage is blocked: ${JSON.stringify(blockedTheme)}`);
+  }
+  await value(`(() => { if (document.documentElement.dataset.theme !== ${JSON.stringify(themeState.before)}) document.getElementById("themeSwitch").click(); return true; })()`);
+  await send("Emulation.setEmulatedMedia", { features: [] });
 
   // ── SEARCH: "/" focuses, Esc clears, a second Esc leaves ─────────────────────
   await key("/", "Slash", 191, "/");
@@ -1402,7 +1463,7 @@ try {
   }
 
   console.log(
-    JSON.stringify({ host, pageUrl, initial, pathOnlySample, truthStates, httpStates, mobileLayout, densityState, themeState,
+    JSON.stringify({ host, pageUrl, initial, pathOnlySample, truthStates, httpStates, mobileLayout, densityState, themeState, blockedTheme,
       searchState, firstEscape, escapeState, defaultLanguage, fallbackLanguage, persistedLanguage, retainedState,
       localizedSearch, sharedLanguage }, null, 2),
   );
