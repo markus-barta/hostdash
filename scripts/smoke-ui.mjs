@@ -436,7 +436,10 @@ const browser = spawn(browserPath, [
 ]);
 
 browser.stdout.resume();
-browser.stderr.resume();
+let browserLog = "";
+browser.stderr.on("data", chunk => { browserLog = (browserLog + chunk).slice(-4000); });
+let browserExit = null;
+browser.on("exit", code => { browserExit = code; });
 
 async function cleanup() {
   browser.kill("SIGTERM");
@@ -445,9 +448,11 @@ async function cleanup() {
   await localPage?.cleanup?.();
 }
 
+// A cold browser on a CI runner can take well over 8 s to open its DevTools port.
 async function waitForJson(path) {
   const url = `http://127.0.0.1:${cdpPort}${path}`;
-  for (let i = 0; i < 80; i += 1) {
+  for (let i = 0; i < 300; i += 1) {
+    if (browserExit !== null) throw new Error(`Browser exited (${browserExit}) before DevTools came up: ${browserLog}`);
     try {
       const response = await fetch(url);
       if (response.ok) return await response.json();
