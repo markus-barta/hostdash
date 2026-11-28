@@ -7,12 +7,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
-      - name: Package excludes retired JoeDesk subtree
+      - name: Package excludes retired JoeDesk subtree and versions config.js
         run: scripts/check-package.sh
+
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Evidence core (probe starvation, static statuses, truth model)
+        run: node scripts/test-evidence.mjs
 
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: csb0, mode: config }
+          - { host: csb1, mode: config }
+          - { host: hsb0, mode: config }
+          - { host: hsb1, mode: config }
+          - { host: hsb8, mode: config }
+          - { host: hsb9, mode: config }
+          - { host: hsb1, mode: manifest }
+          - { host: hsb8, mode: manifest }
+    name: smoke (${{ matrix.host }}, ${{ matrix.mode }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,4 +51,5 @@ jobs:
         run: node scripts/smoke-ui.mjs
         env:
           BROWSER_PATH: /usr/bin/google-chrome
-          HOSTDASH_HOST: csb0
+          HOSTDASH_HOST: ${{ matrix.host }}
+          HOSTDASH_CONFIG_MODE: ${{ matrix.mode }}
