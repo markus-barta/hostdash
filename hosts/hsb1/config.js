@@ -32,7 +32,7 @@ window.HOSTDASH_CONFIG = {
     { wing: "home", name: "Matter Server", container: "matter-server", purpose: "Matter/Thread controller for HA", icon: "hexagon", passive: true, foot: ":5580 api · no UI" },
 
     { wing: "media", name: "Plex", container: "plex", purpose: "Media library & streaming", icon: "logo-plex", url: "http://hsb1.lan:32400/web", sameHost: true, port: ":32400", path: "/web" },
-    { wing: "media", name: "pixdcon", container: "pixdcon", purpose: "Pixoo pixel-display controller", icon: "logo-pixdcon", url: "http://hsb1.lan:8080/", sameHost: true, port: ":8080" },
+    { wing: "media", name: "pixdcon", container: "pixdcon2-edge", httpKey: "pixdcon", purpose: "Pixoo pixel-display controller", icon: "logo-pixdcon", url: "http://hsb1.lan:8080/", sameHost: true, port: ":8080" },
     { wing: "media", name: "funkeykid", container: "funkeykid", purpose: "Kids audio/voice toy console", icon: "toy-brick", url: "http://hsb1.lan:8081/", sameHost: true, port: ":8081" },
     { wing: "media", name: "IR bridge", unit: "ir-bridge.service", purpose: "FLIRC remote to Sony Bravia and Home Assistant", icon: "radio", passive: true, foot: "daemon · no UI" },
     { wing: "media", name: "ir-bridge-watch", unit: "ir-bridge-watch.timer", purpose: "Pages when the FLIRC to TV path breaks", icon: "bell-ring", passive: true, foot: "5 min timer · watchdog" },
