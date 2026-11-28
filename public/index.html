@@ -661,7 +661,8 @@ const STRINGS = {
     ev_hostHttpOk: "HTTP {code} on the host", ev_hostHttp: "loopback HTTP {code}", ev_hostSilent: "loopback check got no answer (000)",
     ev_sameOrigin: "this server answered HTTP {code}",
     ev_self: "self-report: {code}", ev_selfOk: "self-report: picture and sound moving", ev_selfMuted: "self-report: muted on purpose",
-    ev_noTelemetry: "no self-report in the status file",
+    ev_noTelemetry: "no self-report in the status file", ev_badTelemetry: "self-report without a valid health field",
+    ev_unitIdle: "unit idle between runs", ev_sameOriginRefused: "this server refused this browser (HTTP {code})",
     ev_jobFailed: "host: last run {when} failed", ev_jobFailedUndated: "host: last run failed",
     ev_jobOk: "host: last run {when}, ok", ev_jobOkUndated: "host: last run ok",
     ev_checking: "checking", ev_none: "no evidence",
@@ -670,18 +671,19 @@ const STRINGS = {
     today: "today", yesterday: "yesterday",
     h_checking: "Checking services …",
     h_okOne: "The service is running", h_okMany: "All {n} services running",
-    h_partial: "{ok} of {n} services running",
+    h_partial: "{ok} of {n} services running", h_noVouch: "No host report for any of the {n} services",
     h_bad1Stopped: "{name} is not running right now", h_bad1Fault: "{name} reports: {word}",
     h_badMany: "{b} services are not running right now", h_badOp: "{b} of {n} services failing",
     h_away1: "{name} is not reachable from here", h_awayMany: "{a} services are not reachable from here",
     h_awayOp1: "{name} unreachable from this browser", h_awayOpMany: "{a} services unreachable from this browser",
     h_staleF: "The host has not reported for {m} minutes", h_staleO: "Status file {age} old — ignored",
     h_noneF: "No status report from the host", h_noneO: "No status file",
-    h_schemaO: "Unknown status file format", h_unreadableO: "Status file unreadable",
+    h_schemaO: "Unknown status file format", h_unreadableO: "Status file unreadable", h_timeO: "Status file has no valid timestamp",
     h_emptyF: "No services set up yet", h_emptyO: "No services configured",
     s_okFOne: "{list} opens with one click.", s_okFMany: "{list} open with one click.",
     s_okO: "{h} vouched for by the host · {u} with a web UI · {w} groups",
     s_partial: "No report for {list} right now.", s_partialMany: "No report for {k} services right now.",
+    s_reached: "{list} reached from this browser only.", s_reachedMany: "{k} services reached from this browser only.",
     s_badF: "{u} of {n} services are running.",
     s_awayHostF: "The host says it is running. Only this device cannot get through right now.",
     s_awayHostFMany: "The host says they are running. Only this device cannot get through right now.",
@@ -692,10 +694,11 @@ const STRINGS = {
     s_staleO: "Limit 5 min · host states hidden · {u} URLs checked from this browser",
     s_noneO: "{path} {why} · {u} URLs checked from this browser",
     why_noArtifact: "not found", why_unknownSchema: "has an unknown schema", why_probesOnly: "could not be read",
+    why_badTime: "has no valid timestamp (missing, malformed or in the future)",
     s_checking: "Status file and reachability",
     s_emptyF: "The services will appear here once they are set up.", s_emptyO: "This board knows its host but no service yet.",
     tr_live: "Host truth", tr_ago: "{age} ago", tr_next: "next check in {s} s", tr_now: "checking now",
-    tr_stale: "Status {age} old", tr_ignored: "ignored", tr_none: "No status file", tr_probes: "browser checks only",
+    tr_stale: "Status {age} old", tr_ignored: "ignored", tr_none: "No status file", tr_unusable: "Status file not usable", tr_probes: "browser checks only",
     tr_checking: "Checking …", tr_checkingSub: "status file and reachability", tr_empty: "No services", tr_emptySub: "nothing to check",
     ageSeconds: "{n} s", ageMinutes: "{n} min", ageHours: "{n} h",
     liveExplanation: "The host itself reports which containers and units are running. States on this board are measured, not guessed.",
@@ -714,6 +717,7 @@ const STRINGS = {
     att: "Needs attention", next: "Next step", attLabel: "{name}: {word}. {ev}. Show in the list",
     nStale: "The generator on the host should rewrite {path} every 60 s. Check that it still runs.",
     nNone: "Enable the status generator on the host (schema inspr.hostdash.status.v1, same-origin at {path}).",
+    nTime: "Check the host's clock, and that {path} writes generated as epoch seconds.",
     nEmpty: "Add the first service to the board config (window.HOSTDASH_CONFIG.services).",
     blankF: "The first service will appear here once it is set up.", blankO: "The config has no service yet.",
     configMissing: "This board has no usable configuration.",
@@ -757,7 +761,8 @@ const STRINGS = {
     ev_hostHttpOk: "HTTP {code} am Gerät", ev_hostHttp: "eigene HTTP-Prüfung {code}", ev_hostSilent: "eigene HTTP-Prüfung ohne Antwort (000)",
     ev_sameOrigin: "dieser Server antwortet mit HTTP {code}",
     ev_self: "Eigenmeldung: {code}", ev_selfOk: "Eigenmeldung: Bild und Ton laufen", ev_selfMuted: "Eigenmeldung: absichtlich stumm geschaltet",
-    ev_noTelemetry: "keine Eigenmeldung in der Statusdatei",
+    ev_noTelemetry: "keine Eigenmeldung in der Statusdatei", ev_badTelemetry: "Eigenmeldung ohne gültige Zustandsangabe",
+    ev_unitIdle: "Dienst ruht zwischen den Läufen", ev_sameOriginRefused: "dieser Server lässt diesen Browser nicht zu (HTTP {code})",
     ev_jobFailed: "Gerät: letzter Lauf {when} fehlgeschlagen", ev_jobFailedUndated: "Gerät: letzter Lauf fehlgeschlagen",
     ev_jobOk: "Gerät: letzter Lauf {when}, erfolgreich", ev_jobOkUndated: "Gerät: letzter Lauf erfolgreich",
     ev_checking: "wird geprüft", ev_none: "kein Beleg",
@@ -766,18 +771,19 @@ const STRINGS = {
     today: "heute", yesterday: "gestern",
     h_checking: "Dienste werden geprüft …",
     h_okOne: "Der Dienst läuft", h_okMany: "Alle {n} Dienste laufen",
-    h_partial: "{ok} von {n} Diensten laufen",
+    h_partial: "{ok} von {n} Diensten laufen", h_noVouch: "Für keinen der {n} Dienste liegt eine Gerätemeldung vor",
     h_bad1Stopped: "{name} läuft gerade nicht", h_bad1Fault: "{name} meldet: {word}",
     h_badMany: "{b} Dienste laufen gerade nicht", h_badOp: "{b} von {n} Diensten gestört",
     h_away1: "{name} ist von hier nicht erreichbar", h_awayMany: "{a} Dienste sind von hier nicht erreichbar",
     h_awayOp1: "{name} von diesem Browser nicht erreichbar", h_awayOpMany: "{a} Dienste von diesem Browser nicht erreichbar",
     h_staleF: "Das Gerät hat sich seit {m} Minuten nicht gemeldet", h_staleO: "Statusdatei {age} alt – wird ignoriert",
     h_noneF: "Keine Statusmeldung vom Gerät", h_noneO: "Keine Statusdatei",
-    h_schemaO: "Unbekanntes Statusformat", h_unreadableO: "Statusdatei nicht lesbar",
+    h_schemaO: "Unbekanntes Statusformat", h_unreadableO: "Statusdatei nicht lesbar", h_timeO: "Statusdatei ohne gültigen Zeitstempel",
     h_emptyF: "Noch keine Dienste eingerichtet", h_emptyO: "Keine Dienste konfiguriert",
     s_okFOne: "{list} lässt sich mit einem Klick öffnen.", s_okFMany: "{list} lassen sich mit einem Klick öffnen.",
     s_okO: "{h} mit Gerätestatus · {u} mit Weboberfläche · {w} Gruppen",
     s_partial: "Für {list} liegt gerade keine Meldung vor.", s_partialMany: "Für {k} Dienste liegt gerade keine Meldung vor.",
+    s_reached: "{list} nur von diesem Browser erreicht.", s_reachedMany: "{k} Dienste nur von diesem Browser erreicht.",
     s_badF: "{u} von {n} Diensten laufen.",
     s_awayHostF: "Laut Gerät läuft der Dienst. Nur dieses Gerät kommt gerade nicht durch.",
     s_awayHostFMany: "Laut Gerät laufen die Dienste. Nur dieses Gerät kommt gerade nicht durch.",
@@ -788,10 +794,11 @@ const STRINGS = {
     s_staleO: "Grenze 5 Min. · Gerätezustände ausgeblendet · {u} Adressen prüft dieser Browser",
     s_noneO: "{path} {why} · {u} Adressen prüft dieser Browser",
     why_noArtifact: "nicht gefunden", why_unknownSchema: "hat ein unbekanntes Format", why_probesOnly: "nicht lesbar",
+    why_badTime: "hat keinen gültigen Zeitstempel (fehlt, ungültig oder in der Zukunft)",
     s_checking: "Statusdatei und Erreichbarkeit",
     s_emptyF: "Die Dienste erscheinen hier, sobald sie eingerichtet sind.", s_emptyO: "Dieses Board kennt sein Gerät, aber noch keinen Dienst.",
     tr_live: "Gerätestatus", tr_ago: "vor {age}", tr_next: "nächste Prüfung in {s} s", tr_now: "wird gerade geprüft",
-    tr_stale: "Status {age} alt", tr_ignored: "wird ignoriert", tr_none: "Keine Statusdatei", tr_probes: "nur Browserprüfung",
+    tr_stale: "Status {age} alt", tr_ignored: "wird ignoriert", tr_none: "Keine Statusdatei", tr_unusable: "Statusdatei unbrauchbar", tr_probes: "nur Browserprüfung",
     tr_checking: "Wird geprüft …", tr_checkingSub: "Statusdatei und Erreichbarkeit", tr_empty: "Keine Dienste", tr_emptySub: "nichts zu prüfen",
     ageSeconds: "{n} s", ageMinutes: "{n} Min.", ageHours: "{n} Std.",
     liveExplanation: "Das Gerät selbst meldet, welche Container und Systemdienste laufen. Die Zustände dieser Übersicht sind gemessen.",
@@ -810,6 +817,7 @@ const STRINGS = {
     att: "Braucht Aufmerksamkeit", next: "Nächster Schritt", attLabel: "{name}: {word}. {ev}. In der Liste zeigen",
     nStale: "Der Generator auf dem Gerät sollte {path} alle 60 s neu schreiben. Prüfen, ob er noch läuft.",
     nNone: "Den Status-Generator auf dem Gerät aktivieren (Schema inspr.hostdash.status.v1, gleicher Ursprung unter {path}).",
+    nTime: "Uhr des Geräts prüfen, und ob {path} generated in Epochensekunden schreibt.",
     nEmpty: "Den ersten Dienst in der Board-Konfiguration eintragen (window.HOSTDASH_CONFIG.services).",
     blankF: "Hier erscheint der erste Dienst, sobald er eingerichtet ist.", blankO: "Die Konfiguration enthält noch keinen Dienst.",
     configMissing: "Für diese Übersicht gibt es keine nutzbare Konfiguration.",
@@ -889,15 +897,54 @@ const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selec
 const EvidenceCore = (() => {
   const isObj = value => Boolean(value) && typeof value === "object" && !Array.isArray(value);
   const KNOWN_HEALTH = new Set(["AUDIO_DEAD", "VIDEO_STALE", "VOLUME_DRIFT"]);
+  // How far the host's clock may run ahead of this browser's before an artifact is
+  // rejected as dated in the future. Bounded, so a future stamp extends trust by at most
+  // this much instead of indefinitely.
+  const CLOCK_SKEW_SEC = 120;
+
+  // Epoch seconds, or null. A number or a plain decimal string; nothing else ("Infinity",
+  // booleans, ISO dates, milliseconds that land in the future are all rejected below).
+  function epochOf(value) {
+    const n = typeof value === "number" ? value
+      : typeof value === "string" && /^\s*\d+(\.\d+)?\s*$/.test(value) ? Number(value) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
 
   // Is this artifact evidence right now? Stale is NOT healthy: a dead generator whose
-  // last file still says "running" would otherwise keep the board green forever.
-  function judgeArtifact(data, nowMs, maxAgeMs) {
+  // last file still says "running" would otherwise keep the board green forever. For the
+  // same reason an artifact that cannot age is not evidence at all: no valid timestamp,
+  // or one further in the future than clock skew explains (HOSTD-83 gate r1: before,
+  // `generated: "Infinity"` read as live with age 0, forever).
+  function judgeArtifact(data, nowMs, maxAgeMs, skewSec = CLOCK_SKEW_SEC) {
     if (!isObj(data) || data.schema !== "inspr.hostdash.status.v1") return { state: "none", key: "unknownSchema" };
-    const generated = Number(data.generated) || 0;
-    const ageSec = Math.max(0, Math.round(nowMs / 1000 - generated));
+    const generated = epochOf(data.generated);
+    const nowSec = nowMs / 1000;
+    if (generated === null || generated > nowSec + skewSec) return { state: "none", key: "badTime" };
+    const ageSec = Math.max(0, Math.round(nowSec - generated));
     if (ageSec * 1000 > maxAgeMs) return { state: "stale", key: "staleStatus", ageSec, generated };
     return { state: "live", key: "liveStatus", ageSec, generated };
+  }
+
+  // Where a service's link and probe point, or null. A same-host service resolves
+  // against the page's own origin (port and path from the config); it needs no `url` of
+  // its own (HOSTD-83 gate r1: `sameHost: true, path: "/ops/"` alone lost link and probe).
+  function resolveTarget(raw, pageHref) {
+    const service = isObj(raw) ? raw : {};
+    if (service.passive === true) return null;
+    let page = null;
+    try { page = new URL(pageHref); } catch { page = null; }
+    if (service.sameHost === true && page && /^https?:$/.test(page.protocol) && page.hostname) {
+      const target = new URL(page.href);
+      if (typeof service.scheme === "string" && /^https?:$/.test(service.scheme)) target.protocol = service.scheme;
+      // A path-only service (no port) lives on this dashboard's own server: keep its port.
+      const port = String(service.hostPort || service.port || "").replace(/^:/, "").split(/\s+/)[0];
+      if (/^\d+$/.test(port)) target.port = port;
+      target.pathname = typeof service.path === "string" && service.path ? service.path : "/";
+      target.search = typeof service.search === "string" ? service.search : "";
+      target.hash = "";
+      return target.href;
+    }
+    return typeof service.url === "string" && service.url ? service.url : null;
   }
 
   // A config entry, reduced to what the evidence rules need.
@@ -935,7 +982,7 @@ const EvidenceCore = (() => {
     }
     if (svc.unit) {
       const entry = pick("units", svc.unit);
-      return entry ? { kind: "unit", running: entry.running === true, active: typeof entry.active === "string" ? entry.active : "inactive" } : null;
+      return entry ? { kind: "unit", running: entry.running === true, active: typeof entry.active === "string" ? entry.active : null } : null;
     }
     return null;
   }
@@ -951,23 +998,36 @@ const EvidenceCore = (() => {
     return code >= 500 ? { kind: "fault", code } : { kind: "ok", code };
   }
 
-  // Optional `jobs` section: { "<unit or container>": { ok: bool, last: epoch } }.
+  // Optional `jobs` section: { "<unit or container>": { ok: bool, last: epoch } }. Read on
+  // its own: a job's record is evidence whether or not the artifact also lists the unit.
   function hostJob(status, svc) {
     const key = svc.unit || svc.container;
     if (!key || !isObj(status) || !isObj(status.jobs) || !isObj(status.jobs[key])) return null;
     const entry = status.jobs[key];
     if (typeof entry.ok !== "boolean") return null;
-    const last = Number(entry.last);
-    return { ok: entry.ok, last: Number.isFinite(last) && last > 0 ? last : null };
+    const last = epochOf(entry.last);
+    return { ok: entry.ok, last };
   }
 
-  function noEvidence(svc, truth, s) {
-    const why = svc.staticState && !svc.container && !svc.unit ? "ev_whyStatic"
-      : truth === "stale" ? "ev_whyStale"
-        : truth === "none" ? "ev_whyMissing"
-          : truth === "checking" ? "ev_checking"
-            : svc.container || svc.unit || svc.extra ? "ev_whyUnlisted"
-              : svc.staticState ? "ev_whyStatic" : "ev_whyUnbound";
+  // A service's own telemetry counts only as an explicit health report: an object whose
+  // `health` is a non-empty string. `{}`, `null` or `health: 1` prove nothing (HOSTD-83
+  // gate r1: an empty `extras.babycam` used to read "picture and sound moving").
+  function selfReport(status, svc) {
+    if (!svc.extra || !isObj(status) || !isObj(status.extras)) return { report: null, gap: svc.extra && isObj(status) ? "ev_noTelemetry" : null };
+    const x = status.extras[svc.extra];
+    if (!isObj(x)) return { report: null, gap: "ev_noTelemetry" };
+    if (typeof x.health !== "string" || !x.health.trim()) return { report: null, gap: "ev_badTelemetry" };
+    return { report: x, gap: null };
+  }
+
+  function noEvidence(svc, truth, s, gap = null) {
+    const why = gap ? gap
+      : svc.staticState && !svc.container && !svc.unit ? "ev_whyStatic"
+        : truth === "stale" ? "ev_whyStale"
+          : truth === "none" ? "ev_whyMissing"
+            : truth === "checking" ? "ev_checking"
+              : svc.container || svc.unit || svc.extra ? "ev_whyUnlisted"
+                : svc.staticState ? "ev_whyStatic" : "ev_whyUnbound";
     return { s, l: "off", word: null, vars: {}, src: "", ev: [{ key: "ev_none" }, { key: why }], hostOk: null };
   }
 
@@ -979,67 +1039,128 @@ const EvidenceCore = (() => {
 
     // A service that publishes its own health outranks everything else (HOSTD-10).
     // desired_volume 0 is NOT a fault: the babycam is muted on purpose most nights.
-    if (svc.extra) {
-      if (!status) return noEvidence(svc, truth, "unknown");
-      const x = isObj(status.extras) ? status.extras[svc.extra] : null;
-      if (!isObj(x)) return make("unknown", "off", null, { ev: [{ key: "ev_none" }, { key: "ev_noTelemetry" }] });
-      if (x.health && x.health !== "OK") {
-        const code = String(x.health);
+    // Without a valid report the card falls through to whatever other evidence it has
+    // (host rows, this browser's probe), exactly as origin/main did; a passive card with
+    // nothing else stays dark.
+    const self = selfReport(status, svc);
+    if (self.report) {
+      const x = self.report;
+      if (x.health !== "OK") {
+        const code = x.health;
         return make("fault", "bad", KNOWN_HEALTH.has(code) ? `health_${code}` : "healthFault",
           { vars: { healthCode: code }, src: "self", ev: [{ key: "ev_self", vars: { code } }] });
       }
       if (x.desired_volume === 0) return make("muted", "dim", "status_muted", { src: "self", ev: [{ key: "ev_selfMuted" }] });
       return make("up", "on", "listening", { src: "self", ev: [{ key: "ev_selfOk" }] });
     }
+    const gap = self.gap;
 
     const host = hostEntry(status, svc);
+    const job = hostJob(status, svc);
     const hostEv = host ? [{
       key: host.kind === "unit" ? (host.running ? "ev_unitRunning" : "ev_unitStopped") : (host.running ? "ev_containerRunning" : "ev_containerStopped"),
-      vars: { active: host.active || "" },
+      vars: { active: host.active || "inactive" },
     }] : [];
-    // The host says it is NOT running: authoritative, and loud.
-    if (host && !host.running) return make("stopped", "bad", "status_stopped", { src: "host", ev: hostEv });
 
-    const job = host ? hostJob(status, svc) : null;
+    // A failed run is loud, whether or not the artifact also lists the unit.
     if (job && !job.ok) return make("jobfail", "bad", "jobFailed", { src: "host", ev: [{ key: "ev_jobFailed", vars: { last: job.last } }] });
 
-    // The service answered the host badly. That outranks any browser reachability.
-    const http = host ? hostHttp(status, svc) : null;
+    // The host says it is NOT running: authoritative, and loud. Except a oneshot unit
+    // whose last run succeeded: systemd reports it "inactive" between runs, which is a
+    // finished job, not a stopped daemon. "failed" (or any other state) stays loud.
+    const finished = Boolean(host && !host.running && job?.ok && host.kind === "unit" && host.active === "inactive");
+    if (host && !host.running && !finished) return make("stopped", "bad", "status_stopped", { src: "host", ev: hostEv });
+
+    // The service answered the host badly. That outranks any browser reachability, and
+    // is read like a job record: on its own, a measured failure needs no running row.
+    const http = hostHttp(status, svc);
     if (http?.kind === "fault") {
       return make("fault", "bad", "httpStatus", { vars: { code: http.code }, src: "host", ev: [...hostEv, { key: "ev_hostHttp", vars: { code: http.code } }] });
     }
     if (http?.kind === "silent") return make("fault", "bad", "noAnswer", { src: "host", ev: [...hostEv, { key: "ev_hostSilent" }] });
 
+    // What the host vouches for: a running unit/container, or a job whose last run was ok.
+    const vouched = Boolean(host) || Boolean(job?.ok);
     const runWord = job?.ok ? "jobOk" : "status_running";
-    const runEv = job?.ok ? [{ key: "ev_jobOk", vars: { last: job.last } }] : hostEv;
+    const runEv = job?.ok ? [{ key: "ev_jobOk", vars: { last: job.last } }, ...(finished ? [{ key: "ev_unitIdle" }] : [])] : hostEv;
 
     if (!svc.probeUrl) {
-      if (host) return make("running", "on", runWord, { src: "host", ev: runEv });
-      return noEvidence(svc, truth, "unknown");
+      if (vouched) return make("running", "on", runWord, { src: "host", ev: runEv });
+      return noEvidence(svc, truth, "unknown", gap);
     }
 
     // The probe only refines the host's verdict with THIS browser's reachability.
     const result = ctx.probe || null;
     if (!result) {
-      if (host) return make("running", "on", runWord, { src: "host", ev: runEv });
-      return noEvidence(svc, truth, "checking");
+      if (vouched) return make("running", "on", runWord, { src: "host", ev: runEv });
+      return noEvidence(svc, truth, "checking", gap);
     }
     if (result.ok) {
-      if (host) return make("up", "on", runWord, { src: "both", ev: [...runEv, { key: "ev_reached" }] });
+      if (vouched) return make("up", "on", runWord, { src: "both", ev: [...runEv, { key: "ev_reached" }] });
       return make("reachable", "ring", "status_reachable", { src: "browser", ev: [{ key: "ev_reachedOnly" }] });
     }
-    if (host) {
+    const hostOk = http?.kind === "ok" ? http.code : null;
+    // Same-origin and readable: this dashboard's own nginx answered with a status code.
+    // Handled before the generic unreachable branch so the code is never lost (HOSTD-83
+    // gate r1: a running hausnetz behind a 502 used to read "Unreachable").
+    if (result.kind === "http") {
+      const code = result.code;
+      const codeEv = { key: code === 401 || code === 403 ? "ev_sameOriginRefused" : "ev_sameOrigin", vars: { code } };
+      // 401/403: the server refuses THIS browser (hausnetz is LAN-only). The route is
+      // the problem, not the service, so it stays amber, with the code kept as evidence.
+      if (code === 401 || code === 403) {
+        if (vouched) return make("unreachable", "split", "status_unreachable", { vars: { code }, src: "host", hostOk, ev: [...runEv, codeEv] });
+        return make("unreachable", "aring", "status_unreachable", { vars: { code }, src: "browser", ev: [codeEv, { key: "ev_noHost" }] });
+      }
+      // Anything else (404, 5xx): a measured failure of what sits behind this server.
+      if (vouched) return make("fault", "bad", "httpStatus", { vars: { code }, src: "browser", ev: [...runEv, codeEv] });
+      return make("down", "bad", "status_down", { vars: { code }, src: "browser", ev: [codeEv] });
+    }
+    if (vouched) {
       // Running per host, unreachable from here: the route is broken, not the service.
-      const hostOk = http?.kind === "ok" ? http.code : null;
       return make("unreachable", "split", "status_unreachable", {
         src: "host", hostOk,
         ev: [...runEv, ...(hostOk ? [{ key: "ev_hostHttpOk", vars: { code: hostOk } }] : []), { key: "ev_noConnection" }],
       });
     }
-    // Same-origin and readable: this dashboard's own nginx said 403/404/502. That is a
-    // measured failure of the service behind it, not a shrug.
-    if (result.kind === "http") return make("down", "bad", "status_down", { src: "browser", ev: [{ key: "ev_sameOrigin", vars: { code: result.code } }] });
     return make("unreachable", "aring", "status_unreachable", { src: "browser", ev: [{ key: "ev_noConnection" }, { key: "ev_noHost" }] });
+  }
+
+  // ── VERDICT: the board's headline state and its lens, from evidence alone ──────
+  // HOSTD-83 gate r1: browser-only reachability ("ring") used to count as running, so a
+  // fresh artifact that listed none of the services could still say "All N running"
+  // under a solid green lens. Now only host-vouched cards (on/dim: host, self-report or
+  // both) count as running; "ok" needs every card vouched; the lens never shows more
+  // than the evidence: green only for vouched, a green ring when only this browser
+  // reached anything, dark when nothing is known, amber ring when an unreachable card
+  // has no host word.
+  function aggregate(evs, truth) {
+    const n = evs.length;
+    const bad = [], away = [], vouched = [], reached = [], pending = [], none = [];
+    evs.forEach((ev, i) => {
+      const l = ev?.l;
+      if (l === "bad") bad.push(i);
+      else if (l === "split" || l === "aring") away.push(i);
+      else if (l === "on" || l === "dim") vouched.push(i);
+      else if (l === "ring") reached.push(i);
+      else if (ev?.s === "checking") pending.push(i);
+      else none.push(i);
+    });
+    let v;
+    if (!n) v = "empty";
+    else if (bad.length) v = "bad";
+    else if (truth === "checking") v = "checking";
+    else if (truth !== "live") v = "quiet";
+    else if (away.length) v = "notice";
+    else if (pending.length) v = "checking";
+    else if (vouched.length === n) v = "ok";
+    else v = "partial";
+    const lens = v === "ok" ? "on"
+      : v === "bad" ? "bad"
+        : v === "notice" ? (away.every(i => evs[i].l === "split") ? "split" : "aring")
+          : v === "partial" ? (vouched.length ? "dim" : reached.length ? "ring" : "off")
+            : "off";
+    return { v, lens, n, bad, away, vouched, reached, pending, none };
   }
 
   // ── PROBES (HOSTD-83 finding a) ─────────────────────────────────────────────
@@ -1059,11 +1180,15 @@ const EvidenceCore = (() => {
     let seq = 0;
     let started = 0;
 
+    // The first request of a sweep only arms the pump (on the next tick), so the whole
+    // sweep's requests queue up first and drain `batch` at a time. HOSTD-83 gate r1: a
+    // synchronous pump drained each one-item queue at once and started every probe of a
+    // sweep together, despite `batch`.
     function request(key, url) {
       if (inflight.has(key) || queued.has(key)) return false;
       queued.add(key);
       queue.push({ key, url });
-      if (pumpTimer === null) pump();
+      if (pumpTimer === null) pumpTimer = schedule(pump, 0);
       return true;
     }
 
@@ -1115,7 +1240,7 @@ const EvidenceCore = (() => {
     };
   }
 
-  return { judgeArtifact, serviceModel, derive, createProber, hostEntry, hostHttp, hostJob };
+  return { judgeArtifact, resolveTarget, serviceModel, derive, aggregate, createProber, hostEntry, hostHttp, hostJob, epochOf, CLOCK_SKEW_SEC };
 })();
 // </evidence-core>
 
@@ -1484,26 +1609,11 @@ const densityKey = `${storagePrefix}.density`;
 document.documentElement.dataset.audience = AUDIENCE;
 if (isHex(RAW_ACCENT)) document.documentElement.style.setProperty("--manifest-accent", RAW_ACCENT);
 
-function serviceTargetUrl(service) {
-  if (!service.sameHost || !/^https?:$/.test(window.location.protocol) || !window.location.hostname) {
-    return service.url;
-  }
-  const target = new URL(window.location.href);
-  target.protocol = service.scheme || target.protocol;
-  // A path-only service (no port) lives on this dashboard's own server: keep its port.
-  const port = String(service.hostPort || service.port || "").replace(/^:/, "").split(/\s+/)[0];
-  if (/^\d+$/.test(port)) target.port = port;
-  target.pathname = service.path || "/";
-  target.search = service.search || "";
-  target.hash = "";
-  return target.href;
-}
-
 const SERVICES = arrayOrEmpty(CONFIG.services)
   .filter(raw => isObject(raw) && WINGS.some(wing => wing.id === raw.wing))
   .map((raw, index) => {
     const active = raw.passive !== true;
-    const url = active && typeof raw.url === "string" ? serviceTargetUrl(raw) : null;
+    const url = EvidenceCore.resolveTarget(raw, window.location.href);
     return { raw, index, key: `s${index}`, wing: raw.wing, active, url, model: EvidenceCore.serviceModel(raw, url) };
   });
 const BY_KEY = new Map(SERVICES.map(service => [service.key, service]));
@@ -1533,7 +1643,10 @@ const footOf = service => localize(service.active ? service.raw.port || service.
 const wingOf = service => WINGS.find(wing => wing.id === service.wing);
 const isBad = ev => ev?.l === "bad";
 const isAway = ev => ev?.l === "split" || ev?.l === "aring";
-const isRun = ev => ev?.l === "on" || ev?.l === "dim" || ev?.l === "ring";
+// Running means host-vouched (host, self-report or both). A browser-only "ring" proves
+// reachability: it opens, but nobody vouched that it runs.
+const isVouched = ev => ev?.l === "on" || ev?.l === "dim";
+const opensFine = ev => isVouched(ev) || ev?.l === "ring";
 const wordOf = ev => ev?.word ? t(ev.word, ev.vars) : "";
 const contactName = () => CONTACT ? localize(CONTACT.name) : "";
 
@@ -1687,29 +1800,21 @@ function paintItem(service) {
 // ── SUMMARY: hero verdict, rail counts, favicon ───────────────────────────────
 function summarize() {
   const list = SERVICES.map(service => ({ service, ev: EV.get(service.key) }));
-  const bad = list.filter(item => isBad(item.ev));
-  const away = list.filter(item => isAway(item.ev));
-  const run = list.filter(item => isRun(item.ev));
-  const pending = list.filter(item => item.ev?.s === "checking");
-  const none = list.filter(item => item.ev?.l === "off" && item.ev?.s !== "checking");
-  let v;
-  if (!list.length) v = "empty";
-  else if (bad.length) v = "bad";
-  else if (TRUTH.state === "checking") v = "checking";
-  else if (TRUTH.state !== "live") v = "quiet";
-  else if (away.length) v = "notice";
-  else if (pending.length) v = "checking";
-  else if (none.length) v = "partial";
-  else v = "ok";
-  return { list, bad, away, run, pending, none, v, n: list.length, family: AUDIENCE === "family" };
+  const verdict = EvidenceCore.aggregate(list.map(item => item.ev), TRUTH.state);
+  const pick = indexes => indexes.map(i => list[i]);
+  return {
+    list, v: verdict.v, lens: verdict.lens, n: verdict.n, family: AUDIENCE === "family",
+    bad: pick(verdict.bad), away: pick(verdict.away), vouched: pick(verdict.vouched),
+    reached: pick(verdict.reached), pending: pick(verdict.pending), none: pick(verdict.none),
+  };
 }
 
 const joinNames = names => {
   const and = language === "de" ? " und " : " and ";
   return names.length <= 1 ? (names[0] || "") : `${names.slice(0, -1).join(", ")}${and}${names[names.length - 1]}`;
 };
-const openersOf = m => m.list.filter(item => item.service.active && isRun(item.ev)).map(item => nameOf(item.service));
-const lensOf = m => ({ ok: "on", partial: "dim", bad: "bad", notice: "split" })[m.v] || "off";
+const openersOf = m => m.list.filter(item => item.service.active && opensFine(item.ev)).map(item => nameOf(item.service));
+const lensOf = m => m.lens || "off";
 
 function headline(m) {
   const f = m.family;
@@ -1733,8 +1838,8 @@ function headline(m) {
       if (TRUTH.state === "stale") return f ? esc(t("h_staleF", { m: "\u0000" })).replace("\u0000", '<span data-live="staleMin"></span>')
         : esc(t("h_staleO", { age: "\u0000" })).replace("\u0000", '<span data-live="staleAge"></span>');
       if (f) return esc(t("h_noneF"));
-      return esc(t(TRUTH.key === "unknownSchema" ? "h_schemaO" : TRUTH.key === "probesOnly" ? "h_unreadableO" : "h_noneO"));
-    case "partial": return esc(t("h_partial", { ok: m.run.length, n: m.n }));
+      return esc(t(TRUTH.key === "unknownSchema" ? "h_schemaO" : TRUTH.key === "probesOnly" ? "h_unreadableO" : TRUTH.key === "badTime" ? "h_timeO" : "h_noneO"));
+    case "partial": return esc(m.vouched.length ? t("h_partial", { ok: m.vouched.length, n: m.n }) : t("h_noVouch", { n: m.n }));
     default: return esc(m.n === 1 ? t("h_okOne") : t("h_okMany", { n: m.n }));
   }
 }
@@ -1745,7 +1850,7 @@ function subline(m) {
   switch (m.v) {
     case "empty": return t(f ? "s_emptyF" : "s_emptyO");
     case "checking": return t("s_checking");
-    case "bad": return f ? t("s_badF", { u: m.run.length + m.away.filter(item => item.ev.l === "split").length, n: m.n }) : "";
+    case "bad": return f ? t("s_badF", { u: m.vouched.length + m.away.filter(item => item.ev.l === "split").length, n: m.n }) : "";
     case "notice": {
       const hostVouched = m.away.every(item => item.ev.l === "split");
       if (!hostVouched) return t(f ? "s_awayOnlyF" : "s_awayOnlyO");
@@ -1756,8 +1861,12 @@ function subline(m) {
       if (TRUTH.state === "stale") return t("s_staleO", { u: urls });
       return t("s_noneO", { path: STATUS_PATH, why: t(`why_${TRUTH.key}`), u: urls });
     case "partial": {
-      const names = m.none.map(item => nameOf(item.service));
-      return names.length <= 3 ? t("s_partial", { list: joinNames(names) }) : t("s_partialMany", { k: names.length });
+      const part = (items, one, many) => {
+        if (!items.length) return "";
+        const names = items.map(item => nameOf(item.service));
+        return names.length <= 3 ? t(one, { list: joinNames(names) }) : t(many, { k: names.length });
+      };
+      return [part(m.reached, "s_reached", "s_reachedMany"), part(m.none, "s_partial", "s_partialMany")].filter(Boolean).join(" ");
     }
     default: {
       if (!f) {
@@ -1791,7 +1900,7 @@ function truthHTML(m) {
   else if (TRUTH.state === "checking") { main = esc(t("tr_checking")); sub = esc(t("tr_checkingSub")); }
   else if (TRUTH.state === "live") { main = `${esc(t("tr_live"))} · <span data-live="age"></span>`; sub = '<span data-live="next"></span>'; }
   else if (TRUTH.state === "stale") { main = '<span data-live="staleChip"></span>'; sub = esc(t("tr_ignored")); }
-  else { main = esc(t("tr_none")); sub = esc(t("tr_probes")); }
+  else { main = esc(t(TRUTH.key === "noArtifact" ? "tr_none" : "tr_unusable")); sub = esc(t("tr_probes")); }
   return `<div class="truth" id="truthRow" data-t="${kind}" title="${esc(truthTitle())}">
     <svg class="cd" viewBox="0 0 36 36" aria-hidden="true"><circle class="trk" cx="18" cy="18" r="14.5"/><circle class="arc" cx="18" cy="18" r="14.5" pathLength="100" stroke-dasharray="0 100"/></svg>
     <span class="truth-t now"><b id="truthLabel">${main}</b><span>${sub}</span></span>
@@ -1839,7 +1948,7 @@ function guideHTML(m) {
 
 function attHTML(m) {
   if (m.family) return "";
-  const chips = m.v === "bad" ? [...m.bad, ...m.away] : m.v === "notice" ? m.away : m.v === "partial" ? m.none : [];
+  const chips = m.v === "bad" ? [...m.bad, ...m.away] : m.v === "notice" ? m.away : m.v === "partial" ? [...m.reached, ...m.none] : [];
   if (chips.length) {
     return `<h3 class="sr">${esc(t("att"))}</h3><ul class="att">${chips.map(({ service, ev }) => {
       const evidence = evText(ev) + (service.raw.note ? ` · ${localize(service.raw.note)}` : "");
@@ -1850,7 +1959,7 @@ function attHTML(m) {
     }).join("")}</ul>`;
   }
   if (m.v === "quiet") {
-    return `<div class="next"><div class="next-t"><h3>${esc(t("next"))}</h3><p>${esc(t(TRUTH.state === "stale" ? "nStale" : "nNone", { path: STATUS_PATH }))}</p></div>${button("reloadStatus", t("reloadStatus"), "reload", { cls: "primary" })}</div>`;
+    return `<div class="next"><div class="next-t"><h3>${esc(t("next"))}</h3><p>${esc(t(TRUTH.state === "stale" ? "nStale" : TRUTH.key === "badTime" ? "nTime" : "nNone", { path: STATUS_PATH }))}</p></div>${button("reloadStatus", t("reloadStatus"), "reload", { cls: "primary" })}</div>`;
   }
   if (m.v === "empty") return `<div class="next"><div class="next-t"><h3>${esc(t("next"))}</h3><p>${esc(t("nEmpty"))}</p></div></div>`;
   return "";

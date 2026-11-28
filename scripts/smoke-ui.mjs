@@ -72,6 +72,10 @@ const defaults = {
     truthCard: "Mosquitto",
     httpContainer: "scrypted",
     httpCard: "Scrypted",
+    // A self-reporting service (HOSTD-10): its telemetry is evidence only when it is an
+    // explicit health report (HOSTD-83 gate r1 M7).
+    selfReportCard: "Babycam",
+    selfReportKey: "babycam",
   },
   hsb8: {
     cards: 5,
@@ -246,11 +250,11 @@ const expected = {
   ...(defaults[host] || defaults.hsb1),
   cards: Number(
     process.env.EXPECTED_CARDS ||
-      (defaults[host]?.cards || defaults.hsb1.cards) + (manifestContractMode ? 2 : 0),
+      (defaults[host]?.cards || defaults.hsb1.cards) + (manifestContractMode ? 3 : 0),
   ),
   total: Number(
     process.env.EXPECTED_TOTAL ||
-      (defaults[host]?.total || defaults.hsb1.total) + (manifestContractMode ? 2 : 0),
+      (defaults[host]?.total || defaults.hsb1.total) + (manifestContractMode ? 3 : 0),
   ),
   searchName: expectedString("EXPECTED_SEARCH_NAME", "searchName"),
   searchTerm: expectedString("EXPECTED_SEARCH_TERM", "searchTerm"),
@@ -295,6 +299,17 @@ function manifestFromConfig(config) {
           icon: "server",
           passive: false,
           status: "external",
+        },
+        // HOSTD-83 gate r1 M5: same-host services resolve against the dashboard's own
+        // origin and need no canonical `url`. The path is one this test server answers
+        // 200, so the sentinel adds no failure of its own.
+        {
+          wing: config.wings[0].id,
+          name: "Manifest same-host sentinel",
+          purpose: "Same-host service without a canonical url",
+          icon: "server",
+          sameHost: true,
+          path: "/config.js",
         },
       ]
     : [];
@@ -397,16 +412,18 @@ async function localPageUrl() {
     url: server.url,
     // ageSec lets a test hand the board a deliberately old artifact and watch it
     // degrade to "stale" instead of trusting it.
-    writeStatus: async (containers, ageSec = 0, http = {}) =>
+    // `more` adds units/extras/jobs, or replaces `generated` with a raw value.
+    writeStatus: async (containers, ageSec = 0, http = {}, more = {}) =>
       writeFile(
         join(site, "status", "status.json"),
         JSON.stringify({
           schema: "inspr.hostdash.status.v1",
-          generated: Math.floor(Date.now() / 1000) - ageSec,
+          generated: "generated" in more ? more.generated : Math.floor(Date.now() / 1000) - ageSec,
           containers,
-          units: {},
-          extras: {},
+          units: more.units || {},
+          extras: more.extras || {},
           http,
+          ...(more.jobs ? { jobs: more.jobs } : {}),
         }),
       ),
     // No artifact at all: the board must fall back to probes and claim nothing more.
@@ -417,6 +434,14 @@ async function localPageUrl() {
     },
   };
 }
+
+// Facts the round-1 checks take from the board's own config rather than a table.
+const hostConfig = await readHostConfig(host);
+const englishOf = value => typeof value === "string" ? value : value?.en;
+// A passive, unit-bound service without a URL: its job record alone decides its card.
+const jobService = hostConfig.services.find(service => service.passive === true && typeof service.unit === "string" && !service.url) || null;
+// The path-only service's own host binding (hausnetz.service, hsb9-media).
+const pathOnlyConfig = expected.pathOnlyService ? hostConfig.services.find(service => englishOf(service.name) === expected.pathOnlyService) : null;
 
 const localPage = process.env.PAGE_URL ? null : await localPageUrl();
 const pageUrl = process.env.PAGE_URL || localPage.url;
@@ -465,6 +490,17 @@ async function waitForJson(path) {
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// The HOSTD-83 gate round-1 checks throw like every other check. With SMOKE_SOFT=1 they
+// are collected instead and the run goes on, so one run against an older board lists
+// every round-1 check it fails (how the PR shows each one failing before its fix).
+const softMode = process.env.SMOKE_SOFT === "1";
+const softFailures = [];
+const round1Fail = message => {
+  if (!softMode) throw new Error(message);
+  const head = message.split(":")[0];
+  if (!softFailures.some(line => line.split(":")[0] === head)) softFailures.push(message.slice(0, 400));
+};
 
 try {
   const pages = await waitForJson("/json/list");
@@ -708,6 +744,26 @@ try {
     return card;
   };
   const sampleTruth = () => sampleCard(expected.truthCard);
+  // Let sweeps run until no card is still checking, then read the board's verdict.
+  const sampleBoard = async () => {
+    await sleep(sweepMs * 3);
+    const read = () => value(`(() => ({
+      verdict: document.documentElement.dataset.v || null,
+      truth: document.getElementById("truthRow")?.dataset.t || null,
+      hostTruth: document.documentElement.dataset.hostTruth || null,
+      lens: document.querySelector("#hero .lens .led")?.dataset.l || null,
+      headline: document.getElementById("heroH")?.textContent || "",
+      truthLabel: document.getElementById("truthLabel")?.textContent || "",
+      vouched: [...document.querySelectorAll('#services [data-item][data-l="on"], #services [data-item][data-l="dim"]')].length,
+    }))()`);
+    const deadline = Date.now() + 10000;
+    let board = await read();
+    while (board.verdict === "checking" && Date.now() < deadline) {
+      await sleep(150);
+      board = await read();
+    }
+    return board;
+  };
 
   const initial = await value(`(() => {
     ${itemJs}
@@ -737,7 +793,9 @@ try {
       manifestContract: ${manifestContractMode ? `(() => {
         const binding = byName("Manifest binding sentinel");
         const explicitActive = byName("Manifest passive sentinel");
+        const sameHost = byName("Manifest same-host sentinel");
         return {
+          sameHost: sameHost ? { href: linkOf(sameHost)?.getAttribute("href") ? linkOf(sameHost).href : null, probe: sameHost.dataset.probe || null } : null,
           binding: binding ? {
             container: binding.dataset.container || null,
             unit: binding.dataset.unit || null,
@@ -799,6 +857,10 @@ try {
     }
     if (contract?.explicitActive?.tag !== "A" || contract.explicitActive.passive !== false) {
       throw new Error(`Manifest passive derivation disagrees with config.js: ${JSON.stringify(initial)}`);
+    }
+    const sameHostWant = new URL("/config.js", pageUrl).href;
+    if (contract?.sameHost?.href !== sameHostWant || contract.sameHost.probe !== sameHostWant) {
+      round1Fail(`Same-host service without a canonical url lost its link or probe: ${JSON.stringify({ sameHostWant, sameHost: contract?.sameHost })}`);
     }
   }
   if (initial.total !== String(expected.total)) {
@@ -962,7 +1024,89 @@ try {
     }
     await value(`document.querySelector('[data-language="en"]').click()`);
 
-    truthStates = { stopped, failureHelp, running, stale, none, noneDe };
+    // HOSTD-83 gate r1 M1: a fresh artifact that lists none of the services is no proof
+    // that anything runs, whatever the probes find. No green or split lens, no
+    // "running" headline (only a real failure may still be loud).
+    await localPage.writeStatus({});
+    const unlisted = await sampleBoard();
+    if (unlisted.truth !== "live" || unlisted.verdict === "ok" || ["on", "dim", "split"].includes(unlisted.lens) || unlisted.vouched ||
+        (unlisted.verdict !== "bad" && /running/i.test(unlisted.headline))) {
+      round1Fail(`Aggregate claimed more than the evidence (artifact lists no service): ${JSON.stringify(unlisted)}`);
+    }
+
+    // HOSTD-83 gate r1 M8: an artifact whose timestamp cannot age is not evidence.
+    const badTimes = {};
+    for (const [label, generated] of [["Infinity", "Infinity"], ["a day ahead", Math.floor(Date.now() / 1000) + 86400]]) {
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true } }, 0, {}, { generated });
+      const card = await sampleTruth();
+      const board = await sampleBoard();
+      badTimes[label] = { card, board };
+      if (card.truth !== "none" || card.hostTruth !== "absent" || card.led !== "off" || card.word ||
+          board.truthLabel !== englishStrings.tr_unusable) {
+        round1Fail(`Artifact with generated=${label} was trusted: ${JSON.stringify({ card, board })}`);
+      }
+    }
+    await assertEvidence("artifact with an invalid timestamp");
+
+    // HOSTD-83 gate r1 M3: a job record is evidence on its own, and a oneshot that
+    // finished cleanly ("inactive" between runs) is not a stopped daemon.
+    let jobStates = null;
+    if (jobService) {
+      const jobName = englishOf(jobService.name);
+      const base = { [expected.truthContainer]: { running: true } };
+      await localPage.writeStatus(base, 0, {}, { jobs: { [jobService.unit]: { ok: false, last: Math.floor(Date.now() / 1000) - 3600 } } });
+      const failedNoRow = await sampleCard(jobName);
+      await localPage.writeStatus(base, 0, {}, {
+        units: { [jobService.unit]: { running: false, active: "inactive", enabled: "enabled" } },
+        jobs: { [jobService.unit]: { ok: true, last: Math.floor(Date.now() / 1000) - 600 } },
+      });
+      const finished = await sampleCard(jobName);
+      jobStates = { jobName, failedNoRow, finished };
+      if (failedNoRow.state !== "jobfail" || failedNoRow.led !== "bad" || failedNoRow.word !== englishStrings.jobFailed) {
+        round1Fail(`A failed job without a unit row was ignored: ${JSON.stringify(jobStates)}`);
+      }
+      if (finished.state === "stopped" || finished.led !== "on" || finished.word !== englishStrings.jobOk) {
+        round1Fail(`A finished oneshot read as a stopped daemon: ${JSON.stringify(jobStates)}`);
+      }
+    }
+
+    // HOSTD-83 gate r1 M2: the path-only service's host binding says running, and this
+    // dashboard's own server answers its path 404. That is a loud HTTP 404, not
+    // "Unreachable" with the code thrown away.
+    let pathOnlyRunning = null;
+    if (pathOnlyConfig && (pathOnlyConfig.container || pathOnlyConfig.unit)) {
+      await localPage.writeStatus(
+        { [expected.truthContainer]: { running: true }, ...(pathOnlyConfig.container ? { [pathOnlyConfig.container]: { running: true } } : {}) },
+        0, {}, pathOnlyConfig.unit ? { units: { [pathOnlyConfig.unit]: { running: true, active: "active", enabled: "enabled" } } } : {},
+      );
+      pathOnlyRunning = await sampleCard(expected.pathOnlyService);
+      if (pathOnlyRunning.state !== "fault" || pathOnlyRunning.led !== "bad" || pathOnlyRunning.word !== "HTTP 404" || !pathOnlyRunning.shown) {
+        round1Fail(`Running host + same-origin 404 did not read as HTTP 404: ${JSON.stringify(pathOnlyRunning)}`);
+      }
+    }
+
+    // HOSTD-83 gate r1 M7: empty or malformed telemetry is not health.
+    let selfReport = null;
+    if (expected.selfReportCard) {
+      selfReport = {};
+      for (const [label, telemetry] of [["empty", {}], ["health null", { health: null }], ["health 1", { health: 1 }]]) {
+        await localPage.writeStatus({ [expected.truthContainer]: { running: true } }, 0, {}, { extras: { [expected.selfReportKey]: telemetry } });
+        const card = await sampleCard(expected.selfReportCard);
+        selfReport[label] = card;
+        if (card.led !== "off" || card.word || card.state !== "unknown") {
+          round1Fail(`${expected.selfReportCard} telemetry ${label} read as a claim: ${JSON.stringify(card)}`);
+        }
+      }
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true } }, 0, {}, { extras: { [expected.selfReportKey]: { health: "OK", desired_volume: 40 } } });
+      const healthy = await sampleCard(expected.selfReportCard);
+      selfReport.ok = healthy;
+      if (healthy.led !== "on" || healthy.word !== englishStrings.listening) {
+        round1Fail(`${expected.selfReportCard} explicit OK no longer reads healthy: ${JSON.stringify(healthy)}`);
+      }
+    }
+    await assertEvidence("round-1 fixtures");
+
+    truthStates = { stopped, failureHelp, running, stale, none, noneDe, unlisted, badTimes, jobStates, pathOnlyRunning, selfReport };
   }
 
   // ── HOST-SIDE HTTP TRUTH (HOSTD-12) ─────────────────────────────────────────
@@ -1247,6 +1391,9 @@ try {
   await siblingPreference("en");
   assertEnglish(await languageState());
 
+  if (softFailures.length) {
+    throw new Error(`Round-1 checks failed (${softFailures.length}):\n  ✗ ${softFailures.join("\n  ✗ ")}`);
+  }
   if (exceptions.length) {
     throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   }
