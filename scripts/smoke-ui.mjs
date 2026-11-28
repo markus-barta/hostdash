@@ -63,7 +63,8 @@ const defaults = {
     density: "list",
     searchName: "Plex",
     searchTerm: "plex",
-    certService: "Scrypted",
+    certService: null,
+    hostOnlyCertService: "Scrypted",
     sameHostService: "Plex",
     sameHostPort: "32400",
     sameHostPath: "/web",
@@ -556,6 +557,7 @@ try {
   // Every subresource the page itself loads must be same-origin or inline (AC8). Probe
   // fetches go to the configured services by design and are not counted here.
   const foreignResources = [];
+  const fetchRequests = [];
   // Set by the probe control below while it intercepts requests (CDP Fetch domain).
   let onPaused = null;
 
@@ -567,6 +569,7 @@ try {
     }
     if (message.method === "Network.requestWillBeSent") {
       const { request, type } = message.params;
+      if (type === "Fetch") fetchRequests.push(request.url);
       if (type !== "Fetch" && !/^(data:|about:|http:\/\/127\.0\.0\.1:)/.test(request.url)) foreignResources.push(`${type} ${request.url}`);
     }
     if (message.id && pending.has(message.id)) {
@@ -876,7 +879,7 @@ try {
 
   const initial = await value(`(() => {
     ${itemJs}
-    const certName = ${JSON.stringify(expected.certService)};
+    const certName = ${JSON.stringify(expected.certService || expected.hostOnlyCertService || null)};
     const sameHostName = ${JSON.stringify(expected.sameHostService)};
     const rail = document.getElementById("rail");
     return {
@@ -893,7 +896,8 @@ try {
       controlsInHeader: Boolean(document.querySelector(".top #q, .top #zoomRange")),
       certFlagged: certName ? (() => {
         const item = byName(certName);
-        return item ? { certIssue: item.dataset.certIssue || null, probed: Boolean(item.dataset.probe) } : null;
+        return item ? { certIssue: item.dataset.certIssue || null, probed: Boolean(item.dataset.probe),
+          href: linkOf(item)?.href || null, title: item.title || item.querySelector(".row")?.title || "" } : null;
       })() : null,
       staticServices: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticServices || {})}).map(name => {
         const item = byName(name);
@@ -1013,6 +1017,18 @@ try {
     }
     if (initial.certFlagged.certIssue !== "1" || !initial.certFlagged.probed) {
       throw new Error(`Expected ${expected.certService} to be cert-flagged and probed, got ${JSON.stringify(initial)}`);
+    }
+  }
+  if (expected.hostOnlyCertService) {
+    const cert = initial.certFlagged;
+    const target = new URL(pageUrl);
+    target.protocol = "https:";
+    target.port = "10443";
+    target.pathname = "/";
+    target.search = target.hash = "";
+    if (!cert || cert.certIssue !== "1" || cert.probed || cert.href !== target.href ||
+        !cert.title.includes("service answers with a self-signed localhost certificate")) {
+      throw new Error(`Expected host-only ${expected.hostOnlyCertService} with its link and cert note: ${JSON.stringify(cert)}`);
     }
   }
   // HOSTD-83 finding (b): a static status is not probed and, without the host's word,
@@ -1294,15 +1310,21 @@ try {
 
     // Container up, nothing answering behind it — curl's 000.
     const silent = await withHttp(0);
-    if (silent.state !== "fault" || silent.word !== englishStrings.noAnswer || !silent.shown) {
+    if (silent.state !== "fault" || silent.word !== englishStrings.noAnswer || !silent.shown || silent.led !== "bad") {
       throw new Error(`Expected ${expected.httpCard} to report no answer, got ${JSON.stringify(silent)}`);
     }
 
-    // Host gets a clean 200. Whether THIS browser can also reach it is a property of the
-    // machine running the test, so only the unreachable branch is asserted in detail —
-    // the Scrypted case: running per host, the path from here is what is broken.
+    // A host-only card stays host-vouched; a probed card also reflects this browser.
     const ok = await withHttp(200);
-    if (ok.state === "unreachable") {
+    if (expected.hostOnlyCertService === expected.httpCard) {
+      const redirect = await withHttp(302);
+      for (const card of [ok, redirect]) {
+        if (card.state !== "running" || card.led !== "on" || card.word !== englishStrings.status_running ||
+            card.busy || card.probed) {
+          throw new Error(`Expected host-vouched ${expected.httpCard} on HTTP 200/302: ${JSON.stringify(card)}`);
+        }
+      }
+    } else if (ok.state === "unreachable") {
       if (ok.word !== englishStrings.status_unreachable || ok.led !== "split" || ok.hostOk !== "200" || !/HTTP 200/.test(ok.title || "")) {
         throw new Error(`Host-confirmed service was not labelled as running but unreachable: ${JSON.stringify(ok)}`);
       }
@@ -1468,6 +1490,28 @@ try {
         }
         await value(`(() => { document.getElementById("sheet").hidden || document.querySelector('#sheet [data-act="close"]')?.click(); document.activeElement?.blur(); return true; })()`);
         await controlProbes(null);
+      } else if (expected.hostOnlyCertService === name) {
+        // HOSTD-85: Scrypted cannot enter the browser-reachability recovery sheet.
+        // Exercise its host-only stop, expiry and recovery instead of skipping it.
+        if (!key || probe) throw new Error(`Expected a host-only card for ${name}`);
+        const base = { [expected.truthContainer]: { running: true } };
+        const http = { [expected.httpContainer]: { code: 302, ms: 9 } };
+        await localPage.writeStatus({ ...base, [expected.httpContainer]: { running: false } }, 0, http);
+        const stoppedCard = await sampleCard(name);
+        const up = { ...base, [expected.httpContainer]: { running: true } };
+        await localPage.writeStatus(up, 600, http);
+        const expiredCard = await sampleCard(name);
+        await localPage.writeStatus(up, 0, http);
+        const recoveredCard = await sampleCard(name);
+        const sheetOpen = await value('!document.getElementById("sheet").hidden');
+        round2.sheet = { name, hostOnly: true, stoppedCard, expiredCard, recoveredCard, sheetOpen };
+        if (stoppedCard.state !== "stopped" || stoppedCard.led !== "bad" ||
+            stoppedCard.word !== englishStrings.status_stopped || !stoppedCard.shown ||
+            expiredCard.led !== "off" || expiredCard.word ||
+            recoveredCard.state !== "running" || recoveredCard.led !== "on" ||
+            recoveredCard.word !== englishStrings.status_running || sheetOpen) {
+          throw new Error(`Host-only stop/expiry/recovery failed: ${JSON.stringify(round2.sheet)}`);
+        }
       }
     }
 
@@ -2146,6 +2190,14 @@ try {
     if (!(await reloadUntil({ verdict: false }))) throw new Error("Board did not come back after the manifest-stall checks");
   }
 
+  if (expected.hostOnlyCertService) {
+    const target = new URL(initial.certFlagged.href);
+    const requests = fetchRequests.filter(url => {
+      const request = new URL(url);
+      return request.origin === target.origin && request.pathname === target.pathname;
+    });
+    if (requests.length) throw new Error(`Host-only ${expected.hostOnlyCertService} sent browser probes: ${JSON.stringify(requests)}`);
+  }
   if (softFailures.length) {
     throw new Error(`Gate checks failed (${softFailures.length}):\n  ✗ ${softFailures.join("\n  ✗ ")}`);
   }
