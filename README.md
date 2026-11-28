@@ -35,12 +35,12 @@ Each status is a small glass LED, and the rule is: **no evidence, no claim**.
 
 | LED | Meaning | Source |
 | --- | --- | --- |
-| lit green | running | the host's `status.json` (or a service's own self-report) |
+| lit green | running, or (`Letzter Lauf ok` / `Last run ok`) a job whose last run was ok | the host's `status.json` (or a service's own self-report) |
 | green ring, dark core | reachable from this browser, the host says nothing | browser probe only |
 | green core, amber ring | running per host, but this device cannot get through | host + failed probe |
 | amber ring, dark core | this browser cannot get through, the host says nothing | failed probe only |
 | lit red | a failure was measured: stopped, host-side HTTP 5xx or no answer, a failed job run, a self-reported fault (`Ton ausgefallen` …), or a same-origin 404/5xx | host, self-report, or this dashboard's own nginx |
-| dark glass | no evidence (still checking, no or stale `status.json`, not listed in it), so no word either | — |
+| dark glass | no evidence (still checking, no or stale `status.json`, not listed in it, or listed with a malformed record), so no word either | — |
 
 Status words stay fixed: `In Betrieb` / `Ausgefallen` / `Nicht erreichbar` (EN
 `Running` / `Down` / `Unreachable`), plus the specific ones (`HTTP 503`,
@@ -56,7 +56,18 @@ browser reached it) never counts: a fresh artifact that lists none of the servic
 reads `No host report for any of the N services` under a ringed or dark lens; a
 mix reads `K of N services running` under a dimmed lens. The split lens (green in
 amber) is shown only when every unreachable card is host-confirmed; otherwise the
-lens is an amber ring.
+lens is an amber ring. A job whose last run was ok is vouched for but is not
+running, so it is counted apart: `All N services report ok: R running, J last run
+ok` (`K of N services running` counts only what runs).
+
+On a family board the hero and the guide say a service "opens" or "works as usual"
+only on this browser's own evidence (it reached the service). While the probe is
+pending, or when it is turned off in the config, the board has the host's word
+only and says that: `Home Assistant läuft laut Gerät` / `… is running, says the host`.
+
+An unreachable service explains itself in a sheet before it opens. The sheet follows
+the evidence: it is re-worded when the host status expires (then only this browser's
+failed check is left) and dismissed when the service stops or recovers.
 
 The board re-reads `status.json` and re-probes about every 60 s. A probe that is
 still in flight is never replaced or discarded by the next sweep, so its result
@@ -133,8 +144,11 @@ share/hostdash-csb1/index.html
 ```
 
 If `manifest.json` is present beside `config.js`, the app loads the versioned
-manifest first and falls back to `config.js` if the manifest is missing or
-invalid.
+manifest first and falls back to `config.js` if the manifest is missing,
+invalid, or not completely read within 3 s (request and body together): a stalled
+manifest never keeps the board from starting. A service `url` must be a web
+address (`http:`/`https:`, or relative to the page); anything else gets neither a
+link nor a probe.
 
 The packaged `index.html` loads `config.js?v=<first 16 hex of its sha256>`, so a
 browser that cached an old `config.js` fetches the new one on the next reload.
@@ -189,15 +203,27 @@ not `Down`; a running path-only service behind a same-origin 404 reads `HTTP 404
 the babycam's empty or malformed telemetry claims nothing; focus survives a
 recovery (attention chip, guide button, Failures group); the theme switch flips
 with storage blocked; and the section heading follows the language on every board.
-`SMOKE_SOFT=1` collects those round-1 failures instead of stopping at the first.
+The round-2 checks answer probes themselves (CDP request interception: 200,
+refused, or held unanswered) so reachability is decided by the test, not the
+machine's network: a stopped timer with an ok last run reads `Down`, only an
+identified oneshot is a finished job, and the hero counts it apart from running
+services; malformed records (empty rows, `code: null`, a code object with a hostile
+`toString`) claim nothing and stop no other card; the recovery sheet is dismissed
+when its service stops or recovers and re-worded when the host status expires;
+focus survives a partial recovery under the Failures filter; a family board says
+"opens" only once this browser reached the service (pending and disabled probes
+get host-running wording); and a manifest that never answers, or stalls mid-body,
+leaves the board starting on `config.js`.
+`SMOKE_SOFT=1` collects those gate failures instead of stopping at the first.
 
 `scripts/test-evidence.mjs` runs the page's evidence core (the block between the
 `// <evidence-core>` markers in `public/index.html`) in a bare Node VM: probes
 cannot be starved by fast sweeps, a hung probe still settles, the probe queue
 cannot starve its tail but drains in batches, static statuses go through the
-evidence rules, timestamps, telemetry, jobs, same-origin HTTP codes, same-host URL
-resolution and the hero verdict follow the evidence, and the rest of the truth
-model holds. Every check runs; failures are listed together. No browser needed.
+evidence rules, timestamps, telemetry, jobs (only identified oneshots finish),
+malformed records, same-origin HTTP codes, same-host and non-web URLs, the hero
+verdict (running and jobs counted apart) and "opens" wording follow the evidence,
+and the rest of the truth model holds. Every check runs; failures are listed together. No browser needed.
 
 ## Host Status Artifact
 
@@ -209,7 +235,7 @@ by `services.hostdash.status` in nixcfg. Schema `inspr.hostdash.status.v1`:
   "schema": "inspr.hostdash.status.v1",
   "generated": 1786208496,
   "containers": { "scrypted": { "running": true, "health": null } },
-  "units":      { "adguardhome.service": { "running": true } },
+  "units":      { "adguardhome.service": { "running": true, "active": "active" } },
   "extras":     { "babycam": { "health": "OK", "desired_volume": 0 } },
   "http":       { "scrypted": { "code": 200, "ms": 11 } }
 }
@@ -222,13 +248,23 @@ never expire. `extras` count only as an explicit health report: an object whose
 `health` is a non-empty string (`"OK"`, or a fault code). `{}`, `null` or a
 non-string `health` claim nothing, and the card falls back to its other evidence.
 
+Every other record must be well-formed to count: a container or unit row needs an
+explicit boolean `running`, an `http` entry an integer `code` of 0 or 100–599 (a
+number, or curl's digits such as `"000"`), a `jobs` entry a boolean `ok`. A
+malformed record (`{}`, `running: null`, `code: null`, an object for a code) is no
+evidence: the card ignores it, says "malformed entry in the status file", and no
+record can stop the other cards from updating.
+
 `http` is optional and keyed by container/unit name (or a service's `httpKey`).
 So is `jobs`, keyed the same way: `{ "restic.timer": { "ok": false, "last": 1786200000 } }`
 renders as `Letzter Lauf fehlgeschlagen` / `Last run failed`; `ok: true` as
 `Letzter Lauf ok`. A job record counts on its own, with or without a `units`
-row, and a oneshot unit that is `inactive` between runs with an ok last run is a
-finished job, not a stopped daemon (`failed` stays red; a stopped container stays
-`Down`). Today's generator does not write it.
+row. A unit that is not running is `Down`, whatever its last run said, with one
+exception: a `.service` the host identifies as a oneshot (`"type": "oneshot"`,
+systemd's `Type=`) that is `inactive` between runs with an ok last run is a finished
+job, not a stopped daemon. A stopped timer, socket or daemon stays `Down`, so does
+a `failed` unit and a stopped container. A `last` later than the artifact's own
+`generated` counts as undated. Today's generator writes neither `jobs` nor `type`.
 It exists because a browser cannot read a status code — a `no-cors` fetch resolves
 on a 500 exactly as on a 200 — so only the host can distinguish a broken service
 from an unreachable one. `code >= 500` renders as `HTTP 503` (red), `code: 0`
