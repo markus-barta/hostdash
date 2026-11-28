@@ -205,6 +205,30 @@ const live = status => ({ truth: "live", status });
   }
 }
 
+// HOSTD-86: pixdcon v2 keeps the existing HTTP probe key, but needs its own container row.
+{
+  const config = vm.runInNewContext(`${await readFile(join(repoRoot, "hosts/hsb1/config.js"), "utf8")}\nwindow.HOSTDASH_CONFIG`, { window: {} });
+  const service = config.services.find(service => service.name === "pixdcon");
+  const model = core.serviceModel(service, core.resolveTarget(service, "http://hsb1.lan/"));
+  for (const [running, code, state, led, word] of [
+    [true, 200, "running", "on", "status_running"],
+    [false, 200, "stopped", "bad", "status_stopped"],
+    [true, 503, "fault", "bad", "httpStatus"],
+  ]) {
+    const derived = core.derive(model, live(artifact({
+      containers: { "pixdcon2-edge": { running } }, http: { pixdcon: { code } },
+    })));
+    check(`(HOSTD-86) pixdcon2-edge running=${running}, host HTTP ${code}: ${state}`,
+      derived.s === state && derived.l === led && derived.word === word && derived.src === "host"
+        && (state !== "fault" || derived.vars.code === code), derived);
+  }
+  const oldOnly = core.derive(model, live(artifact({
+    containers: { pixdcon: { running: true } }, http: { pixdcon: { code: 200 } },
+  })));
+  check("(HOSTD-86) the old pixdcon container row cannot vouch for v2",
+    oldOnly.l === "off" && oldOnly.src === "" && !core.runsPerHost(oldOnly), oldOnly);
+}
+
 // ── the rest of the truth model, so a refactor cannot quietly loosen it ────────
 {
   const passive = core.serviceModel({ container: "mosquitto", passive: true }, null);
