@@ -42,6 +42,13 @@
             if [ -f "hosts/${host}/manifest.json" ]; then
               cp "hosts/${host}/manifest.json" "$out/share/${pname}/manifest.json"
             fi
+            # HOSTD-81: version the config URL by its content. Store files carry a 1970
+            # mtime, so a browser that cached config.js heuristically keeps it "fresh"
+            # forever; a new URL is fetched on the next normal reload of index.html.
+            cfgHash="$(sha256sum "$out/share/${pname}/config.js" | cut -c1-16)"
+            substituteInPlace "$out/share/${pname}/index.html" \
+              --replace-fail '<script src="./config.js"></script>' \
+              "<script src=\"./config.js?v=$cfgHash\"></script>"
             runHook postInstall
           '';
 
