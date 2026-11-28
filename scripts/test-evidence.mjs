@@ -16,6 +16,10 @@
 //       their own, same-host URLs without a redundant `url`, self-report services keep
 //       their browser fallback, empty telemetry is not health, timestamps that cannot
 //       age are not evidence, and probe batching really batches.
+//   (r2) the HOSTD-83 gate round 2 findings: only an identified oneshot service is a
+//       finished job (timers, sockets, daemons stay Down); a job whose last run was ok
+//       is counted apart from running; malformed host records are no evidence and never
+//       throw; "opens" needs this browser's own reachability evidence.
 //
 // Every check runs; failures are listed together and the exit code is 1.
 import { readFile } from "node:fs/promises";
@@ -271,10 +275,11 @@ const live = status => ({ truth: "live", status });
   check("(r1 M3) a failed job without a unit row is loud", jobOnlyFail.s === "jobfail" && jobOnlyFail.l === "bad", jobOnlyFail);
   const jobOnlyOk = core.derive(backup, live(artifact({ jobs: { "backup.service": { ok: true, last: now() - 600 } } })));
   check("(r1 M3) a good job without a unit row reads 'last run ok'", jobOnlyOk.l === "on" && jobOnlyOk.word === "jobOk", jobOnlyOk);
-  const finished = core.derive(backup, live(artifact({ units: { "backup.service": { running: false, active: "inactive" } }, jobs: { "backup.service": { ok: true, last: now() - 600 } } })));
+  // r2: "finished" needs the host to identify the unit as a oneshot (systemd Type=).
+  const finished = core.derive(backup, live(artifact({ units: { "backup.service": { running: false, active: "inactive", type: "oneshot" } }, jobs: { "backup.service": { ok: true, last: now() - 600 } } })));
   check("(r1 M3) an inactive oneshot whose last run was ok is not Down", finished.l === "on" && finished.word === "jobOk" && finished.s !== "stopped", finished);
   check("(r1 M3) ... and says it is idle between runs", finished.ev.some(e => e.key === "ev_unitIdle"), finished);
-  const failedUnit = core.derive(backup, live(artifact({ units: { "backup.service": { running: false, active: "failed" } }, jobs: { "backup.service": { ok: true } } })));
+  const failedUnit = core.derive(backup, live(artifact({ units: { "backup.service": { running: false, active: "failed", type: "oneshot" } }, jobs: { "backup.service": { ok: true } } })));
   check("(r1 M3) a unit in state 'failed' stays loud even with an ok job record", failedUnit.l === "bad", failedUnit);
   const daemon = core.derive(backup, live(artifact({ units: { "backup.service": { running: false, active: "inactive" } } })));
   check("(r1 M3) an inactive unit without a job record is a stopped daemon", daemon.s === "stopped" && daemon.l === "bad", daemon);
@@ -356,6 +361,147 @@ const live = status => ({ truth: "live", status });
   check("(r1 M5) under file:// a same-host service falls back to its url, or none",
     resolve({ sameHost: true, url: "http://h.lan/a/", path: "/a/" }, "file:///tmp/index.html") === "http://h.lan/a/" &&
     resolve({ sameHost: true, path: "/a/" }, "file:///tmp/index.html") === null, {});
+}
+
+// ── (r2) HOSTD-83 gate round 2 ────────────────────────────────────────────────
+{
+  // M1 — a completed job is only an identified oneshot SERVICE. Timers, sockets and
+  // daemons that are inactive stay Down, whatever their last run said.
+  const ok = { ok: true, last: now() - 600 };
+  const inactive = (unit, row) => {
+    const svc = core.serviceModel({ unit, passive: true }, null);
+    return core.derive(svc, live(artifact({ units: { [unit]: { running: false, active: "inactive", ...row } }, jobs: { [unit]: ok } })));
+  };
+  for (const [label, unit, row] of [
+    ["a disabled .timer", "compose-hsb9-update.timer", {}],
+    ["a stopped .socket", "fleet-heartbeat.socket", {}],
+    ["a .service the host does not identify", "ir-bridge.service", {}],
+    ["a .service of Type=simple (a daemon)", "ir-bridge.service", { type: "simple" }],
+    ["a .timer the artifact calls a oneshot", "restic.timer", { type: "oneshot" }],
+  ]) {
+    const derived = inactive(unit, row);
+    check(`(r2 M1) ${label}, inactive with an ok last run, is Down`, derived.s === "stopped" && derived.l === "bad" && derived.word === "status_stopped", derived);
+  }
+  const oneshot = inactive("backup.service", { type: "oneshot" });
+  check("(r2 M1) an identified oneshot service, inactive with an ok last run, is a finished job", oneshot.s === "jobok" && oneshot.l === "on" && oneshot.word === "jobOk" && oneshot.ev.some(e => e.key === "ev_unitIdle"), oneshot);
+  const failedOneshot = core.derive(core.serviceModel({ unit: "backup.service", passive: true }, null),
+    live(artifact({ units: { "backup.service": { running: false, active: "failed", type: "oneshot" } }, jobs: { "backup.service": ok } })));
+  check("(r2 M1) an identified oneshot in state failed stays loud", failedOneshot.l === "bad", failedOneshot);
+  const activeTimer = core.derive(core.serviceModel({ unit: "restic.timer", passive: true }, null),
+    live(artifact({ units: { "restic.timer": { running: true, active: "active" } }, jobs: { "restic.timer": ok } })));
+  check("(r2 M1) an active timer with an ok last run is running (and says the last run)", activeTimer.s === "running" && activeTimer.word === "jobOk" && activeTimer.ev.some(e => e.key === "ev_unitRunning"), activeTimer);
+}
+
+{
+  // M2 — a job whose last run was ok is vouched for, but not running: the aggregate
+  // counts it apart, so the hero cannot say "The service is running" for it.
+  const backup = core.serviceModel({ unit: "backup.service", passive: true }, null);
+  const finished = core.derive(backup, live(artifact({ units: { "backup.service": { running: false, active: "inactive", type: "oneshot" } }, jobs: { "backup.service": { ok: true, last: now() - 600 } } })));
+  const alone = safely(() => core.aggregate([finished], "live"));
+  check("(r2 M2) one finished oneshot: ok, but zero running and one job", alone.v === "ok" && alone.running?.length === 0 && alone.jobs?.length === 1, alone);
+  const jobOnly = core.derive(backup, live(artifact({ jobs: { "backup.service": { ok: true, last: now() - 600 } } })));
+  check("(r2 M2) a job record without a unit row is a job, not a running service", jobOnly.s === "jobok" && jobOnly.l === "on", jobOnly);
+  const daemon = core.derive(core.serviceModel({ container: "mosquitto", passive: true }, null), live(artifact({ containers: { mosquitto: { running: true } } })));
+  const mixed = safely(() => core.aggregate([daemon, finished, jobOnly], "live"));
+  check("(r2 M2) running and jobs are counted apart", mixed.v === "ok" && mixed.lens === "on" && mixed.running?.length === 1 && mixed.jobs?.length === 2 && mixed.vouched.length === 3, mixed);
+  const partial = safely(() => core.aggregate([daemon, finished, { l: "off", s: "unknown" }], "live"));
+  check("(r2 M2) partial: the running count excludes the job", partial.v === "partial" && partial.running?.length === 1 && partial.jobs?.length === 1, partial);
+  // A job record never vouches for a route: unreachable without a running row is the
+  // amber ring, never the host-confirmed split ("running per host").
+  const web = core.serviceModel({ unit: "backup.service", url: "http://b.lan/" }, "http://b.lan/");
+  const away = core.derive(web, { ...live(artifact({ jobs: { "backup.service": { ok: true } } })), probe: { ok: false, kind: "network" } });
+  check("(r2 M2) job record + no connection is the amber ring, not 'running per host'", away.l === "aring" && away.src === "browser" && !away.ev.some(e => e.key === "ev_noHost"), away);
+  const refused = core.derive(web, { ...live(artifact({ jobs: { "backup.service": { ok: true } } })), probe: { ok: false, kind: "http", code: 403 } });
+  check("(r2 M2) job record + 403 is the amber ring too", refused.l === "aring" && refused.vars.code === 403, refused);
+}
+
+{
+  // M4 — malformed host records are no evidence, never a verdict, and never throw.
+  const container = core.serviceModel({ container: "plex", passive: true }, null);
+  const unit = core.serviceModel({ unit: "adguardhome.service", passive: true }, null);
+  for (const [label, record] of [["{}", {}], ["running null", { running: null }], ["running 'true'", { running: "true" }],
+    ["running 1", { running: 1 }], ["running {}", { running: {} }], ["null", null], ["a string", "running"], ["an array", [true]]]) {
+    const c = core.derive(container, live(artifact({ containers: { plex: record } })));
+    check(`(r2 M4) container record ${label} claims nothing`, c.l === "off" && c.word === null && c.s !== "stopped", c);
+    const u = core.derive(unit, live(artifact({ units: { "adguardhome.service": record } })));
+    check(`(r2 M4) unit record ${label} claims nothing`, u.l === "off" && u.word === null && u.s !== "stopped", u);
+  }
+  const why = core.derive(container, live(artifact({ containers: { plex: {} } })));
+  check("(r2 M4) a malformed record says so", why.ev.some(e => e.key === "ev_badRecord"), why);
+  check("(r2 M4) an explicit running:false is still Down", core.derive(container, live(artifact({ containers: { plex: { running: false } } }))).s === "stopped", {});
+
+  const hostile = JSON.parse('{"toString":null}');
+  const codes = [["null", null], ["empty string", ""], ["{}", {}], ["hostile toString", hostile], ["2.5", 2.5], ["999", 999],
+    ["-1", -1], ["'abc'", "abc"], ["true", true], ["NaN", NaN], ["Infinity", Infinity], ["'1e3'", "1e3"], ["missing", undefined]];
+  const web = core.serviceModel({ container: "plex", passive: true }, null);
+  for (const [label, code] of codes) {
+    const derived = safely(() => core.derive(web, live(artifact({ containers: { plex: { running: true } }, http: { plex: { code } } }))));
+    check(`(r2 M4) http code ${label} is no evidence: the running row decides`, derived.s === "running" && derived.l === "on" && derived.word === "status_running", derived);
+  }
+  const codeless = safely(() => core.derive(web, live(artifact({ http: { plex: { code: null } } }))));
+  check("(r2 M4) code null without a row is not 'No answer'", codeless.l === "off" && codeless.word === null, codeless);
+  for (const [label, code, want] of [["number 0", 0, "noAnswer"], ["curl '000'", "000", "noAnswer"], ["'502'", "502", "httpStatus"], ["503", 503, "httpStatus"]]) {
+    const derived = core.derive(web, live(artifact({ containers: { plex: { running: true } }, http: { plex: { code } } })));
+    check(`(r2 M4) a valid code ${label} still counts`, derived.l === "bad" && derived.word === want, derived);
+  }
+  check("(r2 M4) codeOf never converts an object", safely(() => core.codeOf(hostile)) === null && core.codeOf(200) === 200 && core.codeOf("000") === 0, {});
+
+  for (const [label, job] of [["{}", {}], ["ok 'true'", { ok: "true" }], ["ok 1", { ok: 1 }], ["null", null]]) {
+    const derived = core.derive(core.serviceModel({ unit: "backup.service", passive: true }, null), live(artifact({ jobs: { "backup.service": job } })));
+    check(`(r2 M4) job record ${label} claims nothing`, derived.l === "off" && derived.word === null, derived);
+  }
+  const future = core.derive(core.serviceModel({ unit: "backup.service", passive: true }, null), live(artifact({ jobs: { "backup.service": { ok: false, last: 1e20 } } })));
+  check("(r2 M4) a job dated after the artifact counts undated (no 'Invalid Date')", future.s === "jobfail" && future.ev[0].vars.last === null, future);
+  const inherited = core.derive(core.serviceModel({ container: "constructor", passive: true }, null), live(artifact()));
+  check("(r2 M4) a service named like an inherited property finds no record", inherited.l === "off" && inherited.word === null, inherited);
+
+  // One hostile record cannot stop the next card's update: every card is derived.
+  const svcs = [core.serviceModel({ container: "a", passive: true }, null), core.serviceModel({ container: "b", passive: true }, null)];
+  const status = artifact({ containers: { a: { running: true }, b: { running: false } }, http: { a: { code: hostile } } });
+  const derived = safely(() => svcs.map(svc => core.derive(svc, live(status))));
+  check("(r2 M4) a hostile code on one card never throws, and the next card still updates",
+    Array.isArray(derived) && derived[0].s === "running" && derived[1].s === "stopped", derived);
+  // Every operation on this object throws (its handler answers every trap with a thrower).
+  const trap = new Proxy({}, new Proxy({}, { get: () => () => { throw new Error("hostile record"); } }));
+  const trapped = safely(() => core.derive(svcs[0], { truth: "live", status: { ...artifact(), containers: trap } }));
+  check("(r2 M4) derive degrades to no evidence instead of throwing", trapped.l === "off" && trapped.word === null && trapped.ev?.some(e => e.key === "ev_badRecord"), trapped);
+}
+
+{
+  // M5 — "opens"/"works" needs reachability evidence from this browser.
+  const url = "http://ha.lan:8123/";
+  const ha = core.serviceModel({ container: "homeassistant", url }, url);
+  const running = artifact({ containers: { homeassistant: { running: true } } });
+  const opens = ev => safely(() => core.opens(ev));
+  const runs = ev => safely(() => core.runsPerHost(ev));
+  const pending = core.derive(ha, live(running));
+  check("(r2 M5) running per host, probe pending: not 'opens', host-running", pending.l === "on" && opens(pending) === false && runs(pending) === true, pending);
+  const disabled = core.derive(core.serviceModel({ container: "homeassistant", url, probe: false }, url), live(running));
+  check("(r2 M5) running per host, probe disabled: not 'opens', host-running", disabled.l === "on" && opens(disabled) === false && runs(disabled) === true, disabled);
+  const both = core.derive(ha, { ...live(running), probe: { ok: true, kind: "ok" } });
+  check("(r2 M5) running per host and reached from here: opens", opens(both) === true && runs(both) === false, both);
+  const ring = core.derive(ha, { truth: "none", status: null, probe: { ok: true, kind: "ok" } });
+  check("(r2 M5) reached from here without host status: opens, not host-running", opens(ring) === true && runs(ring) === false, ring);
+  const away = core.derive(ha, { ...live(running), probe: { ok: false, kind: "network" } });
+  check("(r2 M5) running per host but unreachable: neither", opens(away) === false && runs(away) === false, away);
+  const job = core.derive(core.serviceModel({ unit: "backup.service", passive: true }, null), live(artifact({ jobs: { "backup.service": { ok: true } } })));
+  check("(r2 M5) a job-only card neither opens nor runs", opens(job) === false && runs(job) === false, job);
+}
+
+{
+  // Same kinds, found in the round-2 sweep: a non-web URL is neither a link nor a probe,
+  // and a stopped unit names only the state the host reported.
+  const resolve = (raw, page) => safely(() => core.resolveTarget(raw, page));
+  for (const url of ["javascript:alert(1)", "data:text/html,<b>x</b>", "file:///etc/passwd", "http://[broken"]) {
+    check(`(r2 sweep) url ${url} is no target`, resolve({ url }, "http://h.lan/") === null, resolve({ url }, "http://h.lan/"));
+  }
+  check("(r2 sweep) an https url is still a target", resolve({ url: "https://x.example/a" }, "http://h.lan/") === "https://x.example/a", {});
+  check("(r2 sweep) a relative url resolves on the page", resolve({ url: "./ops/" }, "http://h.lan/index.html") === "http://h.lan/ops/", resolve({ url: "./ops/" }, "http://h.lan/index.html"));
+  const unit = core.serviceModel({ unit: "x.service", passive: true }, null);
+  const bare = core.derive(unit, live(artifact({ units: { "x.service": { running: false } } })));
+  check("(r2 sweep) a stopped unit without an active state invents none", bare.s === "stopped" && bare.ev[0].key === "ev_unitNotActive" && !bare.ev[0].vars.active, bare);
+  const named = core.derive(unit, live(artifact({ units: { "x.service": { running: false, active: "failed" } } })));
+  check("(r2 sweep) a stopped unit keeps the state the host named", named.ev[0].key === "ev_unitStopped" && named.ev[0].vars.active === "failed", named);
 }
 
 if (failures.length) {

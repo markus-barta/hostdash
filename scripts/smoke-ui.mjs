@@ -357,7 +357,7 @@ function manifestFromConfig(config) {
   };
 }
 
-async function serveDirectory(root) {
+async function serveDirectory(root, control = { manifest: "normal" }) {
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://127.0.0.1");
     const name = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
@@ -390,7 +390,10 @@ async function serveDirectory(root) {
   const address = server.address();
   return {
     url: `http://127.0.0.1:${address.port}/index.html`,
-    cleanup: () => new Promise(resolve => server.close(resolve)),
+    cleanup: () => new Promise(resolve => {
+      server.close(resolve);
+      server.closeAllConnections?.();
+    }),
   };
 }
 
@@ -407,9 +410,24 @@ async function localPageUrl() {
     const manifest = manifestFromConfig(config);
     await writeFile(join(site, "manifest.json"), JSON.stringify(manifest, null, 2));
   }
-  const server = await serveDirectory(site);
+  const control = { manifest: "normal" };
+  const server = await serveDirectory(site, control);
+  const configSource = await readFile(join(site, "config.js"), "utf8");
+  const manifestSource = manifestMode ? await readFile(join(site, "manifest.json"), "utf8") : null;
   return {
     url: server.url,
+    // Probe disabled in the config (`probe: false`) on every active service, in
+    // whichever source this board reads its services from. `false` restores it.
+    setProbeDisabled: async disabled => {
+      await writeFile(join(site, "config.js"), disabled
+        ? `${configSource}\n;window.HOSTDASH_CONFIG.services.forEach(service => { if (service.passive !== true) service.probe = false; });\n`
+        : configSource);
+      if (manifestSource) {
+        const manifest = JSON.parse(manifestSource);
+        if (disabled) manifest.services.forEach(service => { if (service.passive !== true) service.probe = false; });
+        await writeFile(join(site, "manifest.json"), JSON.stringify(manifest, null, 2));
+      }
+    },
     // ageSec lets a test hand the board a deliberately old artifact and watch it
     // degrade to "stale" instead of trusting it.
     // `more` adds units/extras/jobs, or replaces `generated` with a raw value.
@@ -438,8 +456,23 @@ async function localPageUrl() {
 // Facts the round-1 checks take from the board's own config rather than a table.
 const hostConfig = await readHostConfig(host);
 const englishOf = value => typeof value === "string" ? value : value?.en;
-// A passive, unit-bound service without a URL: its job record alone decides its card.
-const jobService = hostConfig.services.find(service => service.passive === true && typeof service.unit === "string" && !service.url) || null;
+// Passive, unit-bound services without a URL: their records alone decide their cards.
+const passiveUnits = hostConfig.services.filter(service => service.passive === true && typeof service.unit === "string" && !service.url);
+// A timer or socket: inactive means stopped, whatever its last run said (HOSTD-83 gate
+// r2 M1; round 1 wrongly treated these as oneshots here).
+const timerService = passiveUnits.find(service => /\.(timer|socket)$/.test(service.unit)) || null;
+// A .service unit, which the test artifact identifies as a oneshot (Type=oneshot): the
+// only kind of unit whose "inactive" with an ok last run is a finished job.
+const oneshotService = passiveUnits.find(service => /\.service$/.test(service.unit)) || null;
+const jobUnitService = timerService || oneshotService;
+// For the malformed-record checks: the first host-bound service in sweep (config) order,
+// and the last passive container after it, whose update a throw would have cut off.
+const boundServices = hostConfig.services.filter(service => service.container || service.unit);
+// Not the path-only service: its same-origin 404 is a real, measured "Down".
+const hostileService = boundServices.find(service => ![expected.truthCard, expected.httpCard, expected.pathOnlyService].includes(englishOf(service.name))) || null;
+const laterService = [...boundServices].reverse().find(service => service.container && service.passive === true && !service.url &&
+  service !== hostileService && ![expected.truthCard, expected.httpCard].includes(englishOf(service.name)) &&
+  boundServices.indexOf(service) > boundServices.indexOf(hostileService)) || null;
 // The path-only service's own host binding (hausnetz.service, hsb9-media).
 const pathOnlyConfig = expected.pathOnlyService ? hostConfig.services.find(service => englishOf(service.name) === expected.pathOnlyService) : null;
 
@@ -514,9 +547,12 @@ try {
   // Every subresource the page itself loads must be same-origin or inline (AC8). Probe
   // fetches go to the configured services by design and are not counted here.
   const foreignResources = [];
+  // Set by the probe control below while it intercepts requests (CDP Fetch domain).
+  let onPaused = null;
 
   ws.onmessage = event => {
     const message = JSON.parse(event.data);
+    if (message.method === "Fetch.requestPaused") onPaused?.(message.params);
     if (message.method === "Runtime.exceptionThrown") {
       exceptions.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text || "exception");
     }
@@ -555,6 +591,43 @@ try {
     }
     return result.result.value;
   }
+
+  // ── PROBE CONTROL (HOSTD-83 gate r2) ────────────────────────────────────────
+  // The round-2 checks need reachability they decide themselves, not the test machine's
+  // network. While a policy is set, every request that is not one of the board's own
+  // files (page, config, manifest, status) is answered here: "ok" (an HTTP 200),
+  // "fail" (connection refused) or "hold" (never answered until released). The board's
+  // own files always go to the test server.
+  const pageOrigin = new URL(pageUrl).origin;
+  const appFile = url => {
+    try {
+      const u = new URL(url);
+      return u.origin === pageOrigin && /^\/(index\.html|config\.js|manifest\.json|status\/status\.json)?$/.test(u.pathname);
+    } catch { return false; }
+  };
+  let probePolicy = null;
+  const heldRequests = [];
+  const answer = (requestId, action) => (action === "ok"
+    ? send("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "text/plain" }], body: Buffer.from("ok").toString("base64") })
+    : action === "fail" ? send("Fetch.failRequest", { requestId, errorReason: "ConnectionRefused" })
+      : send("Fetch.continueRequest", { requestId })).catch(() => {}); // the page may have given up on it already
+  onPaused = ({ requestId, request }) => {
+    const action = appFile(request.url) || !probePolicy ? "continue" : probePolicy(request.url);
+    if (action === "hold") heldRequests.push(requestId);
+    else answer(requestId, action);
+  };
+  const controlProbes = async policy => {
+    if (policy && !probePolicy) await send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+    if (!policy && probePolicy) {
+      await releaseHeld("fail");
+      await send("Fetch.disable");
+    }
+    probePolicy = policy;
+  };
+  async function releaseHeld(action) {
+    for (const requestId of heldRequests.splice(0)) await answer(requestId, action);
+  }
+  const fmt = (key, vars = {}) => englishStrings[key].replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
 
   const key = async (key, code, keyCode, text) => {
     await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, ...(text ? { text } : {}), windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
@@ -1099,25 +1172,50 @@ try {
     }
     await assertEvidence("artifact with an invalid timestamp");
 
-    // HOSTD-83 gate r1 M3: a job record is evidence on its own, and a oneshot that
-    // finished cleanly ("inactive" between runs) is not a stopped daemon.
+    // HOSTD-83 gate r1 M3 + r2 M1: a job record is evidence on its own; a oneshot service
+    // that finished cleanly ("inactive" between runs) is not a stopped daemon; but a timer
+    // or socket that is inactive IS stopped, whatever its last run said.
     let jobStates = null;
-    if (jobService) {
-      const jobName = englishOf(jobService.name);
-      const base = { [expected.truthContainer]: { running: true } };
-      await localPage.writeStatus(base, 0, {}, { jobs: { [jobService.unit]: { ok: false, last: Math.floor(Date.now() / 1000) - 3600 } } });
+    const base = { [expected.truthContainer]: { running: true } };
+    const ago = sec => Math.floor(Date.now() / 1000) - sec;
+    if (jobUnitService) {
+      const jobName = englishOf(jobUnitService.name);
+      await localPage.writeStatus(base, 0, {}, { jobs: { [jobUnitService.unit]: { ok: false, last: ago(3600) } } });
       const failedNoRow = await sampleCard(jobName);
-      await localPage.writeStatus(base, 0, {}, {
-        units: { [jobService.unit]: { running: false, active: "inactive", enabled: "enabled" } },
-        jobs: { [jobService.unit]: { ok: true, last: Math.floor(Date.now() / 1000) - 600 } },
-      });
-      const finished = await sampleCard(jobName);
-      jobStates = { jobName, failedNoRow, finished };
+      jobStates = { jobName, failedNoRow };
       if (failedNoRow.state !== "jobfail" || failedNoRow.led !== "bad" || failedNoRow.word !== englishStrings.jobFailed) {
         round1Fail(`A failed job without a unit row was ignored: ${JSON.stringify(jobStates)}`);
       }
-      if (finished.state === "stopped" || finished.led !== "on" || finished.word !== englishStrings.jobOk) {
-        round1Fail(`A finished oneshot read as a stopped daemon: ${JSON.stringify(jobStates)}`);
+    }
+    if (timerService) {
+      const name = englishOf(timerService.name);
+      await localPage.writeStatus(base, 0, {}, {
+        units: { [timerService.unit]: { running: false, active: "inactive", enabled: "disabled" } },
+        jobs: { [timerService.unit]: { ok: true, last: ago(600) } },
+      });
+      const stoppedTimer = await sampleCard(name);
+      jobStates = { ...jobStates, timer: { name, unit: timerService.unit, stoppedTimer } };
+      if (stoppedTimer.state !== "stopped" || stoppedTimer.led !== "bad" || stoppedTimer.word !== englishStrings.status_stopped || !stoppedTimer.shown) {
+        round1Fail(`A stopped ${timerService.unit} with an ok last run did not read Down: ${JSON.stringify(jobStates.timer)}`);
+      }
+    }
+    if (oneshotService) {
+      const name = englishOf(oneshotService.name);
+      const inactive = async type => {
+        await localPage.writeStatus(base, 0, {}, {
+          units: { [oneshotService.unit]: { running: false, active: "inactive", enabled: "enabled", ...(type ? { type } : {}) } },
+          jobs: { [oneshotService.unit]: { ok: true, last: ago(600) } },
+        });
+        return sampleCard(name);
+      };
+      const finished = await inactive("oneshot");
+      const unidentified = await inactive(null);
+      jobStates = { ...jobStates, oneshot: { name, unit: oneshotService.unit, finished, unidentified } };
+      if (finished.state !== "jobok" || finished.led !== "on" || finished.word !== englishStrings.jobOk) {
+        round1Fail(`A finished oneshot read as a stopped daemon: ${JSON.stringify(jobStates.oneshot)}`);
+      }
+      if (unidentified.state !== "stopped" || unidentified.led !== "bad") {
+        round1Fail(`An inactive .service the host does not identify as a oneshot hid behind its last run: ${JSON.stringify(jobStates.oneshot)}`);
       }
     }
 
@@ -1201,6 +1299,102 @@ try {
     }
 
     httpStates = { fault, silent, ok };
+  }
+
+  // ── GATE ROUND 2 (HOSTD-83) ────────────────────────────────────────────────
+  let round2 = null;
+  if (truthCheck) {
+    round2 = {};
+    const now = () => Math.floor(Date.now() / 1000);
+    const cardKey = name => value(`(() => { ${itemJs} return byName(${JSON.stringify(name)})?.dataset.item || null; })()`);
+    // Every host binding the board shows, reported healthy: the base of a "healthy" board.
+    const healthyFixture = async () => {
+      const bindings = await value(`[...document.querySelectorAll("#services [data-item]")].map(item => ({
+        container: item.dataset.container || null, unit: item.dataset.unit || null, extra: item.dataset.extra || null }))`);
+      const fixture = { containers: {}, units: {}, extras: {} };
+      for (const binding of bindings) {
+        if (binding.container) fixture.containers[binding.container] = { running: true };
+        if (binding.unit) fixture.units[binding.unit] = { running: true, active: "active", enabled: "enabled" };
+        if (binding.extra) fixture.extras[binding.extra] = { health: "OK", desired_volume: 40 };
+      }
+      return fixture;
+    };
+    const writeFixture = (fixture, { http = {}, jobs = null, ageSec = 0 } = {}) =>
+      localPage.writeStatus(fixture.containers, ageSec, http, { units: fixture.units, extras: fixture.extras, ...(jobs ? { jobs } : {}) });
+    const visibleFocus = () => value(`(() => {
+      const node = document.activeElement;
+      return { body: !node || node === document.body, visible: Boolean(node && node !== document.body && node.isConnected && node.getClientRects().length),
+        item: node?.closest?.("#services [data-item]")?.dataset.item || null, inRail: Boolean(node?.closest?.("#groups")), id: node?.id || null };
+    })()`);
+    const exceptionsBefore = exceptions.length;
+
+    // r2 M4 — malformed host records are no evidence and never stop the other cards.
+    // The hostile record belongs to the first host-bound service in sweep order, so a
+    // throw there used to leave every later card (the truth card, `laterService`) on
+    // its previous state, with an unhandled exception in the console.
+    if (hostileService) {
+      const hostileName = englishOf(hostileService.name);
+      const hostileKey = hostileService.httpKey || hostileService.container || hostileService.unit;
+      const later = laterService ? englishOf(laterService.name) : null;
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true }, ...(laterService ? { [laterService.container]: { running: true } } : {}) });
+      await sampleTruth();
+      await localPage.writeStatus(
+        {
+          [expected.truthContainer]: { running: false },
+          [expected.httpContainer]: { running: true },
+          ...(hostileService.container ? { [hostileService.container]: {} } : {}),
+          ...(laterService ? { [laterService.container]: { running: false } } : {}),
+        },
+        0,
+        { [hostileKey]: { code: { toString: null } }, [expected.httpContainer]: { code: null } },
+        hostileService.unit && !hostileService.container ? { units: { [hostileService.unit]: {} } } : {},
+      );
+      const truthAfter = await sampleTruth();
+      const hostile = await sampleCard(hostileName);
+      const nullCode = await sampleCard(expected.httpCard);
+      const laterAfter = later ? await sampleCard(later) : null;
+      round2.malformed = { hostileName, hostile, truthAfter, nullCode, later, laterAfter, newExceptions: exceptions.slice(exceptionsBefore) };
+      if (truthAfter.state !== "stopped" || (laterAfter && laterAfter.state !== "stopped") || exceptions.length > exceptionsBefore) {
+        round1Fail(`r2 M4: a hostile record stopped the other cards from updating: ${JSON.stringify(round2.malformed)}`);
+      }
+      if (["stopped", "fault"].includes(hostile.state) || hostile.word === englishStrings.status_stopped || /^HTTP|No answer/.test(hostile.word)) {
+        round1Fail(`r2 M4: an empty record or a hostile code became a verdict for ${hostileName}: ${JSON.stringify(hostile)}`);
+      }
+      if (nullCode.word === englishStrings.noAnswer || nullCode.led === "bad") {
+        round1Fail(`r2 M4: an HTTP code of null read as curl's 0 ("No answer"): ${JSON.stringify(nullCode)}`);
+      }
+      // An empty running record for the truth card itself: no evidence, not Down.
+      await localPage.writeStatus({ [expected.truthContainer]: {} });
+      const emptyTruth = await sampleTruth();
+      round2.malformed.emptyTruth = emptyTruth;
+      if (emptyTruth.state === "stopped" || emptyTruth.led !== "off" || emptyTruth.word) {
+        round1Fail(`r2 M4: an empty container record read as a verdict: ${JSON.stringify(emptyTruth)}`);
+      }
+      await assertEvidence("malformed host records");
+    }
+
+    // r2 M2 — the hero counts a finished job apart from running services. Every probe is
+    // answered 200 here, so nothing but the evidence decides the verdict.
+    if (oneshotService) {
+      await controlProbes(() => "ok");
+      const fixture = await healthyFixture();
+      fixture.units[oneshotService.unit] = { running: false, active: "inactive", enabled: "enabled", type: "oneshot" };
+      await writeFixture(fixture, { jobs: { [oneshotService.unit]: { ok: true, last: now() - 600 } } });
+      await sampleCard(englishOf(oneshotService.name));
+      const board = await sampleBoard();
+      const counts = await value(`(() => {
+        const items = [...document.querySelectorAll("#services [data-item]")];
+        return { n: items.length, jobs: items.filter(item => item.dataset.s === "jobok").length,
+          running: items.filter(item => ["on", "dim"].includes(item.dataset.l) && item.dataset.s !== "jobok").length };
+      })()`);
+      const want = board.verdict === "ok" ? fmt("h_okJobs", { n: counts.n, r: counts.running, j: counts.jobs })
+        : board.verdict === "partial" ? fmt("h_partial", { ok: counts.running, n: counts.n }) : null;
+      round2.jobsHeadline = { board, counts, want };
+      if (counts.jobs !== 1 || !want || board.headline !== want || /All \d+ services running/.test(board.headline)) {
+        round1Fail(`r2 M2: the hero counted a finished job as running: ${JSON.stringify(round2.jobsHeadline)}`);
+      }
+      await controlProbes(null);
+    }
   }
 
   // ── LAYOUT: phone width ─────────────────────────────────────────────────────
@@ -1486,8 +1680,106 @@ try {
   await siblingPreference("en");
   assertEnglish(await languageState());
 
+  // ── GATE ROUND 2, after reloads (HOSTD-83) ──────────────────────────────────
+  // Reload and wait until the board is up with live host truth; `cards` is how many
+  // services it must show, `source` where they must come from.
+  const reloadUntil = async ({ cards = expected.cards, source = expected.configSource, verdict = true, timeoutMs = 9000 } = {}) => {
+    await value("window.__r2Reload = true");
+    const started = Date.now();
+    // ignoreCache: the probe-wording checks rewrite config.js between reloads.
+    await send("Page.reload", { ignoreCache: true });
+    while (Date.now() - started < timeoutMs) {
+      try {
+        if (await value(`!window.__r2Reload && document.querySelectorAll("#services [data-item]").length === ${cards} &&
+            document.documentElement.dataset.configSource === ${JSON.stringify(source)} &&
+            document.documentElement.dataset.truth === "live" && ${verdict ? 'document.documentElement.dataset.v !== "checking"' : "true"}`)) {
+          return Date.now() - started;
+        }
+      } catch (error) {
+        if (!/Execution context was destroyed|Cannot find context/.test(error.message)) throw error;
+      }
+      await sleep(50);
+    }
+    return null;
+  };
+  const heroWords = () => value(`(() => ({
+    verdict: document.documentElement.dataset.v || null,
+    sub: document.querySelector("#hero .hero-sub")?.textContent || "",
+    guide: document.querySelector("#hero .guide")?.textContent || "",
+    busy: document.querySelectorAll('#services [data-item][aria-busy="true"]').length,
+    probed: document.querySelectorAll('#services [data-item][data-probed="1"]').length,
+  }))()`);
+  // What a family board may only say with this browser's own reachability evidence,
+  // and what it says on the host's word alone (EN, the language the smoke runs in).
+  const tail = key => englishStrings[key].replace("{list}", "");
+  const opensWords = ["s_okFOne", "s_okFMany", "g_othersOne", "g_othersMany", "g_allOpen"].map(key => key === "g_allOpen" ? englishStrings[key] : tail(key));
+  const saysOpens = text => opensWords.some(words => text.includes(words));
+
+  // r2 M5 — family guidance claims "opens"/"works" only on reachability evidence. With
+  // every probe still pending (held unanswered) or disabled in the config, the board has
+  // the host's word only, and says so.
+  if (truthCheck && family) {
+    const healthy = await (async () => {
+      const bindings = await value(`[...document.querySelectorAll("#services [data-item]")].map(item => ({ container: item.dataset.container || null, unit: item.dataset.unit || null }))`);
+      const containers = {}, units = {};
+      for (const binding of bindings) {
+        if (binding.container) containers[binding.container] = { running: true };
+        if (binding.unit) units[binding.unit] = { running: true, active: "active", enabled: "enabled" };
+      }
+      return { containers, units };
+    })();
+    const writeHealthy = (changes = {}) => localPage.writeStatus({ ...healthy.containers, ...changes }, 0, {}, { units: healthy.units });
+    const wording = {};
+
+    await writeHealthy();
+    await controlProbes(() => "hold");
+    wording.pendingLoad = await reloadUntil();
+    wording.pending = await heroWords();
+    await releaseHeld("ok");
+    await controlProbes(() => "ok");
+    const deadline = Date.now() + 6000;
+    wording.reached = await heroWords();
+    while (!saysOpens(wording.reached.sub) && Date.now() < deadline) {
+      await sleep(150);
+      wording.reached = await heroWords();
+    }
+
+    await writeHealthy({ [expected.truthContainer]: { running: false } });
+    await controlProbes(() => "hold");
+    wording.failureLoad = await reloadUntil();
+    wording.failurePending = await heroWords();
+    await controlProbes(null);
+
+    await localPage.setProbeDisabled(true);
+    await writeHealthy();
+    wording.disabledLoad = await reloadUntil();
+    await sleep(sweepMs);
+    wording.disabled = await heroWords();
+    await localPage.setProbeDisabled(false);
+    round2 = { ...round2, wording };
+
+    if (!wording.pendingLoad || wording.pending.verdict !== "ok" || !wording.pending.busy || wording.pending.probed) {
+      throw new Error(`Pending-probe fixture did not hold: ${JSON.stringify(wording)}`);
+    }
+    if (saysOpens(wording.pending.sub) || !wording.pending.sub.includes(tail("s_runFOne").trim()) && !wording.pending.sub.includes(tail("s_runFMany").trim())) {
+      round1Fail(`r2 M5: with every probe pending the board said a service opens: ${JSON.stringify(wording.pending)}`);
+    }
+    if (!saysOpens(wording.reached.sub)) {
+      round1Fail(`r2 M5: once this browser reached the services, the board did not say they open: ${JSON.stringify(wording.reached)}`);
+    }
+    if (!wording.failureLoad || wording.failurePending.verdict !== "bad" || !wording.failurePending.guide ||
+        saysOpens(wording.failurePending.guide) || !wording.failurePending.guide.includes(tail("g_runOne").trim()) && !wording.failurePending.guide.includes(tail("g_runMany").trim())) {
+      round1Fail(`r2 M5: on a failure with every probe pending, the guidance said the others open as usual: ${JSON.stringify(wording.failurePending)}`);
+    }
+    if (!wording.disabledLoad || wording.disabled.verdict !== "ok" || wording.disabled.probed || saysOpens(wording.disabled.sub)) {
+      round1Fail(`r2 M5: with the browser check disabled in the config, the board said a service opens: ${JSON.stringify(wording.disabled)}`);
+    }
+    // Back to the board as configured.
+    if (!(await reloadUntil({ verdict: false }))) throw new Error("Board did not come back after the probe-wording checks");
+  }
+
   if (softFailures.length) {
-    throw new Error(`Round-1 checks failed (${softFailures.length}):\n  ✗ ${softFailures.join("\n  ✗ ")}`);
+    throw new Error(`Gate checks failed (${softFailures.length}):\n  ✗ ${softFailures.join("\n  ✗ ")}`);
   }
   if (exceptions.length) {
     throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
@@ -1497,7 +1789,7 @@ try {
   }
 
   console.log(
-    JSON.stringify({ host, pageUrl, initial, pathOnlySample, truthStates, httpStates, mobileLayout, densityState, themeState, blockedTheme,
+    JSON.stringify({ host, pageUrl, initial, pathOnlySample, truthStates, httpStates, round2, mobileLayout, densityState, themeState, blockedTheme,
       searchState, firstEscape, escapeState, defaultLanguage, fallbackLanguage, persistedLanguage, retainedState,
       localizedSearch, sharedLanguage }, null, 2),
   );

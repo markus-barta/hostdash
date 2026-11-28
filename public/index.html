@@ -656,13 +656,14 @@ const STRINGS = {
     healthFault: "Fault reported ({healthCode})",
     src_host: "per host", src_both: "per host, reached from this browser", src_browser: "browser check only", src_self: "self-report",
     ev_containerRunning: "host: container running", ev_unitRunning: "host: unit active",
-    ev_containerStopped: "host: container stopped", ev_unitStopped: "host: unit not active ({active})",
+    ev_containerStopped: "host: container stopped", ev_unitStopped: "host: unit not active ({active})", ev_unitNotActive: "host: unit not active",
     ev_reached: "reached from this browser", ev_reachedOnly: "browser: reachable · no host status",
     ev_noConnection: "browser: no connection", ev_noHost: "no host status",
     ev_hostHttpOk: "HTTP {code} on the host", ev_hostHttp: "loopback HTTP {code}", ev_hostSilent: "loopback check got no answer (000)",
     ev_sameOrigin: "this server answered HTTP {code}",
     ev_self: "self-report: {code}", ev_selfOk: "self-report: picture and sound moving", ev_selfMuted: "self-report: muted on purpose",
     ev_noTelemetry: "no self-report in the status file", ev_badTelemetry: "self-report without a valid health field",
+    ev_badRecord: "malformed entry in the status file",
     ev_unitIdle: "unit idle between runs", ev_sameOriginRefused: "this server refused this browser (HTTP {code})",
     ev_jobFailed: "host: last run {when} failed", ev_jobFailedUndated: "host: last run failed",
     ev_jobOk: "host: last run {when}, ok", ev_jobOkUndated: "host: last run ok",
@@ -672,6 +673,7 @@ const STRINGS = {
     today: "today", yesterday: "yesterday",
     h_checking: "Checking services …",
     h_okOne: "The service is running", h_okMany: "All {n} services running",
+    h_okJobOne: "The last run was ok", h_okJobs: "All {n} services report ok: {r} running, {j} last run ok",
     h_partial: "{ok} of {n} services running", h_noVouch: "No host report for any of the {n} services",
     h_bad1Stopped: "{name} is not running right now", h_bad1Fault: "{name} reports: {word}",
     h_badMany: "{b} services are not running right now", h_badOp: "{b} of {n} services failing",
@@ -685,6 +687,8 @@ const STRINGS = {
     s_okO: "{h} vouched for by the host · {u} with a web UI · {w} groups",
     s_partial: "No report for {list} right now.", s_partialMany: "No report for {k} services right now.",
     s_reached: "{list} reached from this browser only.", s_reachedMany: "{k} services reached from this browser only.",
+    s_jobs: "Last run ok: {list}.", s_jobsMany: "{k} with last run ok.",
+    s_runFOne: "{list} is running, says the host.", s_runFMany: "{list} are running, says the host.",
     s_badF: "{u} of {n} services are running.",
     s_awayHostF: "The host says it is running. Only this device cannot get through right now.",
     s_awayHostFMany: "The host says they are running. Only this device cannot get through right now.",
@@ -707,6 +711,7 @@ const STRINGS = {
     hostOkExplanation: "Running, and the host itself gets HTTP {code} from it. Only this browser cannot reach it — self-signed certificate, wrong network, or VPN.",
     gTitle: "What now?",
     g_othersOne: "{list} still opens as usual.", g_othersMany: "{list} still open as usual.", g_allOpen: "The services you open work as usual.",
+    g_runOne: "{list} is still running, says the host.", g_runMany: "{list} are still running, says the host.",
     g_tell: "Best to let {name} know.", g_tellNeutral: "Best to let whoever looks after this device know.",
     g_auto: "The page checks again by itself every minute.",
     g_retry: "Try again in a minute.", g_wifi: "Is this device on the home Wi-Fi?",
@@ -723,7 +728,7 @@ const STRINGS = {
     blankF: "The first service will appear here once it is set up.", blankO: "The config has no service yet.",
     configMissing: "This board has no usable configuration.",
     fLegend: "What the lights mean", fHost: "Host", fHelp: "Help",
-    lg_on: "lit green: the host reports it running", lg_ring: "green ring: only this browser reached it",
+    lg_on: "lit green: the host reports it running, or its last run ok", lg_ring: "green ring: only this browser reached it",
     lg_split: "green in an amber ring: running, but not reachable from here",
     lg_bad: "lit red: a failure was reported", lg_off: "off: no evidence, so the page claims nothing",
     idName: "Name", idOs: "System", idAddr: "Address", idTz: "Time zone", idCfg: "Config", idStatus: "Status file",
@@ -756,13 +761,14 @@ const STRINGS = {
     healthFault: "Fehler gemeldet ({healthCode})",
     src_host: "laut Gerät", src_both: "laut Gerät, vom Browser erreicht", src_browser: "nur vom Browser geprüft", src_self: "Eigenmeldung",
     ev_containerRunning: "Gerät: Container läuft", ev_unitRunning: "Gerät: Dienst aktiv",
-    ev_containerStopped: "Gerät: Container gestoppt", ev_unitStopped: "Gerät: Dienst nicht aktiv ({active})",
+    ev_containerStopped: "Gerät: Container gestoppt", ev_unitStopped: "Gerät: Dienst nicht aktiv ({active})", ev_unitNotActive: "Gerät: Dienst nicht aktiv",
     ev_reached: "dieser Browser erreicht ihn", ev_reachedOnly: "Browser: erreichbar · kein Gerätestatus",
     ev_noConnection: "Browser: keine Verbindung", ev_noHost: "kein Gerätestatus",
     ev_hostHttpOk: "HTTP {code} am Gerät", ev_hostHttp: "eigene HTTP-Prüfung {code}", ev_hostSilent: "eigene HTTP-Prüfung ohne Antwort (000)",
     ev_sameOrigin: "dieser Server antwortet mit HTTP {code}",
     ev_self: "Eigenmeldung: {code}", ev_selfOk: "Eigenmeldung: Bild und Ton laufen", ev_selfMuted: "Eigenmeldung: absichtlich stumm geschaltet",
     ev_noTelemetry: "keine Eigenmeldung in der Statusdatei", ev_badTelemetry: "Eigenmeldung ohne gültige Zustandsangabe",
+    ev_badRecord: "fehlerhafter Eintrag in der Statusdatei",
     ev_unitIdle: "Dienst ruht zwischen den Läufen", ev_sameOriginRefused: "dieser Server lässt diesen Browser nicht zu (HTTP {code})",
     ev_jobFailed: "Gerät: letzter Lauf {when} fehlgeschlagen", ev_jobFailedUndated: "Gerät: letzter Lauf fehlgeschlagen",
     ev_jobOk: "Gerät: letzter Lauf {when}, erfolgreich", ev_jobOkUndated: "Gerät: letzter Lauf erfolgreich",
@@ -772,6 +778,7 @@ const STRINGS = {
     today: "heute", yesterday: "gestern",
     h_checking: "Dienste werden geprüft …",
     h_okOne: "Der Dienst läuft", h_okMany: "Alle {n} Dienste laufen",
+    h_okJobOne: "Der letzte Lauf war erfolgreich", h_okJobs: "Alle {n} Dienste melden ok: {r} in Betrieb, {j} mit erfolgreichem letztem Lauf",
     h_partial: "{ok} von {n} Diensten laufen", h_noVouch: "Für keinen der {n} Dienste liegt eine Gerätemeldung vor",
     h_bad1Stopped: "{name} läuft gerade nicht", h_bad1Fault: "{name} meldet: {word}",
     h_badMany: "{b} Dienste laufen gerade nicht", h_badOp: "{b} von {n} Diensten gestört",
@@ -785,6 +792,8 @@ const STRINGS = {
     s_okO: "{h} mit Gerätestatus · {u} mit Weboberfläche · {w} Gruppen",
     s_partial: "Für {list} liegt gerade keine Meldung vor.", s_partialMany: "Für {k} Dienste liegt gerade keine Meldung vor.",
     s_reached: "{list} nur von diesem Browser erreicht.", s_reachedMany: "{k} Dienste nur von diesem Browser erreicht.",
+    s_jobs: "Letzter Lauf ok: {list}.", s_jobsMany: "{k} mit erfolgreichem letztem Lauf.",
+    s_runFOne: "{list} läuft laut Gerät.", s_runFMany: "{list} laufen laut Gerät.",
     s_badF: "{u} von {n} Diensten laufen.",
     s_awayHostF: "Laut Gerät läuft der Dienst. Nur dieses Gerät kommt gerade nicht durch.",
     s_awayHostFMany: "Laut Gerät laufen die Dienste. Nur dieses Gerät kommt gerade nicht durch.",
@@ -807,6 +816,7 @@ const STRINGS = {
     hostOkExplanation: "Der Dienst läuft, und das Gerät selbst erhält HTTP {code}. Nur dieser Browser kann ihn nicht erreichen — etwa wegen eines selbstsignierten Zertifikats, des falschen Netzwerks oder einer VPN-Verbindung.",
     gTitle: "Was jetzt?",
     g_othersOne: "{list} lässt sich weiterhin öffnen.", g_othersMany: "{list} lassen sich weiterhin öffnen.", g_allOpen: "Die Dienste zum Öffnen funktionieren normal.",
+    g_runOne: "{list} läuft laut Gerät weiterhin.", g_runMany: "{list} laufen laut Gerät weiterhin.",
     g_tell: "Am besten {name} Bescheid geben.", g_tellNeutral: "Am besten der Person Bescheid geben, die das Gerät betreut.",
     g_auto: "Die Seite prüft jede Minute von selbst neu.",
     g_retry: "In einer Minute erneut versuchen.", g_wifi: "Ist dieses Gerät im WLAN zu Hause?",
@@ -823,7 +833,7 @@ const STRINGS = {
     blankF: "Hier erscheint der erste Dienst, sobald er eingerichtet ist.", blankO: "Die Konfiguration enthält noch keinen Dienst.",
     configMissing: "Für diese Übersicht gibt es keine nutzbare Konfiguration.",
     fLegend: "Was die Lichter bedeuten", fHost: "Gerät", fHelp: "Hilfe",
-    lg_on: "leuchtet grün: das Gerät meldet, dass der Dienst läuft", lg_ring: "grüner Ring: nur dieser Browser hat ihn erreicht",
+    lg_on: "leuchtet grün: das Gerät meldet, dass der Dienst läuft oder zuletzt erfolgreich lief", lg_ring: "grüner Ring: nur dieser Browser hat ihn erreicht",
     lg_split: "grün mit gelbem Ring: läuft, aber von hier nicht erreichbar",
     lg_bad: "leuchtet rot: eine Störung wurde gemeldet", lg_off: "aus: kein Beleg – die Seite behauptet dann nichts",
     idName: "Name", idOs: "System", idAddr: "Adresse", idTz: "Zeitzone", idCfg: "Konfiguration", idStatus: "Statusdatei",
@@ -945,7 +955,15 @@ const EvidenceCore = (() => {
       target.hash = "";
       return target.href;
     }
-    return typeof service.url === "string" && service.url ? service.url : null;
+    // Only a web address becomes a link and a probe: a `javascript:`/`data:` URL from a
+    // manifest, or anything unparsable, gets neither (relative ones resolve on the page).
+    if (typeof service.url !== "string" || !service.url) return null;
+    try {
+      const target = new URL(service.url, page ? page.href : undefined);
+      return /^https?:$/.test(target.protocol) ? target.href : null;
+    } catch {
+      return null;
+    }
   }
 
   // A config entry, reduced to what the evidence rules need.
@@ -974,40 +992,62 @@ const EvidenceCore = (() => {
     };
   }
 
+  // What one section of the artifact holds for `name`: undefined when the section does
+  // not name it, null when it names it with something that is not a record, else the
+  // record. Own properties only, so a name like "constructor" finds nothing inherited.
+  function recordIn(status, section, name) {
+    if (!name || !isObj(status) || !isObj(status[section]) || !Object.prototype.hasOwnProperty.call(status[section], name)) return undefined;
+    const entry = status[section][name];
+    return isObj(entry) ? entry : null;
+  }
+
+  // HOSTD-83 gate r2: a malformed record is no evidence, never a verdict. Before, `{}` read
+  // as "running: false" (Down) and `code: null` as curl's 0 ("No answer"). A malformed
+  // record comes back as { malformed: true }; the card ignores it and says why.
   function hostEntry(status, svc) {
-    if (!isObj(status)) return null;
-    const pick = (section, name) => (isObj(status[section]) && isObj(status[section][name])) ? status[section][name] : null;
-    if (svc.container) {
-      const entry = pick("containers", svc.container);
-      return entry ? { kind: "container", running: entry.running === true } : null;
-    }
-    if (svc.unit) {
-      const entry = pick("units", svc.unit);
-      return entry ? { kind: "unit", running: entry.running === true, active: typeof entry.active === "string" ? entry.active : null } : null;
-    }
-    return null;
+    const kind = svc.container ? "container" : svc.unit ? "unit" : null;
+    if (!kind) return null;
+    const entry = recordIn(status, kind === "container" ? "containers" : "units", svc.container || svc.unit);
+    if (entry === undefined) return null;
+    // Only an explicit boolean is a running state: `{}`, `running: null` or "true" are not.
+    if (entry === null || typeof entry.running !== "boolean") return { kind, malformed: true };
+    // A finished job is only a SERVICE the host identifies as a oneshot (systemd
+    // Type=oneshot). A timer, socket or daemon that is inactive is stopped, whatever its
+    // last run said (HOSTD-83 gate r2: a disabled .timer with an ok record read green).
+    const oneshot = kind === "unit" && /\.service$/.test(svc.unit) && entry.type === "oneshot";
+    return { kind, running: entry.running, active: typeof entry.active === "string" ? entry.active : null, oneshot };
+  }
+
+  // A status code is an integer, 0 (curl got no HTTP answer at all) or 100–599: a number,
+  // or curl's own digits ("000", "502"). Anything else is never converted, so null, "",
+  // 2.5, 999 or an object with a hostile toString cannot turn into a code (or a throw).
+  function codeOf(value) {
+    const n = typeof value === "number" ? value : typeof value === "string" && /^\d{1,3}$/.test(value) ? Number(value) : NaN;
+    return Number.isInteger(n) && (n === 0 || (n >= 100 && n <= 599)) ? n : null;
   }
 
   // The host curls the service over loopback (HOSTD-12): the only place a status code
   // is legible. 0 means curl got no HTTP answer at all.
   function hostHttp(status, svc) {
-    const key = svc.httpKey || svc.container || svc.unit;
-    if (!key || !isObj(status) || !isObj(status.http) || !isObj(status.http[key])) return null;
-    const code = Number(status.http[key].code);
-    if (!Number.isFinite(code)) return null;
+    const entry = recordIn(status, "http", svc.httpKey || svc.container || svc.unit);
+    if (entry === undefined) return null;
+    const code = entry === null ? null : codeOf(entry.code);
+    if (code === null) return { malformed: true };
     if (code === 0) return { kind: "silent", code };
     return code >= 500 ? { kind: "fault", code } : { kind: "ok", code };
   }
 
   // Optional `jobs` section: { "<unit or container>": { ok: bool, last: epoch } }. Read on
   // its own: a job's record is evidence whether or not the artifact also lists the unit.
+  // A `last` later than the artifact itself is no date (it would print a future day, or
+  // "Invalid Date"); the record then counts undated.
   function hostJob(status, svc) {
-    const key = svc.unit || svc.container;
-    if (!key || !isObj(status) || !isObj(status.jobs) || !isObj(status.jobs[key])) return null;
-    const entry = status.jobs[key];
-    if (typeof entry.ok !== "boolean") return null;
+    const entry = recordIn(status, "jobs", svc.unit || svc.container);
+    if (entry === undefined) return null;
+    if (entry === null || typeof entry.ok !== "boolean") return { malformed: true };
+    const generated = epochOf(status.generated);
     const last = epochOf(entry.last);
-    return { ok: entry.ok, last };
+    return { ok: entry.ok, last: last !== null && (generated === null || last <= generated + CLOCK_SKEW_SEC) ? last : null };
   }
 
   // A service's own telemetry counts only as an explicit health report: an object whose
@@ -1033,7 +1073,19 @@ const EvidenceCore = (() => {
   }
 
   // ctx: { truth: "live"|"stale"|"none"|"checking", status, probe: settled result|null }
+  //
+  // Never throws: whatever the artifact holds, one card's record can neither break the
+  // board nor stop the cards after it from updating (HOSTD-83 gate r2). Anything the
+  // rules below did not anticipate degrades to "no evidence".
   function derive(svc, ctx) {
+    try {
+      return deriveFrom(svc, ctx);
+    } catch {
+      return noEvidence(isObj(svc) ? svc : {}, isObj(ctx) ? ctx.truth : null, "unknown", "ev_badRecord");
+    }
+  }
+
+  function deriveFrom(svc, ctx) {
     const truth = ctx.truth;
     const status = truth === "live" && isObj(ctx.status) ? ctx.status : null;
     const make = (s, l, word, extra = {}) => ({ s, l, word, vars: {}, src: "", ev: [], hostOk: null, ...extra });
@@ -1054,53 +1106,65 @@ const EvidenceCore = (() => {
       if (x.desired_volume === 0) return make("muted", "dim", "status_muted", { src: "self", ev: [{ key: "ev_selfMuted" }] });
       return make("up", "on", "listening", { src: "self", ev: [{ key: "ev_selfOk" }] });
     }
-    const gap = self.gap;
-
-    const host = hostEntry(status, svc);
-    const job = hostJob(status, svc);
+    const records = [hostEntry(status, svc), hostJob(status, svc), hostHttp(status, svc)];
+    const [host, job, http] = records.map(record => record && !record.malformed ? record : null);
+    const gap = records.some(record => record?.malformed) ? "ev_badRecord" : self.gap;
+    // A stopped unit names the state the host reported, and none it did not.
     const hostEv = host ? [{
-      key: host.kind === "unit" ? (host.running ? "ev_unitRunning" : "ev_unitStopped") : (host.running ? "ev_containerRunning" : "ev_containerStopped"),
-      vars: { active: host.active || "inactive" },
+      key: host.kind === "unit" ? (host.running ? "ev_unitRunning" : host.active ? "ev_unitStopped" : "ev_unitNotActive") : (host.running ? "ev_containerRunning" : "ev_containerStopped"),
+      vars: host.active ? { active: host.active } : {},
     }] : [];
 
     // A failed run is loud, whether or not the artifact also lists the unit.
     if (job && !job.ok) return make("jobfail", "bad", "jobFailed", { src: "host", ev: [{ key: "ev_jobFailed", vars: { last: job.last } }] });
 
-    // The host says it is NOT running: authoritative, and loud. Except a oneshot unit
-    // whose last run succeeded: systemd reports it "inactive" between runs, which is a
-    // finished job, not a stopped daemon. "failed" (or any other state) stays loud.
-    const finished = Boolean(host && !host.running && job?.ok && host.kind === "unit" && host.active === "inactive");
+    // The host says it is NOT running: authoritative, and loud. Except an identified
+    // oneshot service whose last run succeeded: systemd reports it "inactive" between
+    // runs, which is a finished job, not a stopped daemon. "failed" stays loud, and so
+    // does every timer, socket and daemon that is not running.
+    const finished = Boolean(host && !host.running && host.oneshot && host.active === "inactive" && job?.ok);
     if (host && !host.running && !finished) return make("stopped", "bad", "status_stopped", { src: "host", ev: hostEv });
 
     // The service answered the host badly. That outranks any browser reachability, and
     // is read like a job record: on its own, a measured failure needs no running row.
-    const http = hostHttp(status, svc);
     if (http?.kind === "fault") {
       return make("fault", "bad", "httpStatus", { vars: { code: http.code }, src: "host", ev: [...hostEv, { key: "ev_hostHttp", vars: { code: http.code } }] });
     }
     if (http?.kind === "silent") return make("fault", "bad", "noAnswer", { src: "host", ev: [...hostEv, { key: "ev_hostSilent" }] });
 
-    // What the host vouches for: a running unit/container, or a job whose last run was ok.
-    const vouched = Boolean(host) || Boolean(job?.ok);
+    // Two different things the host can vouch for, kept apart (HOSTD-83 gate r2): that
+    // the service RUNS (its unit/container row says so), or only that its last run was
+    // ok (a job record, with no row or a finished oneshot). A job-only card says "Last
+    // run ok", counts as a job, never as running, and never makes a route claim.
+    const running = host?.running === true;
+    const jobOnly = !running && job?.ok === true;
     const runWord = job?.ok ? "jobOk" : "status_running";
-    const runEv = job?.ok ? [{ key: "ev_jobOk", vars: { last: job.last } }, ...(finished ? [{ key: "ev_unitIdle" }] : [])] : hostEv;
+    const runEv = job?.ok
+      ? [...(running ? hostEv : []), { key: "ev_jobOk", vars: { last: job.last } }, ...(finished ? [{ key: "ev_unitIdle" }] : [])]
+      : hostEv;
+    const hostCard = (s, src, more = []) => jobOnly
+      ? make("jobok", "on", "jobOk", { src, ev: [...runEv, ...more] })
+      : make(s, "on", runWord, { src, ev: [...runEv, ...more] });
 
     if (!svc.probeUrl) {
-      if (vouched) return make("running", "on", runWord, { src: "host", ev: runEv });
+      if (running || jobOnly) return hostCard("running", "host");
       return noEvidence(svc, truth, "unknown", gap);
     }
 
     // The probe only refines the host's verdict with THIS browser's reachability.
     const result = ctx.probe || null;
     if (!result) {
-      if (vouched) return make("running", "on", runWord, { src: "host", ev: runEv });
+      if (running || jobOnly) return hostCard("running", "host");
       return noEvidence(svc, truth, "checking", gap);
     }
     if (result.ok) {
-      if (vouched) return make("up", "on", runWord, { src: "both", ev: [...runEv, { key: "ev_reached" }] });
+      if (running || jobOnly) return hostCard("up", "both", [{ key: "ev_reached" }]);
       return make("reachable", "ring", "status_reachable", { src: "browser", ev: [{ key: "ev_reachedOnly" }] });
     }
     const hostOk = http?.kind === "ok" ? http.code : null;
+    // Unreachable without a running row: the amber ring. A job record is kept as
+    // evidence, but it is not "host status" about whether the service runs.
+    const unvouched = jobOnly ? runEv : [{ key: "ev_noHost" }];
     // Same-origin and readable: this dashboard's own nginx answered with a status code.
     // Handled before the generic unreachable branch so the code is never lost (HOSTD-83
     // gate r1: a running hausnetz behind a 502 used to read "Unreachable").
@@ -1110,22 +1174,30 @@ const EvidenceCore = (() => {
       // 401/403: the server refuses THIS browser (hausnetz is LAN-only). The route is
       // the problem, not the service, so it stays amber, with the code kept as evidence.
       if (code === 401 || code === 403) {
-        if (vouched) return make("unreachable", "split", "status_unreachable", { vars: { code }, src: "host", hostOk, ev: [...runEv, codeEv] });
-        return make("unreachable", "aring", "status_unreachable", { vars: { code }, src: "browser", ev: [codeEv, { key: "ev_noHost" }] });
+        if (running) return make("unreachable", "split", "status_unreachable", { vars: { code }, src: "host", hostOk, ev: [...runEv, codeEv] });
+        return make("unreachable", "aring", "status_unreachable", { vars: { code }, src: "browser", ev: [codeEv, ...unvouched] });
       }
       // Anything else (404, 5xx): a measured failure of what sits behind this server.
-      if (vouched) return make("fault", "bad", "httpStatus", { vars: { code }, src: "browser", ev: [...runEv, codeEv] });
+      if (running || jobOnly) return make("fault", "bad", "httpStatus", { vars: { code }, src: "browser", ev: [...runEv, codeEv] });
       return make("down", "bad", "status_down", { vars: { code }, src: "browser", ev: [codeEv] });
     }
-    if (vouched) {
+    if (running) {
       // Running per host, unreachable from here: the route is broken, not the service.
       return make("unreachable", "split", "status_unreachable", {
         src: "host", hostOk,
         ev: [...runEv, ...(hostOk ? [{ key: "ev_hostHttpOk", vars: { code: hostOk } }] : []), { key: "ev_noConnection" }],
       });
     }
-    return make("unreachable", "aring", "status_unreachable", { src: "browser", ev: [{ key: "ev_noConnection" }, { key: "ev_noHost" }] });
+    return make("unreachable", "aring", "status_unreachable", { src: "browser", ev: [{ key: "ev_noConnection" }, ...unvouched] });
   }
+
+  // May the board say a service "opens" or "works"? Only on THIS browser's own
+  // reachability evidence: reached (green ring), or reached and host-vouched ("both").
+  // A host-only green (probe pending, disabled in the config, or never run) proves the
+  // host's word, not that it opens here (HOSTD-83 gate r2). That gets running wording.
+  const isLit = ev => isObj(ev) && (ev.l === "on" || ev.l === "dim");
+  const opens = ev => isObj(ev) && (ev.l === "ring" || (isLit(ev) && ev.src === "both"));
+  const runsPerHost = ev => isLit(ev) && ev.s !== "jobok" && !opens(ev);
 
   // ── VERDICT: the board's headline state and its lens, from evidence alone ──────
   // HOSTD-83 gate r1: browser-only reachability ("ring") used to count as running, so a
@@ -1135,18 +1207,23 @@ const EvidenceCore = (() => {
   // than the evidence: green only for vouched, a green ring when only this browser
   // reached anything, dark when nothing is known, amber ring when an unreachable card
   // has no host word.
+  //
+  // HOSTD-83 gate r2: a job whose last run was ok is vouched for, but it is not running.
+  // `running` and `jobs` are counted apart, so a finished oneshot never turns into "The
+  // service is running"; `vouched` is both together (what "ok" and the lens need).
   function aggregate(evs, truth) {
     const n = evs.length;
-    const bad = [], away = [], vouched = [], reached = [], pending = [], none = [];
+    const bad = [], away = [], running = [], jobs = [], reached = [], pending = [], none = [];
     evs.forEach((ev, i) => {
       const l = ev?.l;
       if (l === "bad") bad.push(i);
       else if (l === "split" || l === "aring") away.push(i);
-      else if (l === "on" || l === "dim") vouched.push(i);
+      else if (l === "on" || l === "dim") (ev.s === "jobok" ? jobs : running).push(i);
       else if (l === "ring") reached.push(i);
       else if (ev?.s === "checking") pending.push(i);
       else none.push(i);
     });
+    const vouched = [...running, ...jobs].sort((x, y) => x - y);
     let v;
     if (!n) v = "empty";
     else if (bad.length) v = "bad";
@@ -1161,7 +1238,7 @@ const EvidenceCore = (() => {
         : v === "notice" ? (away.every(i => evs[i].l === "split") ? "split" : "aring")
           : v === "partial" ? (vouched.length ? "dim" : reached.length ? "ring" : "off")
             : "off";
-    return { v, lens, n, bad, away, vouched, reached, pending, none };
+    return { v, lens, n, bad, away, vouched, running, jobs, reached, pending, none };
   }
 
   // ── PROBES (HOSTD-83 finding a) ─────────────────────────────────────────────
@@ -1241,7 +1318,7 @@ const EvidenceCore = (() => {
     };
   }
 
-  return { judgeArtifact, resolveTarget, serviceModel, derive, aggregate, createProber, hostEntry, hostHttp, hostJob, epochOf, CLOCK_SKEW_SEC };
+  return { judgeArtifact, resolveTarget, serviceModel, derive, aggregate, opens, runsPerHost, createProber, hostEntry, hostHttp, hostJob, codeOf, epochOf, CLOCK_SKEW_SEC };
 })();
 // </evidence-core>
 
@@ -1644,10 +1721,10 @@ const footOf = service => localize(service.active ? service.raw.port || service.
 const wingOf = service => WINGS.find(wing => wing.id === service.wing);
 const isBad = ev => ev?.l === "bad";
 const isAway = ev => ev?.l === "split" || ev?.l === "aring";
-// Running means host-vouched (host, self-report or both). A browser-only "ring" proves
-// reachability: it opens, but nobody vouched that it runs.
-const isVouched = ev => ev?.l === "on" || ev?.l === "dim";
-const opensFine = ev => isVouched(ev) || ev?.l === "ring";
+// "Opens" needs this browser's own reachability evidence; a host-only green gets
+// running wording instead (EvidenceCore.opens, HOSTD-83 gate r2).
+const opensFine = ev => EvidenceCore.opens(ev);
+const runsPerHost = ev => EvidenceCore.runsPerHost(ev);
 const wordOf = ev => ev?.word ? t(ev.word, ev.vars) : "";
 const contactName = () => CONTACT ? localize(CONTACT.name) : "";
 
@@ -1806,6 +1883,7 @@ function summarize() {
   return {
     list, v: verdict.v, lens: verdict.lens, n: verdict.n, family: AUDIENCE === "family",
     bad: pick(verdict.bad), away: pick(verdict.away), vouched: pick(verdict.vouched),
+    running: pick(verdict.running), jobs: pick(verdict.jobs),
     reached: pick(verdict.reached), pending: pick(verdict.pending), none: pick(verdict.none),
   };
 }
@@ -1815,6 +1893,8 @@ const joinNames = names => {
   return names.length <= 1 ? (names[0] || "") : `${names.slice(0, -1).join(", ")}${and}${names[names.length - 1]}`;
 };
 const openersOf = m => m.list.filter(item => item.service.active && opensFine(item.ev)).map(item => nameOf(item.service));
+const runnersOf = m => m.list.filter(item => item.service.active && runsPerHost(item.ev)).map(item => nameOf(item.service));
+const listPart = (names, one, many) => names.length ? t(names.length > 1 ? many : one, { list: joinNames(names) }) : "";
 const lensOf = m => m.lens || "off";
 
 function headline(m) {
@@ -1840,8 +1920,11 @@ function headline(m) {
         : esc(t("h_staleO", { age: "\u0000" })).replace("\u0000", '<span data-live="staleAge"></span>');
       if (f) return esc(t("h_noneF"));
       return esc(t(TRUTH.key === "unknownSchema" ? "h_schemaO" : TRUTH.key === "probesOnly" ? "h_unreadableO" : TRUTH.key === "badTime" ? "h_timeO" : "h_noneO"));
-    case "partial": return esc(m.vouched.length ? t("h_partial", { ok: m.vouched.length, n: m.n }) : t("h_noVouch", { n: m.n }));
-    default: return esc(m.n === 1 ? t("h_okOne") : t("h_okMany", { n: m.n }));
+    // Running counts only what runs; a job whose last run was ok is said as such.
+    case "partial": return esc(m.vouched.length ? t("h_partial", { ok: m.running.length, n: m.n }) : t("h_noVouch", { n: m.n }));
+    default:
+      if (m.jobs.length) return esc(m.n === 1 ? t("h_okJobOne") : t("h_okJobs", { n: m.n, r: m.running.length, j: m.jobs.length }));
+      return esc(m.n === 1 ? t("h_okOne") : t("h_okMany", { n: m.n }));
   }
 }
 
@@ -1851,7 +1934,7 @@ function subline(m) {
   switch (m.v) {
     case "empty": return t(f ? "s_emptyF" : "s_emptyO");
     case "checking": return t("s_checking");
-    case "bad": return f ? t("s_badF", { u: m.vouched.length + m.away.filter(item => item.ev.l === "split").length, n: m.n }) : "";
+    case "bad": return f ? t("s_badF", { u: m.running.length + m.away.filter(item => item.ev.l === "split").length, n: m.n }) : "";
     case "notice": {
       const hostVouched = m.away.every(item => item.ev.l === "split");
       if (!hostVouched) return t(f ? "s_awayOnlyF" : "s_awayOnlyO");
@@ -1867,16 +1950,15 @@ function subline(m) {
         const names = items.map(item => nameOf(item.service));
         return names.length <= 3 ? t(one, { list: joinNames(names) }) : t(many, { k: names.length });
       };
-      return [part(m.reached, "s_reached", "s_reachedMany"), part(m.none, "s_partial", "s_partialMany")].filter(Boolean).join(" ");
+      return [part(m.jobs, "s_jobs", "s_jobsMany"), part(m.reached, "s_reached", "s_reachedMany"), part(m.none, "s_partial", "s_partialMany")].filter(Boolean).join(" ");
     }
     default: {
       if (!f) {
         const vouched = m.list.filter(item => item.ev.src === "host" || item.ev.src === "both" || item.ev.src === "self").length;
         return t("s_okO", { h: vouched, u: urls, w: WINGS_USED.length });
       }
-      const openers = openersOf(m);
-      if (!openers.length) return "";
-      return t(openers.length > 1 ? "s_okFMany" : "s_okFOne", { list: joinNames(openers) });
+      // "Opens" only where this browser reached it; the host's word alone is running.
+      return [listPart(openersOf(m), "s_okFOne", "s_okFMany"), listPart(runnersOf(m), "s_runFOne", "s_runFMany")].filter(Boolean).join(" ");
     }
   }
 }
@@ -1929,6 +2011,8 @@ function guideHTML(m) {
   let actions = "";
   if (m.v === "bad") {
     if (okOpeners.length) steps.push(okOpeners.length === urls ? t("g_allOpen") : t(okOpeners.length > 1 ? "g_othersMany" : "g_othersOne", { list: joinNames(okOpeners) }));
+    const runners = runnersOf(m);
+    if (runners.length) steps.push(listPart(runners, "g_runOne", "g_runMany"));
     steps.push(who ? t("g_tell", { name: who }) : t("g_tellNeutral"));
     steps.push(t("g_auto"));
     actions = button("reload", t("reload"), "reload", { cls: "primary" });
