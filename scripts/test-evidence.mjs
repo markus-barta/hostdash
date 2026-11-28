@@ -508,8 +508,8 @@ const live = status => ({ truth: "live", status });
 
 // ── (r3) HOSTD-83 gate round 3 ────────────────────────────────────────────────
 {
-  // M3 — a same-host `scheme` is read the way origin/main's URL setter read it: any case,
-  // with or without the colon. Only http and https switch the scheme.
+  // M3 — a same-host `scheme` is read the way the pre-rewrite board's (7e4896d) URL
+  // setter read it: any case, with or without the colon. Only http and https switch it.
   const resolve = (raw, page) => safely(() => core.resolveTarget(raw, page));
   const scrypted = scheme => ({ sameHost: true, scheme, port: ":10443" });
   for (const scheme of ["https", "HTTPS:", "https:", "HTTPS", "Https:", "https://", " https "]) {

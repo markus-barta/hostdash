@@ -1,27 +1,29 @@
 #!/usr/bin/env node
-// URL compatibility sweep (HOSTD-83 gate r3): every service's link and probe target,
-// resolved by origin/main's page and by this branch's page, on an http and an https
-// dashboard origin, and every difference listed.
+// URL compatibility sweep (HOSTD-83 gate r3, baseline frozen in gate r4): every
+// service's link and probe target, resolved by the pre-rewrite board and by this
+// branch's page, on an http and an https dashboard origin, and every difference listed.
 //
-// Inputs, never copies:
-//   - origin/main's public/index.html (`git show <base>:public/index.html`): its
-//     serviceTargetUrl(), cleanServices() and helpers are cut out of the file and run in
-//     a VM with a fake window.location. Its link/probe decision (index.html around
-//     `card.href = targetUrl`) is a few lines inside a render loop, so it is restated
-//     below and pinned: the sweep fails if those exact lines are no longer in the base.
+// Inputs:
+//   - the pre-rewrite board's resolution logic, frozen: scripts/fixtures/
+//     url-baseline-7e4896d.js, a verbatim copy of commit 7e4896d's public/index.html
+//     (serviceTargetUrl(), cleanServices() and helpers, and its render loop's link/probe
+//     decision lines), run in a VM with a fake window.location. No git, no ref: once
+//     this branch is main, "main" is no baseline any more (gate r4). scripts/
+//     test-url-sweep.mjs proves the copy byte-identical to that commit and runs the
+//     sweep as it runs after the merge.
 //   - this branch's public/index.html: the whole `<evidence-core>` block plus its
 //     cleanServices(), run the same way.
 //   - every hosts/*/config.js, and the manifests smoke-ui.mjs serves (its own
 //     manifestFromConfig(), cut out of the script) for the boards it runs in manifest
 //     mode (hsb1, hsb8).
-//   - for every same-host service, the scheme spellings origin/main's URL setter
+//   - for every same-host service, the scheme spellings the pre-rewrite URL setter
 //     accepted ("https", "HTTPS:", "https:", "https://", "HTTP", "http:"), so the class of the r3
 //     finding is swept, not only the spellings the configs happen to use today.
 //
 // Every difference must be classified as intended (a reason below), or the sweep fails.
 //
-//   node scripts/url-sweep.mjs                      # base origin/main, new = working tree
-//   node scripts/url-sweep.mjs --base <ref> --new <ref|path>
+//   node scripts/url-sweep.mjs                      # new = working tree
+//   node scripts/url-sweep.mjs --new <ref|path>     # new = a page at a git ref, or a file
 //   node scripts/url-sweep.mjs --json
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -35,7 +37,9 @@ const opt = (name, fallback) => {
   const at = args.indexOf(name);
   return at >= 0 && args[at + 1] ? args[at + 1] : fallback;
 };
-const baseRef = opt("--base", "origin/main");
+if (args.includes("--base")) throw new Error("--base is gone: the baseline is frozen in scripts/fixtures/url-baseline-7e4896d.js (HOSTD-83 gate r4)");
+const BASELINE = "scripts/fixtures/url-baseline-7e4896d.js";
+const baseName = "7e4896d (frozen)";
 const newRef = opt("--new", null);
 const asJson = args.includes("--json");
 
@@ -45,32 +49,21 @@ const readNew = path => newRef
   : readFileSync(join(repoRoot, path), "utf8");
 
 const CLEAN_HELPERS = ["isObject", "objectOr", "arrayOrEmpty", "stringOr", "isLocalizable", "localizedOr", "cleanServices"];
-
-// origin/main: its own functions, its own decision lines.
-const baseHtml = gitShow(baseRef, "public/index.html");
-const BASE_DECISION = [
-  "const active = !service.passive;",
-  "const targetUrl = serviceTargetUrl(service);",
-  "card.href = targetUrl;",
-  "if (service.status) card.dataset.staticState = service.status;",
-  'else if (service.probe === false) card.dataset.staticState = "external";',
-  "else card.dataset.probe = targetUrl;",
-];
-const missing = BASE_DECISION.filter(line => !baseHtml.includes(line));
-if (missing.length) throw new Error(`origin/main's link/probe decision changed; restate it here first: ${JSON.stringify(missing)}`);
+// The pre-rewrite board: its own functions and decision lines, frozen.
 const baseSandbox = { window: { location: null }, URL };
-vm.runInNewContext([...CLEAN_HELPERS.map(name => cut(baseHtml, name)), cut(baseHtml, "serviceTargetUrl"),
-  "this.cleanServices = cleanServices; this.serviceTargetUrl = serviceTargetUrl;"].join("\n"), baseSandbox);
+vm.runInNewContext([readFileSync(join(repoRoot, BASELINE), "utf8"),
+  "this.cleanServices = cleanServices; this.baseDecision = baseDecision;"].join("\n"), baseSandbox);
 // What an <a href> / fetch() does with whatever the page assigned: resolve it on the page.
 const asBrowser = (value, pageHref) => {
   try { return new URL(String(value), pageHref).href; } catch { return String(value); }
 };
 function baseResolve(service, pageHref) {
   baseSandbox.window.location = new URL(pageHref);
-  if (service.passive) return { link: null, probe: null };
-  const targetUrl = baseSandbox.serviceTargetUrl(service);
-  const href = asBrowser(targetUrl, pageHref);
-  return { link: href, probe: service.status || service.probe === false ? null : href };
+  let href = null;
+  // A DOMStringMap keeps strings: `dataset.probe = undefined` reads back "undefined".
+  const card = { dataset: {}, set href(value) { href = asBrowser(value, pageHref); } };
+  baseSandbox.baseDecision(service, card);
+  return { link: href, probe: "probe" in card.dataset ? asBrowser(card.dataset.probe, pageHref) : null };
 }
 
 // This branch: the evidence core as shipped.
@@ -120,13 +113,13 @@ for (const host of hosts) {
 const INTENDED = [
   {
     id: "no-target",
-    reason: "an active service with neither a web url nor same-host fields: origin/main assigned `undefined` and linked/probed the page-relative path /undefined; now it gets no link and no probe (round-2 sweep)",
-    test: d => d.main !== null && /\/undefined$/.test(d.main) && d.next === null,
+    reason: "an active service with neither a web url nor same-host fields: the pre-rewrite board assigned `undefined` and linked/probed the page-relative path /undefined; now it gets no link and no probe (round-2 sweep)",
+    test: d => d.base !== null && /\/undefined$/.test(d.base) && d.next === null,
   },
   {
     id: "non-web",
-    reason: "a url that is not http(s) (javascript:, data:, file:): origin/main linked and probed it; now neither (round-2 sweep)",
-    test: d => d.main !== null && !/^https?:/.test(d.main) && d.next === null,
+    reason: "a url that is not http(s) (javascript:, data:, file:): the pre-rewrite board linked and probed it; now neither (round-2 sweep)",
+    test: d => d.base !== null && !/^https?:/.test(d.base) && d.next === null,
   },
 ];
 
@@ -135,12 +128,12 @@ let compared = 0;
 for (const item of cases) {
   for (const origin of ["http", "https"]) {
     const pageHref = `${origin}://${item.host}.lan/index.html`;
-    const main = baseResolve(item.base, pageHref);
+    const base = baseResolve(item.base, pageHref);
     const next = newResolve(item.next, pageHref);
     for (const field of ["link", "probe"]) {
       compared += 1;
-      if (main[field] === next[field]) continue;
-      const diff = { host: item.host, source: item.source, service: english(item.service.name), origin, field, main: main[field], next: next[field] };
+      if (base[field] === next[field]) continue;
+      const diff = { host: item.host, source: item.source, service: english(item.service.name), origin, field, base: base[field], next: next[field] };
       const intended = INTENDED.find(rule => rule.test(diff));
       diffs.push({ ...diff, intended: intended?.id || null });
     }
@@ -149,15 +142,15 @@ for (const item of cases) {
 const unexpected = diffs.filter(diff => !diff.intended);
 
 if (asJson) {
-  console.log(JSON.stringify({ base: baseRef, next: newRef || "working tree", services: cases.length, compared, diffs, unexpected: unexpected.length }, null, 2));
+  console.log(JSON.stringify({ base: baseName, next: newRef || "working tree", services: cases.length, compared, diffs, unexpected: unexpected.length }, null, 2));
 } else {
-  console.log(`url-sweep: ${cases.length} service cases × 2 origins × link/probe = ${compared} comparisons, base ${baseRef}, new ${newRef || "working tree"}`);
+  console.log(`url-sweep: ${cases.length} service cases × 2 origins × link/probe = ${compared} comparisons, base ${baseName}, new ${newRef || "working tree"}`);
   console.log(`differences: ${diffs.length} (${diffs.length - unexpected.length} intended, ${unexpected.length} unexpected)`);
   for (const diff of diffs) {
-    console.log(`  ${diff.intended ? `intended:${diff.intended}` : "UNEXPECTED"} · ${diff.host} · ${diff.source} · ${diff.service} · ${diff.origin} dashboard · ${diff.field}: ${diff.main} → ${diff.next}`);
+    console.log(`  ${diff.intended ? `intended:${diff.intended}` : "UNEXPECTED"} · ${diff.host} · ${diff.source} · ${diff.service} · ${diff.origin} dashboard · ${diff.field}: ${diff.base} → ${diff.next}`);
   }
   for (const rule of INTENDED) {
     if (diffs.some(diff => diff.intended === rule.id)) console.log(`  [${rule.id}] ${rule.reason}`);
   }
 }
-process.exit(unexpected.length ? 1 : 0);
+process.exitCode = unexpected.length ? 1 : 0; // not exit(): a large --json on a pipe would be cut off
