@@ -1,6 +1,8 @@
 window.HOSTDASH_CONFIG = {
   slug: "hsb8",
   storageKey: "hostdash.hsb8",
+  presentation: { audience: "family", density: "tiles" },
+  contact: { name: "Markus" },
   host: {
     name: "hsb8",
     role: "parents' home",

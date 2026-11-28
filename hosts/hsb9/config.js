@@ -1,6 +1,9 @@
 window.HOSTDASH_CONFIG = {
   slug: "hsb9",
   storageKey: "hostdash.hsb9",
+  presentation: { audience: "family", density: "tiles" },
+  contact: { name: "Markus" },
+  palette: { accent: "blue" },
   host: {
     name: "hsb9",
     role: { en: "parents-in-law", de: "Zuhause" },

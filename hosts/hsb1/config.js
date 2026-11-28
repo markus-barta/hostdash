@@ -1,6 +1,8 @@
 window.HOSTDASH_CONFIG = {
   slug: "hsb1",
   storageKey: "hostdash.hsb1",
+  presentation: { audience: "operator", density: "list" },
+  palette: { accent: "graphite" },
   host: {
     name: "hsb1",
     role: "home server",

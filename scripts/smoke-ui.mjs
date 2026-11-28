@@ -13,27 +13,34 @@ const repoRoot = resolve(new URL("..", import.meta.url).pathname);
 const dashboardHtml = await readFile(join(repoRoot, "public", "index.html"), "utf8");
 const stringsSource = dashboardHtml.match(/const STRINGS = (\{[\s\S]*?\n\});/);
 if (!stringsSource) throw new Error("Dashboard translations not found");
-const germanStrings = vm.runInNewContext(`(${stringsSource[1]}).de`);
-if (germanStrings.online !== "In Betrieb" ||
-    new Set([germanStrings.status_down, germanStrings.status_unreachable, germanStrings.online, germanStrings.hostOk]).size !== 4) {
-  throw new Error("German down, unreachable, OK-on-host and header labels must be distinct");
+const allStrings = vm.runInNewContext(`(${stringsSource[1]})`);
+const germanStrings = allStrings.de;
+const englishStrings = allStrings.en;
+// The status vocabulary is fixed (HOSTD-80/83): exactly these words, and distinct.
+for (const [strings, words] of [[germanStrings, ["In Betrieb", "Ausgefallen", "Nicht erreichbar"]], [englishStrings, ["Running", "Down", "Unreachable"]]]) {
+  const actual = [strings.status_running, strings.status_down, strings.status_unreachable];
+  if (JSON.stringify(actual) !== JSON.stringify(words) || strings.status_stopped !== words[1] || new Set(actual).size !== 3) {
+    throw new Error(`Status vocabulary drifted: ${JSON.stringify(actual)}`);
+  }
 }
 const host = process.env.HOSTDASH_HOST || "hsb1";
 const configMode = process.env.HOSTDASH_CONFIG_MODE || "config";
 const manifestMode = configMode === "manifest";
 const manifestContractMode = manifestMode && host === "hsb1";
-// `total` is `cardIndex.length` — every card the board claims to track, i.e. active
-// services PLUS passive ones the host can vouch for (container/unit/extra). It is not
-// the service count. These drifted badly once HOSTD-7 started tracking passive cards
-// and HOSTD-10 added extras; five of six hosts were asserting pre-HOSTD-7 numbers.
+// `cards` is every service the board shows; `total` is the "All" count in the group rail.
 //
 // `truthContainer`/`truthCard` name a PASSIVE, host-tracked service — no URL, so it is
-// never probed and its badge is a pure function of status.json. That makes the
-// host-truth assertions below deterministic and network-independent.
+// never probed and its LED is a pure function of status.json. That makes the host-truth
+// assertions below deterministic and network-independent.
+//
+// `audience` is the board's presentation: family boards answer failures with "What now?"
+// guidance, operator boards with an attention list.
 const defaults = {
   hsb0: {
     cards: 18,
     total: 18,
+    audience: "operator",
+    density: "list",
     searchName: "AdGuard Home",
     searchTerm: "adguard",
     certService: null,
@@ -43,7 +50,7 @@ const defaults = {
     // Served by this dashboard's own nginx: same origin, no port of its own.
     pathOnlyService: "hausnetz",
     pathOnlyPath: "/ops/",
-    staticStates: {},
+    staticServices: {},
     truthContainer: "restic-cron-hetzner",
     truthCard: "restic",
     httpContainer: "ncps",
@@ -52,13 +59,15 @@ const defaults = {
   hsb1: {
     cards: 27,
     total: 27,
+    audience: "operator",
+    density: "list",
     searchName: "Plex",
     searchTerm: "plex",
     certService: "Scrypted",
     sameHostService: "Plex",
     sameHostPort: "32400",
     sameHostPath: "/web",
-    staticStates: {},
+    staticServices: {},
     truthContainer: "mosquitto",
     truthCard: "Mosquitto",
     httpContainer: "scrypted",
@@ -67,13 +76,15 @@ const defaults = {
   hsb8: {
     cards: 5,
     total: 5,
+    audience: "family",
+    density: "tiles",
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
     sameHostService: "Home Assistant",
     sameHostPort: "8123",
     sameHostPath: "/",
-    staticStates: {},
+    staticServices: {},
     truthContainer: "mosquitto",
     truthCard: "Mosquitto",
     httpContainer: "homeassistant",
@@ -89,6 +100,8 @@ const defaults = {
   hsb9: {
     cards: 6,
     total: 6,
+    audience: "family",
+    density: "tiles",
     searchName: "Home Assistant",
     searchTerm: "assistant",
     certService: null,
@@ -98,7 +111,7 @@ const defaults = {
     // The recordings library is served by hsb9-home's own nginx (HOSTD-79).
     pathOnlyService: "Fernsehaufnahmen",
     pathOnlyPath: "/fernsehen/",
-    staticStates: {},
+    staticServices: {},
     truthContainer: "mosquitto",
     truthCard: "Mosquitto",
     httpContainer: "homeassistant",
@@ -115,13 +128,15 @@ const defaults = {
   csb0: {
     cards: 14,
     total: 14,
+    audience: "operator",
+    density: "list",
     searchName: "Node-RED",
     searchTerm: "node-red",
     certService: null,
     sameHostService: null,
     sameHostPort: null,
     sameHostPath: null,
-    staticStates: {},
+    staticServices: {},
     truthContainer: "csb0-mosquitto-1",
     truthCard: "Mosquitto",
     httpContainer: "csb0-nodered-1",
@@ -146,14 +161,18 @@ const defaults = {
   csb1: {
     cards: 47,
     total: 47,
+    audience: "operator",
+    density: "list",
     searchName: "Docmost",
     searchTerm: "knowledge",
     certService: null,
     sameHostService: null,
     sameHostPort: null,
     sameHostPath: null,
-    staticStates: {
-      "INSPR site": "external",
+    // HOSTD-83 finding (b): a static status is a probe opt-out, never evidence. The
+    // value is the container that alone may light the card.
+    staticServices: {
+      "INSPR site": "inspr-www",
     },
     truthContainer: "csb1-docmost-db-1",
     truthCard: "Docmost Postgres",
@@ -212,8 +231,12 @@ const defaults = {
 };
 
 // Short enough that the test observes several sweeps, long enough that a sweep's
-// batches finish before the next begins. Read by index.html via window.HOSTDASH_SWEEP_MS.
+// batches start before the next begins. Read by index.html via window.HOSTDASH_SWEEP_MS.
 const sweepMs = Number(process.env.HOSTDASH_SWEEP_MS || 1200);
+// Same-origin path probes (hausnetz, Fernsehaufnahmen) answer slower than a sweep on
+// purpose. HOSTD-81 dropped every probe result that outlived a sweep, so under this
+// delay its path-only cards never left "checking" (HOSTD-83 finding a).
+const slowPathMs = Number(process.env.HOSTDASH_SLOW_PATH_MS || Math.round(sweepMs * 2.1));
 const expectedString = (envName, key) =>
   process.env[envName] ??
   (Object.prototype.hasOwnProperty.call(defaults[host] || {}, key)
@@ -237,6 +260,7 @@ const expected = {
   sameHostPath: expectedString("EXPECTED_SAME_HOST_PATH", "sameHostPath"),
   configSource: process.env.EXPECTED_CONFIG_SOURCE || (manifestMode ? "manifest-json" : "config-js"),
 };
+const family = expected.audience === "family";
 
 async function readHostConfig(hostName) {
   const configPath = join(repoRoot, "hosts", hostName, "config.js");
@@ -249,6 +273,8 @@ async function readHostConfig(hostName) {
   return sandbox.window.HOSTDASH_CONFIG;
 }
 
+// The nixcfg manifest carries services but no presentation; the board's own config.js
+// must still supply audience, density and contact (HOSTD-83). So these are stripped.
 function manifestFromConfig(config) {
   const contractSentinels = config.slug === "hsb1"
     ? [
@@ -325,6 +351,8 @@ async function serveDirectory(root) {
       response.end("bad request");
       return;
     }
+    // A directory-like path is a path-only service on this nginx: answer it late.
+    if (name.endsWith("/")) await new Promise(done => setTimeout(done, slowPathMs));
 
     try {
       const file = await readFile(join(root, name));
@@ -361,7 +389,8 @@ async function localPageUrl() {
   await mkdir(join(site, "status"), { recursive: true });
   if (manifestMode) {
     const config = await readHostConfig(host);
-    await writeFile(join(site, "manifest.json"), JSON.stringify(manifestFromConfig(config), null, 2));
+    const manifest = manifestFromConfig(config);
+    await writeFile(join(site, "manifest.json"), JSON.stringify(manifest, null, 2));
   }
   const server = await serveDirectory(site);
   return {
@@ -380,6 +409,8 @@ async function localPageUrl() {
           http,
         }),
       ),
+    // No artifact at all: the board must fall back to probes and claim nothing more.
+    removeStatus: async () => rm(join(site, "status", "status.json"), { force: true }),
     cleanup: async () => {
       await server.cleanup();
       await rm(site, { recursive: true, force: true });
@@ -428,6 +459,8 @@ async function waitForJson(path) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 try {
   const pages = await waitForJson("/json/list");
   const page = pages.find(item => item.type === "page");
@@ -437,11 +470,18 @@ try {
   let id = 0;
   const pending = new Map();
   const exceptions = [];
+  // Every subresource the page itself loads must be same-origin or inline (AC8). Probe
+  // fetches go to the configured services by design and are not counted here.
+  const foreignResources = [];
 
   ws.onmessage = event => {
     const message = JSON.parse(event.data);
     if (message.method === "Runtime.exceptionThrown") {
-      exceptions.push(message.params.exceptionDetails.text || "exception");
+      exceptions.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text || "exception");
+    }
+    if (message.method === "Network.requestWillBeSent") {
+      const { request, type } = message.params;
+      if (type !== "Fetch" && !/^(data:|about:|http:\/\/127\.0\.0\.1:)/.test(request.url)) foreignResources.push(`${type} ${request.url}`);
     }
     if (message.id && pending.has(message.id)) {
       const { resolve, reject } = pending.get(message.id);
@@ -470,16 +510,22 @@ try {
       awaitPromise: true,
     });
     if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.text || "Runtime.evaluate failed");
+      throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Runtime.evaluate failed");
     }
     return result.result.value;
   }
 
+  const key = async (key, code, keyCode, text) => {
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, ...(text ? { text } : {}), windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
+  };
+
   await send("Page.enable");
   await send("Runtime.enable");
+  await send("Network.enable");
   await send("Input.setIgnoreInputEvents", { ignore: false });
   // Must land before the page's own module script runs, hence addScriptToEvaluateOnNewDocument
-  // rather than an injected tag. Compresses the ~30s production sweep to something a test
+  // rather than an injected tag. Compresses the ~60 s production sweep to something a test
   // can sit through without making the app aware it is being tested.
   await send("Page.addScriptToEvaluateOnNewDocument", {
     source: `
@@ -489,41 +535,50 @@ try {
     `,
   });
   await send("Page.navigate", { url: pageUrl });
-  await new Promise(resolve => setTimeout(resolve, 2500));
+  await sleep(2500);
+
+  // Helpers evaluated in the page. Items are tiles (the link itself) or list rows
+  // (an <li> around the link); both carry the same data attributes.
+  const itemJs = `
+    const items = () => [...document.querySelectorAll("#services [data-item]")];
+    const nameOf = item => item.querySelector("[data-name]")?.dataset.name || null;
+    const byName = name => items().find(item => nameOf(item) === name) || null;
+    const linkOf = item => item ? (item.matches("a") ? item : item.querySelector("a")) : null;
+    const visible = node => Boolean(node && !node.hidden && node.getClientRects().length && getComputedStyle(node).visibility !== "hidden");
+    const wordNode = item => item.querySelector(".t-word") || item.querySelector(".badge");
+  `;
 
   const languageState = () => value(`(() => {
+    ${itemJs}
     const text = selector => document.querySelector(selector)?.textContent || "";
-    const recordings = [...document.querySelectorAll(".svc")]
-      .find(card => card.querySelector("h3")?.textContent === "Fernsehaufnahmen");
+    const recordings = byName("Fernsehaufnahmen");
     const chrome = [...document.querySelectorAll(
-      ".status-row > span, #truthLabel, .zoom-title, #zoomFit, #languageLabel, .action, .state-label, #empty, .chip[data-wing='all'] .label"
-    )].map(node => node.textContent.trim());
+      ".rail-h, #mainCount, .zoom-row2 .btn span, .grp .gn, #heroH, .truth-t.now, .fcard h3, .seg button span, .t-open-l, .guide h3, .hero-sub"
+    )].map(node => node.textContent.trim()).concat(items().map(item => item.dataset.word || "").filter(Boolean));
     return {
       language: document.documentElement.lang,
       stored: localStorage.getItem("hostdash.lang"),
       heading: text("#mainTitle"),
-      wings: [...document.querySelectorAll(".heading h2")].map(node => node.textContent),
-      purpose: recordings?.querySelector(".purpose")?.textContent || null,
-      cardNames: [...document.querySelectorAll(".svc h3")].map(node => node.textContent),
+      wings: [...document.querySelectorAll("#services .wing-h .wt")].map(node => node.textContent),
+      purpose: recordings?.querySelector(".t-purpose, .r-purpose")?.textContent || null,
+      cardNames: items().map(nameOf),
       role: text("#hostRole"), title: document.title,
       meta: text("#meta"),
       searchPlaceholder: document.getElementById("q").placeholder,
-      groupLabel: text("#languageLabel"),
-      onlineLabel: text('[data-i18n="online"]'),
+      groupLabel: document.getElementById("languageGroup").getAttribute("aria-label"),
       statusSourceTitle: document.getElementById("truthRow")?.title || "",
       pressed: [...document.querySelectorAll("[data-language][aria-pressed='true']")]
         .map(button => button.dataset.language),
-      englishChrome: chrome.filter(text => /^(Online|View|Fit|Open|All services|Running|Stopped|Checking|Unknown|Down|Unreachable|Passive|External|Protected|Fault|no answer|OK on host|No telemetry|Listening)$/.test(text) ||
-        /no status artifact|host truth|No services match/.test(text)),
+      englishChrome: chrome.filter(text => /^(Running|Down|Unreachable|Reachable|Listening|No answer|Open|Open anyway|Groups|Size|Fit|Tiles|List|All|Failures|Help|Host|What now\\?|Layout)$/.test(text) ||
+        /services running|not running|unreachable from|Host truth|No status file|What the lights mean|Checking services|Status file/.test(text)),
       englishAttributes: [...document.querySelectorAll("[aria-label], [title], [placeholder]")]
         .flatMap(node => [node.getAttribute("aria-label"), node.getAttribute("title"), node.getAttribute("placeholder")])
-        .filter(text => text && /^(Search services|Host status|Dashboard controls|View zoom|Zoom out|Zoom in|Fit all services|Reset zoom|Service categories|Service overview)$/.test(text)),
+        .filter(text => text && /^(Search services|Language|Dark appearance|View zoom|Zoom out|Zoom in|Fit all services|Reset zoom to 100 %|Groups|Layout|Size)$/.test(text)),
     };
   })()`);
   const assertGerman = state => {
     if (state.language !== "de" || state.searchPlaceholder !== "Dienste suchen" ||
         state.groupLabel !== "Sprache" || JSON.stringify(state.pressed) !== '["de"]' ||
-        state.onlineLabel !== germanStrings.online ||
         !/^(Das Gerät selbst meldet|Kein nutzbarer Gerätestatus\.)/.test(state.statusSourceTitle) ||
         state.englishChrome.length || state.englishAttributes.length) {
       throw new Error(`German UI chrome did not translate: ${JSON.stringify(state)}`);
@@ -541,8 +596,44 @@ try {
       throw new Error(`English language choice did not apply: ${JSON.stringify(state)}`);
     }
   };
+
+  // ── NO EVIDENCE, NO CLAIM (HOSTD-81, HOSTD-83) ──────────────────────────────
+  //
+  // A lit LED and a status word are claims, made only on evidence. A card with no
+  // evidence (checking, no or stale artifact, a passive card the artifact does not
+  // list) shows dark glass, no word and no "Unknown"/"Unbekannt" anywhere, in either
+  // language. Real failures (down, stopped, fault, failed runs) must still be visible
+  // and named, in both densities.
+  const evidenceViolations = () => value(`(() => {
+    ${itemJs}
+    const neutral = new Set(["checking", "unknown"]);
+    const failed = new Set(["down", "stopped", "fault", "jobfail"]);
+    return items().map(item => {
+      const word = wordNode(item);
+      const leds = [...item.querySelectorAll(".led")].map(led => led.dataset.l);
+      return {
+        name: nameOf(item),
+        state: item.dataset.s, led: item.dataset.l, leds,
+        word: item.dataset.word || "",
+        shownWord: visible(word) ? word.textContent.trim() : "",
+        listed: visible(item),
+        alarming: /\\b(unknown|unbekannt)\\b/i.test(item.textContent),
+      };
+    }).filter(card => card.alarming ||
+      (neutral.has(card.state) && (card.led !== "off" || card.word || card.shownWord || card.leds.some(l => l !== "off"))) ||
+      (failed.has(card.state) && (card.led !== "bad" || (card.listed && !card.shownWord))) ||
+      (!neutral.has(card.state) && card.led === "off"));
+  })()`);
+  const assertEvidence = async where => {
+    const violations = await evidenceViolations();
+    if (violations.length) {
+      throw new Error(`Evidence rule broken (${where}): ${JSON.stringify(violations)}`);
+    }
+  };
+
   const defaultLanguage = await languageState();
   assertGerman(defaultLanguage);
+  await assertEvidence("German, initial artifact");
   if (defaultLanguage.stored !== null) {
     throw new Error(`Browser default unexpectedly stored a preference: ${JSON.stringify(defaultLanguage)}`);
   }
@@ -555,13 +646,13 @@ try {
     const deadline = Date.now() + 8000;
     while (Date.now() < deadline) {
       try {
-        if (await value(`!window.__beforeLanguageReload && document.querySelectorAll(".svc").length === ${expected.cards} &&
+        if (await value(`!window.__beforeLanguageReload && document.querySelectorAll("#services [data-item]").length === ${expected.cards} &&
             Boolean(document.documentElement.dataset.configSource) &&
             document.querySelector('[data-language="en"]')?.getAttribute("aria-pressed") === "true"`)) return;
       } catch (error) {
         if (!/Execution context was destroyed|Cannot find context/.test(error.message)) throw error;
       }
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await sleep(100);
     }
     throw new Error("Dashboard did not finish reloading with the stored English preference");
   };
@@ -582,25 +673,31 @@ try {
 
   // Let a few sweeps run, then read one card. Reused after each status.json rewrite.
   const sampleCard = async name => {
-    await new Promise(resolve => setTimeout(resolve, sweepMs * 3));
+    await sleep(sweepMs * 3);
     const readCard = () => value(`(() => {
-      const card = [...document.querySelectorAll(".svc")]
-        .find(item => item.querySelector("h3")?.textContent === ${JSON.stringify(name)});
+      ${itemJs}
+      const item = byName(${JSON.stringify(name)});
+      const word = item ? wordNode(item) : null;
       return {
-        state: card?.querySelector(".state")?.dataset.s || null,
-        label: card?.querySelector(".state-label")?.textContent || null,
-        hostOk: card?.dataset.hostOk || null,
-        title: card?.title || null,
+        state: item?.dataset.s || null,
+        led: item?.dataset.l || null,
+        word: item?.dataset.word || "",
+        shown: Boolean(word && visible(word) && word.textContent.trim()),
+        busy: item?.getAttribute("aria-busy") === "true",
+        probed: item?.dataset.probed === "1",
+        hostOk: item?.dataset.hostOk || null,
+        title: (item?.title || item?.querySelector(".row")?.title) || null,
         truth: document.getElementById("truthRow")?.dataset.t || null,
         hostTruth: document.documentElement.dataset.hostTruth || null,
+        verdict: document.documentElement.dataset.v || null,
+        headline: document.getElementById("heroH")?.textContent || "",
       };
     })()`);
-    // A host-confirmed HTTP 200 still runs the browser reachability probe (4s timeout).
-    // Wait for its result instead of treating an in-flight probe as a failed contract.
+    // A first probe may still be in flight; wait for it, not for the endless re-checks.
     const deadline = Date.now() + 8000;
     let card = await readCard();
-    while (card.state === "checking" && Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+    while ((card.state === "checking" || (card.busy && !card.probed && card.led === "off")) && Date.now() < deadline) {
+      await sleep(100);
       card = await readCard();
     }
     return card;
@@ -608,41 +705,31 @@ try {
   const sampleTruth = () => sampleCard(expected.truthCard);
 
   const initial = await value(`(() => {
+    ${itemJs}
     const certName = ${JSON.stringify(expected.certService)};
     const sameHostName = ${JSON.stringify(expected.sameHostService)};
-    const sameHostCard = sameHostName ? [...document.querySelectorAll(".svc")]
-      .find(card => card.querySelector("h3")?.textContent === sameHostName) : null;
+    const rail = document.getElementById("rail");
     return {
       configSource: document.documentElement.dataset.configSource,
       manifestAccent: getComputedStyle(document.documentElement).getPropertyValue("--manifest-accent").trim(),
-      cards: document.querySelectorAll(".svc").length,
-      total: document.getElementById("totCount").textContent,
-      online: document.getElementById("onCount").textContent,
+      audience: document.documentElement.dataset.audience,
+      density: document.documentElement.dataset.density,
+      cards: items().length,
+      total: document.querySelector('.grp[data-wing="all"] .n')?.textContent,
+      headline: document.getElementById("heroH")?.textContent || "",
       search: document.getElementById("q")?.id,
       zoom: document.getElementById("zoomRange")?.value,
-      controlsInSidebar: Boolean(
-        document.querySelector(".side .controls #q") &&
-        document.querySelector(".side .controls #zoomRange") &&
-        document.querySelector(".side .controls #zoomOut") &&
-        document.querySelector(".side .controls #zoomIn") &&
-        document.querySelector(".side .controls #zoomFit") &&
-        document.querySelector(".side .controls #zoomReset")
-      ),
-      controlsInTopbar: Boolean(document.querySelector(".topbar #q, .topbar #zoomRange")),
-      zoomNestedInSearch: Boolean(document.querySelector("label.search .zoom")),
+      controlsInRail: ["q", "zoomRange", "zoomOut", "zoomIn", "zoomFit", "zoomReset"].every(id => rail.contains(document.getElementById(id))),
+      controlsInHeader: Boolean(document.querySelector(".top #q, .top #zoomRange")),
       certFlagged: certName ? (() => {
-        const card = [...document.querySelectorAll(".svc")]
-          .find(item => item.querySelector("h3")?.textContent === certName);
-        return card ? { certIssue: card.dataset.certIssue || null, probed: Boolean(card.dataset.probe) } : null;
+        const item = byName(certName);
+        return item ? { certIssue: item.dataset.certIssue || null, probed: Boolean(item.dataset.probe) } : null;
       })() : null,
-      staticStates: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticStates || {})}).map(name => {
-        const card = [...document.querySelectorAll(".svc")]
-          .find(item => item.querySelector("h3")?.textContent === name);
-        return [name, card?.querySelector(".state")?.dataset.s || null];
+      staticServices: Object.fromEntries(Object.keys(${JSON.stringify(expected.staticServices || {})}).map(name => {
+        const item = byName(name);
+        return [name, item ? { static: item.dataset.static || null, probe: item.dataset.probe || null, state: item.dataset.s, led: item.dataset.l, word: item.dataset.word } : null];
       })),
       manifestContract: ${manifestContractMode ? `(() => {
-        const byName = name => [...document.querySelectorAll(".svc")]
-          .find(card => card.querySelector("h3")?.textContent === name);
         const binding = byName("Manifest binding sentinel");
         const explicitActive = byName("Manifest passive sentinel");
         return {
@@ -650,34 +737,35 @@ try {
             container: binding.dataset.container || null,
             unit: binding.dataset.unit || null,
             extra: binding.dataset.extra || null,
-            passive: binding.classList.contains("passive"),
+            passive: binding.dataset.passive === "1",
           } : null,
           explicitActive: explicitActive ? {
-            tag: explicitActive.tagName,
-            passive: explicitActive.classList.contains("passive"),
+            tag: linkOf(explicitActive)?.tagName || null,
+            passive: explicitActive.dataset.passive === "1",
           } : null,
         };
       })()` : "null"},
-      hostBindings: Object.fromEntries([...document.querySelectorAll(".svc")].flatMap(card => {
+      hostBindings: Object.fromEntries(items().flatMap(item => {
         const binding = {
-          ...(card.dataset.container ? { container: card.dataset.container } : {}),
-          ...(card.dataset.unit ? { unit: card.dataset.unit } : {}),
-          ...(card.dataset.extra ? { extra: card.dataset.extra } : {}),
+          ...(item.dataset.container ? { container: item.dataset.container } : {}),
+          ...(item.dataset.unit ? { unit: item.dataset.unit } : {}),
+          ...(item.dataset.extra ? { extra: item.dataset.extra } : {}),
         };
-        const name = card.querySelector("h3")?.textContent;
+        const name = nameOf(item);
         return name && Object.keys(binding).length ? [[name, binding]] : [];
       })),
-      sameHostHref: sameHostCard?.href || null,
+      sameHostHref: sameHostName ? linkOf(byName(sameHostName))?.href || null : null,
       pathOnly: (() => {
         const name = ${JSON.stringify(expected.pathOnlyService || null)};
-        const card = name ? [...document.querySelectorAll(".svc")]
-          .find(item => item.querySelector("h3")?.textContent === name) : null;
-        return card ? {
-          href: card.href,
-          probe: card.dataset.probe || null,
-          foot: card.querySelector(".svc-foot .port")?.textContent || null,
+        const item = name ? byName(name) : null;
+        return item ? {
+          href: linkOf(item).href,
+          probe: item.dataset.probe || null,
+          foot: item.querySelector(".t-code, .r-foot")?.textContent || null,
         } : null;
-      })()
+      })(),
+      unnamedButtons: [...document.querySelectorAll("button")].filter(button =>
+        !(button.getAttribute("aria-label") || button.textContent.trim())).map(button => button.outerHTML.slice(0, 80)),
     };
   })()`);
 
@@ -689,6 +777,10 @@ try {
   }
   if (manifestMode && initial.manifestAccent.toLowerCase() !== "#e09051") {
     throw new Error(`Manifest palette was not applied: ${JSON.stringify(initial)}`);
+  }
+  // Presentation comes from the board's config.js even when a manifest supplies services.
+  if (initial.audience !== expected.audience || initial.density !== expected.density) {
+    throw new Error(`Board presentation (audience/density) not applied: ${JSON.stringify(initial)}`);
   }
   if (manifestContractMode) {
     const contract = initial.manifestContract;
@@ -705,7 +797,7 @@ try {
     }
   }
   if (initial.total !== String(expected.total)) {
-    throw new Error(`Expected ${expected.total} active services, got ${JSON.stringify(initial)}`);
+    throw new Error(`Expected ${expected.total} services in the "All" group, got ${JSON.stringify(initial)}`);
   }
   if (expected.bindings) {
     const actualNames = Object.keys(initial.hostBindings).sort();
@@ -721,8 +813,8 @@ try {
       }
     }
   }
-  if (!/^\d+$/.test(initial.online)) {
-    throw new Error(`Online count is not numeric: ${JSON.stringify(initial)}`);
+  if (!initial.headline) {
+    throw new Error(`Hero states nothing: ${JSON.stringify(initial)}`);
   }
   if (initial.search !== "q") {
     throw new Error(`Search input missing: ${JSON.stringify(initial)}`);
@@ -730,14 +822,15 @@ try {
   if (initial.zoom !== "100") {
     throw new Error(`Zoom control missing or wrong initial value: ${JSON.stringify(initial)}`);
   }
-  if (!initial.controlsInSidebar || initial.controlsInTopbar || initial.zoomNestedInSearch) {
-    throw new Error(`Search and zoom controls are not in the sidebar control rail: ${JSON.stringify(initial)}`);
+  if (!initial.controlsInRail || initial.controlsInHeader) {
+    throw new Error(`Search and size controls are not in the group rail: ${JSON.stringify(initial)}`);
   }
-  // HOSTD-7 deliberately stopped painting a self-signed cert as a static "cert" badge —
-  // that was a workaround for the probe's blindness, and it asserted a state nobody had
-  // measured. What must hold now is structural: the service still carries the cert hint
-  // AND is genuinely probed rather than given a hardcoded answer. Asserting the probe's
-  // OUTCOME here would be asserting the test machine's network, not the app.
+  if (initial.unnamedButtons.length) {
+    throw new Error(`Buttons without an accessible name: ${JSON.stringify(initial.unnamedButtons)}`);
+  }
+  // HOSTD-7 deliberately stopped painting a self-signed cert as a static "cert" badge.
+  // What must hold is structural: the service carries the cert hint AND is genuinely
+  // probed. Asserting the probe's OUTCOME would be asserting the test machine's network.
   if (expected.certService) {
     if (!initial.certFlagged) {
       throw new Error(`Cert-flagged service ${expected.certService} not found: ${JSON.stringify(initial)}`);
@@ -746,9 +839,12 @@ try {
       throw new Error(`Expected ${expected.certService} to be cert-flagged and probed, got ${JSON.stringify(initial)}`);
     }
   }
-  for (const [name, state] of Object.entries(expected.staticStates || {})) {
-    if (initial.staticStates[name] !== state) {
-      throw new Error(`Expected ${name} state ${state}, got ${JSON.stringify(initial)}`);
+  // HOSTD-83 finding (b): a static status is not probed and, without the host's word,
+  // claims nothing at all (it used to read "External" in green).
+  for (const name of Object.keys(expected.staticServices || {})) {
+    const card = initial.staticServices[name];
+    if (!card || !card.static || card.probe || card.led !== "off" || card.word || card.state === "external") {
+      throw new Error(`Static status for ${name} bypassed the evidence rules: ${JSON.stringify(card)}`);
     }
   }
   if (expected.sameHostService && /^https?:/.test(pageUrl)) {
@@ -764,7 +860,9 @@ try {
   }
   // A path-only service keeps the dashboard's own origin (port included) for both the
   // link and the probe. That probe is same-origin and so readable: this test server
-  // answers it 404, which must not read as Online.
+  // answers it 404 — and later than a sweep, so the result must survive steady sweeps
+  // (finding a). It must read as a visible Down, never as reachable or as "checking".
+  let pathOnlySample = null;
   if (expected.pathOnlyService && /^https?:/.test(pageUrl)) {
     const want = new URL(expected.pathOnlyPath, pageUrl).href;
     const card = initial.pathOnly;
@@ -772,55 +870,101 @@ try {
       throw new Error(`Path-only URL resolution failed: ${JSON.stringify({ want, pathOnly: card })}`);
     }
     if (localPage) {
-      const sampled = await sampleCard(expected.pathOnlyService);
-      if (sampled.state !== "down") {
-        throw new Error(`Same-origin 404 was not reported as down: ${JSON.stringify(sampled)}`);
+      pathOnlySample = await sampleCard(expected.pathOnlyService);
+      if (pathOnlySample.state !== "down" || pathOnlySample.led !== "bad" || !pathOnlySample.shown ||
+          pathOnlySample.word !== englishStrings.status_down || !pathOnlySample.probed) {
+        throw new Error(`Slow same-origin 404 was not reported as a visible Down (probe starved?): ${JSON.stringify({ slowPathMs, sweepMs, pathOnlySample })}`);
       }
     }
   }
 
   // ── HOST TRUTH REFRESH (HOSTD-11) ───────────────────────────────────────────
   //
-  // The board exists to be left open for days. Before HOSTD-11 it read status.json once,
-  // at page load, so every "Running"/"Stopped" badge described the host as it was when
-  // the tab was opened — and STATUS_MAX_AGE_MS, the guard against a dead generator, could
-  // never fire, because it was only ever evaluated on data that was fresh by construction.
-  //
-  // All three states asserted here are pure functions of status.json: the tracked card is
+  // The board exists to be left open for days, so it must re-read status.json on every
+  // sweep, and an artifact older than STATUS_MAX_AGE_MS must stop counting as evidence.
+  // All states asserted here are pure functions of status.json: the tracked card is
   // passive and has no URL, so nothing probes it and no network condition can flake it.
   let truthStates = null;
   if (truthCheck) {
     const stopped = await sampleTruth();
-    if (stopped.state !== "stopped" || stopped.truth !== "live") {
+    if (stopped.state !== "stopped" || stopped.truth !== "live" || stopped.led !== "bad" ||
+        !stopped.shown || stopped.word !== englishStrings.status_stopped || stopped.verdict !== "bad") {
       throw new Error(
         `Expected ${expected.truthCard} stopped under live host truth, got ${JSON.stringify(stopped)}`,
       );
     }
+    // A failure is loud and comes with guidance: "What now?" for a family board (with
+    // the contact's first name, never a phone link), an attention list for an operator.
+    const failureHelp = await value(`(() => ({
+      guide: document.querySelector("#hero .guide")?.textContent || "",
+      chips: [...document.querySelectorAll("#hero .att-chip b")].map(node => node.textContent),
+      telLinks: document.querySelectorAll('a[href^="tel:"]').length,
+      problems: document.querySelector('.grp[data-wing="problems"] .n')?.textContent || null,
+    }))()`);
+    if (failureHelp.telLinks || failureHelp.problems === null ||
+        (family ? !/What now\?/.test(failureHelp.guide) : !failureHelp.chips.includes(expected.truthCard))) {
+      throw new Error(`Failure guidance missing: ${JSON.stringify(failureHelp)}`);
+    }
+    await assertEvidence("host reports a stopped service");
 
     // Same tab, no reload: the host changes its mind and the board must follow.
     await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
     const running = await sampleTruth();
-    if (running.state !== "running" || running.truth !== "live") {
+    if (running.state !== "running" || running.truth !== "live" || running.led !== "on") {
       throw new Error(`Board did not pick up refreshed host truth, got ${JSON.stringify(running)}`);
     }
 
-    // Generator has gone quiet. Trusting this file would leave the card reading "Running"
-    // indefinitely; the only honest answer is that the board no longer knows.
-    await localPage.writeStatus({ [expected.truthContainer]: { running: true } }, 600);
-    const stale = await sampleTruth();
-    if (stale.state !== "unknown" || stale.truth !== "stale" || stale.hostTruth !== "absent") {
-      throw new Error(`Stale host truth was not discarded, got ${JSON.stringify(stale)}`);
+    // HOSTD-83 finding (b), with evidence: only the host's word may light a static card.
+    for (const [name, container] of Object.entries(expected.staticServices || {})) {
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true }, [container]: { running: true } });
+      const lit = await sampleCard(name);
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true }, [container]: { running: false } });
+      const down = await sampleCard(name);
+      if (lit.state !== "running" || lit.led !== "on" || down.state !== "stopped" || down.led !== "bad" || !down.shown) {
+        throw new Error(`Static status ${name} did not follow host evidence: ${JSON.stringify({ lit, down })}`);
+      }
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
     }
 
-    truthStates = { stopped, running, stale };
+    // Generator has gone quiet. Trusting this file would leave the card lit indefinitely;
+    // the only honest answer is dark glass — and the board says why.
+    await localPage.writeStatus({ [expected.truthContainer]: { running: true } }, 600);
+    const stale = await sampleTruth();
+    // A measured failure that needs no host truth (a same-origin 404) still outranks the
+    // stale notice; otherwise the hero says how long the host has been silent.
+    const measuredFailure = await value(`document.querySelectorAll('#services [data-item][data-l="bad"]').length`);
+    if (stale.state !== "unknown" || stale.truth !== "stale" || stale.hostTruth !== "absent" ||
+        stale.led !== "off" || stale.word ||
+        (measuredFailure ? stale.verdict !== "bad" : stale.verdict !== "quiet" || !/10/.test(stale.headline))) {
+      throw new Error(`Stale host truth was not discarded, got ${JSON.stringify({ stale, measuredFailure })}`);
+    }
+    await assertEvidence("stale artifact");
+    const staleGuide = await value(`document.querySelector("#hero .guide, #hero .next, #hero .att-chip")?.textContent || ""`);
+    if (!staleGuide) throw new Error("Stale state shows no guidance");
+
+    // No artifact at all (404): same honest fallback, in both languages.
+    await localPage.removeStatus();
+    const none = await sampleTruth();
+    if (none.state !== "unknown" || none.truth !== "none" || none.hostTruth !== "absent" || none.led !== "off" || none.word) {
+      throw new Error(`Missing artifact did not fall back to no claim, got ${JSON.stringify(none)}`);
+    }
+    await assertEvidence("no artifact");
+    await value(`document.querySelector('[data-language="de"]').click()`);
+    await assertEvidence("German, no artifact");
+    const noneDe = await value(`({ label: document.getElementById("truthLabel").textContent, title: document.getElementById("truthRow").title })`);
+    if (noneDe.label !== germanStrings.tr_none || !/nicht gefunden/.test(noneDe.title)) {
+      throw new Error(`German no-artifact state does not say so: ${JSON.stringify(noneDe)}`);
+    }
+    await value(`document.querySelector('[data-language="en"]').click()`);
+
+    truthStates = { stopped, failureHelp, running, stale, none, noneDe };
   }
 
   // ── HOST-SIDE HTTP TRUTH (HOSTD-12) ─────────────────────────────────────────
   //
-  // The browser probe is opaque: it resolves on a 500 exactly as it does on a 200, so a
-  // broken service read "Online". Only the host can see a status code. These fixtures
-  // feed the board codes it could never obtain client-side and assert it says the true
-  // thing — the first two deterministically, since both short-circuit before any probe.
+  // The browser probe is opaque: it resolves on a 500 exactly as it does on a 200. Only
+  // the host can see a status code. These fixtures feed the board codes it could never
+  // obtain client-side and assert it says the true thing.
   let httpStates = null;
   if (truthCheck && expected.httpContainer) {
     const base = {
@@ -834,72 +978,65 @@ try {
 
     // The service itself reports failure. Outranks the probe entirely.
     const fault = await withHttp(503);
-    if (fault.state !== "fault" || fault.label !== "HTTP 503") {
+    if (fault.state !== "fault" || fault.word !== "HTTP 503" || !fault.shown || fault.led !== "bad") {
       throw new Error(`Expected ${expected.httpCard} to report HTTP 503, got ${JSON.stringify(fault)}`);
     }
 
-    // Container up, nothing answering behind it — curl's 000. A service failure, not a
-    // routing one, and invisible to every other signal on the board.
+    // Container up, nothing answering behind it — curl's 000.
     const silent = await withHttp(0);
-    if (silent.state !== "fault" || silent.label !== "no answer") {
+    if (silent.state !== "fault" || silent.word !== englishStrings.noAnswer || !silent.shown) {
       throw new Error(`Expected ${expected.httpCard} to report no answer, got ${JSON.stringify(silent)}`);
     }
 
     // Host gets a clean 200. Whether THIS browser can also reach it is a property of the
-    // machine running the test, so only the unreachable branch is asserted — that branch
-    // is the Scrypted case, and it must name the service as healthy rather than shrug.
+    // machine running the test, so only the unreachable branch is asserted in detail —
+    // the Scrypted case: running per host, the path from here is what is broken.
     const ok = await withHttp(200);
     if (ok.state === "unreachable") {
-      if (ok.label !== "OK on host" || ok.hostOk !== "200" || !/HTTP 200/.test(ok.title || "")) {
-        throw new Error(`Host-confirmed service was not labelled as healthy: ${JSON.stringify(ok)}`);
+      if (ok.word !== englishStrings.status_unreachable || ok.led !== "split" || ok.hostOk !== "200" || !/HTTP 200/.test(ok.title || "")) {
+        throw new Error(`Host-confirmed service was not labelled as running but unreachable: ${JSON.stringify(ok)}`);
       }
-    } else if (ok.state !== "up") {
+    } else if (ok.state !== "up" || ok.led !== "on") {
       throw new Error(`Expected ${expected.httpCard} up or unreachable on HTTP 200, got ${JSON.stringify(ok)}`);
     }
 
     httpStates = { fault, silent, ok };
   }
 
+  // ── LAYOUT: phone width ─────────────────────────────────────────────────────
   await send("Emulation.setDeviceMetricsOverride", {
     width: 390,
     height: 844,
     deviceScaleFactor: 2,
     mobile: true,
   });
-  await new Promise(resolve => setTimeout(resolve, 150));
+  await sleep(200);
   const mobileLayout = await value(`(() => {
-    const side = document.querySelector(".side");
-    const controls = document.querySelector(".side .controls");
-    const sideBox = side?.getBoundingClientRect();
-    const controlsBox = controls?.getBoundingClientRect();
+    const visible = node => Boolean(node && node.getClientRects().length && getComputedStyle(node).display !== "none");
+    const before = visible(document.getElementById("zoomRange"));
+    document.getElementById("viewToggle").click();
+    const after = visible(document.getElementById("zoomRange"));
+    document.getElementById("viewToggle").click();
     return {
-      sideDisplay: side ? getComputedStyle(side).display : null,
-      controlsDisplay: controls ? getComputedStyle(controls).display : null,
-      sideWidth: sideBox ? Math.round(sideBox.width) : 0,
-      controlsWidth: controlsBox ? Math.round(controlsBox.width) : 0,
-      searchVisible: Boolean(document.querySelector(".side .controls #q")?.offsetParent),
-      zoomVisible: Boolean(document.querySelector(".side .controls #zoomRange")?.offsetParent),
+      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      searchVisible: visible(document.getElementById("q")),
+      groupsVisible: visible(document.querySelector("#groups .grp")),
+      sizeHiddenUntilAsked: !before && after,
       languageVisible: ["de", "en"].every(language => {
-        const button = document.querySelector('.side [data-language="' + language + '"]');
+        const button = document.querySelector('[data-language="' + language + '"]');
         const box = button?.getBoundingClientRect();
-        return Boolean(button?.offsetParent && box.width >= 34 && box.height >= 34 &&
+        return Boolean(visible(button) && box.width >= 44 && box.height >= 44 &&
           box.left >= 0 && box.right <= document.documentElement.clientWidth);
       }),
     };
   })()`);
-  if (
-    mobileLayout.sideDisplay === "none" ||
-    mobileLayout.controlsDisplay === "none" ||
-    mobileLayout.sideWidth < 300 ||
-    mobileLayout.controlsWidth < 250 ||
-    !mobileLayout.searchVisible ||
-    !mobileLayout.zoomVisible ||
-    !mobileLayout.languageVisible
-  ) {
-    throw new Error(`Sidebar controls are not usable on mobile: ${JSON.stringify(mobileLayout)}`);
+  if (mobileLayout.overflow || !mobileLayout.searchVisible || !mobileLayout.groupsVisible ||
+      !mobileLayout.sizeHiddenUntilAsked || !mobileLayout.languageVisible) {
+    throw new Error(`Controls are not usable on mobile: ${JSON.stringify(mobileLayout)}`);
   }
   await send("Emulation.clearDeviceMetricsOverride");
 
+  // ── ZOOM 50–200 %, per board ────────────────────────────────────────────────
   const zoomState = await value(`
     const zoom = document.getElementById("zoomRange");
     zoom.value = "75";
@@ -916,29 +1053,70 @@ try {
     ({
       zoom: getComputedStyle(document.documentElement).getPropertyValue("--zoom").trim(),
       value: document.getElementById("zoomRange").value,
-      text: document.getElementById("zoomValue").textContent
+      text: document.getElementById("zoomValue").textContent,
+      stored: localStorage.getItem(${JSON.stringify(`hostdash.${host}.zoom`)}),
     })
   `);
   if (
     steppedZoomState.zoom !== "0.8" ||
     steppedZoomState.value !== "80" ||
-    steppedZoomState.text !== "80%"
+    steppedZoomState.text !== "80 %" ||
+    steppedZoomState.stored !== "80"
   ) {
     throw new Error(`Zoom step buttons failed: ${JSON.stringify(steppedZoomState)}`);
   }
-  await value(`
-    document.getElementById("zoomReset").click();
-    true
-  `);
+  const fitState = await value(`(() => {
+    document.getElementById("zoomFit").click();
+    return {
+      pressed: document.getElementById("zoomFit").getAttribute("aria-pressed"),
+      mode: localStorage.getItem(${JSON.stringify(`hostdash.${host}.zoomMode`)}),
+      zoom: Number(document.getElementById("zoomRange").value),
+    };
+  })()`);
+  if (fitState.pressed !== "true" || fitState.mode !== "fit" || !(fitState.zoom >= 50 && fitState.zoom <= 100)) {
+    throw new Error(`Fit all services failed: ${JSON.stringify(fitState)}`);
+  }
+  await value(`document.getElementById("zoomReset").click(); true`);
 
-  await send("Input.dispatchKeyEvent", {
-    type: "keyDown",
-    key: "/",
-    code: "Slash",
-    text: "/",
-    windowsVirtualKeyCode: 191,
-    nativeVirtualKeyCode: 191,
-  });
+  // ── DENSITY AND APPEARANCE, remembered ──────────────────────────────────────
+  // The switch runs inside a view transition where the browser has one, so read after it.
+  const other = await value(`(() => {
+    const other = document.documentElement.dataset.density === "list" ? "tiles" : "list";
+    document.querySelector('[data-density="' + other + '"]').click();
+    return other;
+  })()`);
+  await sleep(500);
+  const densityState = { other, switched: await value(`({
+    density: document.documentElement.dataset.density,
+    items: document.querySelectorAll("#services [data-item]").length,
+    tiles: document.querySelectorAll("#services .tile").length,
+    rows: document.querySelectorAll("#services .row-li").length,
+    stored: localStorage.getItem(${JSON.stringify(`hostdash.${host}.density`)}),
+  })`) };
+  await assertEvidence(`after switching to ${densityState.other}`);
+  await value(`document.querySelector('[data-density="${expected.density}"]').click(); true`);
+  await sleep(400);
+  if (densityState.switched.density !== densityState.other || densityState.switched.items !== expected.cards ||
+      densityState.switched.stored !== densityState.other ||
+      (densityState.other === "tiles" ? densityState.switched.tiles : densityState.switched.rows) !== expected.cards) {
+    throw new Error(`Tiles/List switch failed: ${JSON.stringify(densityState)}`);
+  }
+  const themeState = await value(`(() => {
+    const before = document.documentElement.dataset.theme;
+    document.getElementById("themeSwitch").click();
+    const after = document.documentElement.dataset.theme;
+    const stored = localStorage.getItem("hostdash.theme");
+    const checked = document.getElementById("themeSwitch").getAttribute("aria-checked");
+    document.getElementById("themeSwitch").click();
+    return { before, after, stored, checked, restored: document.documentElement.dataset.theme };
+  })()`);
+  if (themeState.before === themeState.after || themeState.stored !== themeState.after ||
+      themeState.checked !== String(themeState.after === "dark") || themeState.restored !== themeState.before) {
+    throw new Error(`Light/dark switch failed: ${JSON.stringify(themeState)}`);
+  }
+
+  // ── SEARCH: "/" focuses, Esc clears, a second Esc leaves ─────────────────────
+  await key("/", "Slash", 191, "/");
   const focused = await value("document.activeElement && document.activeElement.id");
   if (focused !== "q") {
     throw new Error(`Slash hotkey did not focus search; active=${focused}`);
@@ -950,40 +1128,33 @@ try {
     q.dispatchEvent(new Event("input", { bubbles: true }));
     true
   `);
+  const visibleNames = `[...document.querySelectorAll("#services [data-item]")]
+      .filter(item => !item.hidden && !item.closest("[hidden]"))
+      .map(item => item.querySelector("[data-name]").dataset.name)`;
   const searchState = await value(`({
-    visibleCards: [...document.querySelectorAll(".svc")]
-      .filter(card => !card.classList.contains("hidden") && !card.closest(".wing").classList.contains("hidden"))
-      .map(card => card.querySelector("h3")?.textContent),
-    empty: getComputedStyle(document.getElementById("empty")).display
+    visibleCards: ${visibleNames},
+    empty: document.getElementById("empty").hidden,
+    count: document.getElementById("count").textContent,
   })`);
   if (
     searchState.visibleCards.length !== 1 ||
     searchState.visibleCards[0] !== expected.searchName ||
-    searchState.empty !== "none"
+    searchState.empty !== true ||
+    !/1 of/.test(searchState.count)
   ) {
     throw new Error(`Search filter failed: ${JSON.stringify(searchState)}`);
   }
 
-  await send("Input.dispatchKeyEvent", {
-    type: "keyDown",
-    key: "Escape",
-    code: "Escape",
-    windowsVirtualKeyCode: 27,
-    nativeVirtualKeyCode: 27,
-  });
-  const escapeState = await value(`({
-    value: document.getElementById("q").value,
-    active: document.activeElement && document.activeElement.id,
-    visible: [...document.querySelectorAll(".svc")]
-      .filter(card => !card.classList.contains("hidden") && !card.closest(".wing").classList.contains("hidden"))
-      .length
-  })`);
-  if (escapeState.value !== "" || escapeState.active === "q" || escapeState.visible !== expected.cards) {
-    throw new Error(`Escape reset failed: ${JSON.stringify(escapeState)}`);
+  await key("Escape", "Escape", 27);
+  const firstEscape = await value(`({ value: document.getElementById("q").value, active: document.activeElement && document.activeElement.id, visible: ${visibleNames}.length })`);
+  await key("Escape", "Escape", 27);
+  const escapeState = await value(`({ value: document.getElementById("q").value, active: document.activeElement && document.activeElement.id })`);
+  if (firstEscape.value !== "" || firstEscape.active !== "q" || firstEscape.visible !== expected.cards || escapeState.active === "q") {
+    throw new Error(`Escape did not clear, then leave: ${JSON.stringify({ firstEscape, escapeState })}`);
   }
 
   const retainedState = await value(`(() => {
-    document.querySelector('.chip:not([data-wing="all"])').click();
+    document.querySelector('#groups .grp:not([data-wing="all"]):not([data-wing="problems"])').click();
     const q = document.getElementById("q");
     q.value = ${JSON.stringify(expected.searchTerm)};
     q.dispatchEvent(new Event("input", { bubbles: true }));
@@ -993,33 +1164,34 @@ try {
     window.__languageSwitchMarker = "same document";
     const before = {
       search: q.value,
-      filter: document.querySelector('.chip[aria-pressed="true"]').dataset.wing,
+      filter: document.querySelector('#groups .grp[aria-pressed="true"]').dataset.wing,
       zoom: zoom.value,
     };
     document.querySelector('[data-language="de"]').click();
     return { before, after: {
       search: q.value,
-      filter: document.querySelector('.chip[aria-pressed="true"]').dataset.wing,
+      filter: document.querySelector('#groups .grp[aria-pressed="true"]').dataset.wing,
       zoom: zoom.value,
-    }, marker: window.__languageSwitchMarker, stored: localStorage.getItem("hostdash.lang") };
+    }, marker: window.__languageSwitchMarker, stored: localStorage.getItem("hostdash.lang"),
+      storedFilter: localStorage.getItem(${JSON.stringify(`hostdash.${host}.wing`)}) };
   })()`);
   assertGerman(await languageState());
+  await assertEvidence("German, after language switch");
   if (JSON.stringify(retainedState.before) !== JSON.stringify(retainedState.after) ||
-      retainedState.marker !== "same document" || retainedState.stored !== "de") {
+      retainedState.marker !== "same document" || retainedState.stored !== "de" ||
+      retainedState.storedFilter !== retainedState.before.filter) {
     throw new Error(`Language switch lost current view state: ${JSON.stringify(retainedState)}`);
   }
   let localizedSearch = null;
   if (host === "hsb9") {
     localizedSearch = await value(`(() => {
       const q = document.getElementById("q");
+      document.querySelector('#groups .grp[data-wing="all"]').click();
       q.value = "aufräumen";
       q.dispatchEvent(new Event("input", { bubbles: true }));
-      const visible = () => [...document.querySelectorAll(".svc")]
-        .filter(card => !card.classList.contains("hidden") && !card.closest(".wing").classList.contains("hidden"))
-        .map(card => card.querySelector("h3").textContent);
-      const german = visible();
+      const german = ${visibleNames};
       document.querySelector('[data-language="en"]').click();
-      return { german, english: visible(), query: q.value };
+      return { german, english: ${visibleNames}, query: q.value };
     })()`);
     if (JSON.stringify(localizedSearch.german) !== '["Fernsehaufnahmen"]' ||
         localizedSearch.english.length || localizedSearch.query !== "aufräumen") {
@@ -1028,7 +1200,7 @@ try {
   }
   await value(`(() => {
     document.querySelector('[data-language="en"]').click();
-    document.querySelector('.chip[data-wing="all"]').click();
+    document.querySelector('#groups .grp[data-wing="all"]').click();
     const q = document.getElementById("q");
     q.value = "";
     q.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1073,10 +1245,14 @@ try {
   if (exceptions.length) {
     throw new Error(`Runtime exceptions: ${exceptions.join("; ")}`);
   }
+  if (foreignResources.length) {
+    throw new Error(`The page loaded resources from elsewhere: ${foreignResources.join("; ")}`);
+  }
 
   console.log(
-    JSON.stringify({ host, pageUrl, initial, truthStates, httpStates, searchState, escapeState,
-      defaultLanguage, fallbackLanguage, persistedLanguage, retainedState, localizedSearch, sharedLanguage }, null, 2),
+    JSON.stringify({ host, pageUrl, initial, pathOnlySample, truthStates, httpStates, mobileLayout, densityState, themeState,
+      searchState, firstEscape, escapeState, defaultLanguage, fallbackLanguage, persistedLanguage, retainedState,
+      localizedSearch, sharedLanguage }, null, 2),
   );
   await send("Browser.close").catch(() => {});
 } finally {
