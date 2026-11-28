@@ -1550,12 +1550,25 @@ try {
         await value(`document.querySelector('[data-language="en"]').click()`);
         return out;
       };
+      // A probe that left for the test server before interception began (the slow
+      // same-origin path) can still land a sweep later, so the hero is read only once it
+      // has said the same thing across a whole sweep.
+      const settle = async () => {
+        await sampleBoard();
+        let last = null;
+        for (let i = 0; i < 10; i += 1) {
+          const current = await value(`[document.documentElement.dataset.v, document.getElementById("heroH")?.textContent, document.querySelector("#hero .hero-sub")?.textContent].join(" | ")`);
+          if (current === last) return;
+          last = current;
+          await sleep(sweepMs + 200);
+        }
+      };
       const run = async (change, { http = {}, jobs = null, policy = () => "ok" } = {}) => {
         await controlProbes(policy);
         const fixture = await healthyFixture();
         change(fixture);
         await writeFixture(fixture, { http, jobs });
-        await sampleBoard();
+        await settle();
         return { fixture, said: await inBoth() };
       };
       const claims = {};
