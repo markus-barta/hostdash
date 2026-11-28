@@ -1565,7 +1565,7 @@ try {
           const problem = test(lang, hero);
           const text = [hero.headline, hero.sub, ...hero.guide, hero.sheet || ""].join(" | ");
           if (problem) round1Fail(`r3 ${label} (${family ? "family" : "operator"}, ${lang}): ${problem}: ${JSON.stringify({ headline: hero.headline, sub: hero.sub, guide: hero.guide, chips: hero.chips, sheet: hero.sheet })}`);
-          else if (CAUSES.test(text)) round1Fail(`r3 ${label} (${lang}): a sentence names a cause for "unreachable": ${text}`);
+          if (CAUSES.test(text)) round1Fail(`r3 ${label}, cause named (${family ? "family" : "operator"}, ${lang}): a sentence names a cause for "unreachable": ${text}`);
         }
       };
       const n = cards.length;
