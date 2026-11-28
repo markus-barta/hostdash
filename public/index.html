@@ -637,7 +637,7 @@ html[data-audience="operator"] .lens{width:2.75rem;height:2.75rem}
 <script type="module">
 const STRINGS = {
   en: {
-    skip: "Skip to services", language: "Language", german: "German", english: "English", dark: "Dark appearance",
+    skip: "Skip to services", language: "Language", dark: "Dark appearance",
     services: "Services", serviceRole: "services",
     searchServices: "Search services", searchHint: "Enter opens the first match, Arrow Down moves into the list, Esc clears the search, a second Esc leaves it.",
     groups: "Groups", all: "All", problems: "Failures",
@@ -648,17 +648,18 @@ const STRINGS = {
     noMatch: "No service matches “{q}”.", noneInFilter: "Nothing in this selection.",
     open: "Open", openAnyway: "Open anyway", srOpen: "Open {name}", noUi: "no web UI", close: "Close",
     srState: "{word}, {src}", srNone: "no evidence",
-    status_running: "Running", status_up: "Running", status_reachable: "Reachable", status_unreachable: "Unreachable",
+    status_running: "Running", status_reachable: "Reachable", status_unreachable: "Unreachable",
     status_stopped: "Down", status_down: "Down", status_muted: "Muted (on purpose)",
     listening: "Listening", noAnswer: "No answer", httpStatus: "HTTP {code}",
     jobFailed: "Last run failed", jobOk: "Last run ok",
     health_AUDIO_DEAD: "Audio dead", health_VIDEO_STALE: "Video stale", health_VOLUME_DRIFT: "Volume drift",
     healthFault: "Fault reported ({healthCode})",
-    src_host: "per host", src_both: "per host, reached from this browser", src_browser: "browser check only", src_self: "self-report",
+    src_host: "per host", src_both: "per host, reached from this browser", src_browser: "checked by this browser", src_self: "self-report",
+    src_split: "running per host",
     ev_containerRunning: "host: container running", ev_unitRunning: "host: unit active",
     ev_containerStopped: "host: container stopped", ev_unitStopped: "host: unit not active ({active})", ev_unitNotActive: "host: unit not active",
     ev_reached: "reached from this browser", ev_reachedOnly: "browser: reachable · no host status",
-    ev_noConnection: "browser: no connection", ev_noHost: "no host status",
+    ev_noConnection: "browser: no connection", ev_browserTimeout: "browser: no answer in time", ev_noHost: "no host status",
     ev_hostHttpOk: "HTTP {code} on the host", ev_hostHttp: "loopback HTTP {code}", ev_hostSilent: "loopback check got no answer (000)",
     ev_sameOrigin: "this server answered HTTP {code}",
     ev_self: "self-report: {code}", ev_selfOk: "self-report: picture and sound moving", ev_selfMuted: "self-report: muted on purpose",
@@ -676,7 +677,8 @@ const STRINGS = {
     h_okJobOne: "The last run was ok", h_okJobs: "All {n} services report ok: {r} running, {j} last run ok",
     h_partial: "{ok} of {n} services running", h_noVouch: "No host report for any of the {n} services",
     h_bad1Stopped: "{name} is not running right now", h_bad1Fault: "{name} reports: {word}",
-    h_badMany: "{b} services are not running right now", h_badOp: "{b} of {n} services failing",
+    h_badManyStopped: "{b} services are not running right now", h_badManyFault: "{b} services report a fault",
+    h_badMix: "{b} services with problems: {s} down, {f} with a fault", h_badOp: "{b} of {n} services failing",
     h_away1: "{name} is not reachable from here", h_awayMany: "{a} services are not reachable from here",
     h_awayOp1: "{name} unreachable from this browser", h_awayOpMany: "{a} services unreachable from this browser",
     h_staleF: "The host has not reported for {m} minutes", h_staleO: "Status file {age} old — ignored",
@@ -689,12 +691,14 @@ const STRINGS = {
     s_reached: "{list} reached from this browser only.", s_reachedMany: "{k} services reached from this browser only.",
     s_jobs: "Last run ok: {list}.", s_jobsMany: "{k} with last run ok.",
     s_runFOne: "{list} is running, says the host.", s_runFMany: "{list} are running, says the host.",
-    s_badF: "{u} of {n} services are running.",
-    s_awayHostF: "The host says it is running. Only this device cannot get through right now.",
-    s_awayHostFMany: "The host says they are running. Only this device cannot get through right now.",
-    s_awayHostO: "Running per host. The path from this browser is broken, not the service.",
+    s_badF: "{r} of {n} services are running, says the host.",
+    s_awayHostF: "The host says it is running, but this device cannot reach it right now.",
+    s_awayHostFMany: "The host says they are running, but this device cannot reach them right now.",
+    s_awayHostO: "Running per host; unreachable from this browser.",
+    s_awayHostOkO: "The host's own HTTP check gets an answer.",
     s_awayOnlyF: "This device cannot get through right now.",
-    s_awayOnlyO: "No connection from this browser, and the host reports nothing about it.",
+    s_awayOnlyO: "Unreachable from this browser; no running state from the host.",
+    s_awayMixO: "Unreachable from this browser: {s} running per host, {a} with no running state from the host.",
     s_quietF: "So the page only shows what this browser can check itself.",
     s_staleO: "Limit 5 min · host states hidden · {u} URLs checked from this browser",
     s_noneO: "{path} {why} · {u} URLs checked from this browser",
@@ -707,10 +711,10 @@ const STRINGS = {
     tr_checking: "Checking …", tr_checkingSub: "status file and reachability", tr_empty: "No services", tr_emptySub: "nothing to check",
     ageSeconds: "{n} s", ageMinutes: "{n} min", ageHours: "{n} h",
     liveExplanation: "The host itself reports which containers and units are running. States on this board are measured, not guessed.",
-    missingExplanation: "No usable host status. Every state below is inferred from a browser probe, which cannot read a status code — a service may be running and still show as unreachable.",
-    hostOkExplanation: "Running, and the host itself gets HTTP {code} from it. Only this browser cannot reach it — self-signed certificate, wrong network, or VPN.",
+    missingExplanation: "No usable host status. Every state below comes from this browser's own checks: they show whether a service answers, not whether it is healthy (a status code is legible only on this dashboard's own server). A service may be running and still show as unreachable.",
+    hostOkExplanation: "Running, and the host itself gets HTTP {code} from it. This browser cannot reach it; possible reasons: a self-signed certificate, another network, a VPN.",
     gTitle: "What now?",
-    g_othersOne: "{list} still opens as usual.", g_othersMany: "{list} still open as usual.", g_allOpen: "The services you open work as usual.",
+    g_othersOne: "{list} still opens.", g_othersMany: "{list} still open.", g_allOpen: "Every service with a web page still opens.",
     g_runOne: "{list} is still running, says the host.", g_runMany: "{list} are still running, says the host.",
     g_tell: "Best to let {name} know.", g_tellNeutral: "Best to let whoever looks after this device know.",
     g_auto: "The page checks again by itself every minute.",
@@ -718,7 +722,7 @@ const STRINGS = {
     g_still: "If it still does not work, let {name} know.", g_stillNeutral: "If it still does not work, tell whoever looks after this device.",
     g_tryOpenOne: "{list} opens.", g_tryOpenMany: "{list} open.",
     g_broken: "If something does not work, let {name} know.", g_brokenNeutral: "If something does not work, tell whoever looks after this device.",
-    g_empty1: "Nothing is broken. The page is just still empty.", g_empty2: "{name} is setting up the services.",
+    g_empty1: "This page works; it has no services yet.", g_empty2: "{name} can set up the services.",
     reload: "Reload page", reloadStatus: "Reload status", retry: "Try again",
     att: "Needs attention", next: "Next step", attLabel: "{name}: {word}. {ev}. Show in the list",
     nStale: "The generator on the host should rewrite {path} every 60 s. Check that it still runs.",
@@ -728,21 +732,23 @@ const STRINGS = {
     blankF: "The first service will appear here once it is set up.", blankO: "The config has no service yet.",
     configMissing: "This board has no usable configuration.",
     fLegend: "What the lights mean", fHost: "Host", fHelp: "Help",
-    lg_on: "lit green: the host reports it running, or its last run ok", lg_ring: "green ring: only this browser reached it",
-    lg_split: "green in an amber ring: running, but not reachable from here",
-    lg_bad: "lit red: a failure was reported", lg_off: "off: no evidence, so the page claims nothing",
+    lg_on: "lit green: the host reports it running or its last run ok, or the service reports itself healthy", lg_ring: "green ring: reached from this browser, no host report",
+    lg_split: "green in an amber ring: running per host, not reachable from here",
+    lg_bad: "lit red: a failure was reported or measured", lg_off: "off: no evidence, so the page claims nothing",
     idName: "Name", idOs: "System", idAddr: "Address", idTz: "Time zone", idCfg: "Config", idStatus: "Status file",
     statusEvery: "every 60 s, older than 5 min does not count",
     helpF: "If something does not work or is unclear, {name} can help.",
     helpNeutral: "If something does not work or is unclear, ask whoever looks after this device.",
     helpO: "Status model: the host writes a status file every 60 s (containers, systemd units, its own HTTP checks, service self-reports). Older than 5 minutes it does not count. The browser additionally checks reachability only.",
-    shAwayHostF: "The host says it is running. Only this device cannot get through right now.",
-    shAwayHostO: "Running per host. This browser gets no connection.",
-    shAwayOnly: "This browser gets no connection. Without host status it is open whether the service itself runs.",
-    shAwayOps: "Check: same network, DNS for .lan, the service certificate.", shNote: "Note from the config: {note}.",
+    shAwayHostF: "The host says it is running, but this device cannot reach it right now.",
+    shAwayHostO: "Running per host; unreachable from this browser.", shHostOk: "The host's own HTTP check gets HTTP {code}.",
+    shAwayOnly: "Unreachable from this browser. Without a running state from the host, it is open whether the service itself runs.",
+    shAwayOps: "Check: same network, DNS for .lan, the service certificate.",
+    shAwayOpsHost: "The host has no HTTP check for it, so first check that it answers on the host itself; then: same network, DNS for .lan, the service certificate.",
+    shNote: "Note from the config: {note}.",
   },
   de: {
-    skip: "Zu den Diensten springen", language: "Sprache", german: "Deutsch", english: "Englisch", dark: "Dunkles Erscheinungsbild",
+    skip: "Zu den Diensten springen", language: "Sprache", dark: "Dunkles Erscheinungsbild",
     services: "Dienste", serviceRole: "Dienste",
     searchServices: "Dienste suchen", searchHint: "Eingabe öffnet den ersten Treffer, Pfeil runter springt in die Liste, Esc leert die Suche, ein zweites Esc verlässt sie.",
     groups: "Gruppen", all: "Alle", problems: "Störungen",
@@ -753,17 +759,18 @@ const STRINGS = {
     noMatch: "Kein Dienst passt zu „{q}“.", noneInFilter: "In dieser Auswahl ist nichts.",
     open: "Öffnen", openAnyway: "Trotzdem öffnen", srOpen: "{name} öffnen", noUi: "ohne Weboberfläche", close: "Schließen",
     srState: "{word}, {src}", srNone: "kein Beleg",
-    status_running: "In Betrieb", status_up: "In Betrieb", status_reachable: "Erreichbar", status_unreachable: "Nicht erreichbar",
+    status_running: "In Betrieb", status_reachable: "Erreichbar", status_unreachable: "Nicht erreichbar",
     status_stopped: "Ausgefallen", status_down: "Ausgefallen", status_muted: "Absichtlich stumm",
     listening: "Hört zu", noAnswer: "Keine Antwort", httpStatus: "HTTP {code}",
     jobFailed: "Letzter Lauf fehlgeschlagen", jobOk: "Letzter Lauf ok",
     health_AUDIO_DEAD: "Ton ausgefallen", health_VIDEO_STALE: "Bild veraltet", health_VOLUME_DRIFT: "Lautstärke abweichend",
     healthFault: "Fehler gemeldet ({healthCode})",
-    src_host: "laut Gerät", src_both: "laut Gerät, vom Browser erreicht", src_browser: "nur vom Browser geprüft", src_self: "Eigenmeldung",
+    src_host: "laut Gerät", src_both: "laut Gerät, vom Browser erreicht", src_browser: "von diesem Browser geprüft", src_self: "Eigenmeldung",
+    src_split: "läuft laut Gerät",
     ev_containerRunning: "Gerät: Container läuft", ev_unitRunning: "Gerät: Dienst aktiv",
     ev_containerStopped: "Gerät: Container gestoppt", ev_unitStopped: "Gerät: Dienst nicht aktiv ({active})", ev_unitNotActive: "Gerät: Dienst nicht aktiv",
     ev_reached: "dieser Browser erreicht ihn", ev_reachedOnly: "Browser: erreichbar · kein Gerätestatus",
-    ev_noConnection: "Browser: keine Verbindung", ev_noHost: "kein Gerätestatus",
+    ev_noConnection: "Browser: keine Verbindung", ev_browserTimeout: "Browser: keine rechtzeitige Antwort", ev_noHost: "kein Gerätestatus",
     ev_hostHttpOk: "HTTP {code} am Gerät", ev_hostHttp: "eigene HTTP-Prüfung {code}", ev_hostSilent: "eigene HTTP-Prüfung ohne Antwort (000)",
     ev_sameOrigin: "dieser Server antwortet mit HTTP {code}",
     ev_self: "Eigenmeldung: {code}", ev_selfOk: "Eigenmeldung: Bild und Ton laufen", ev_selfMuted: "Eigenmeldung: absichtlich stumm geschaltet",
@@ -781,7 +788,8 @@ const STRINGS = {
     h_okJobOne: "Der letzte Lauf war erfolgreich", h_okJobs: "Alle {n} Dienste melden ok: {r} in Betrieb, {j} mit erfolgreichem letztem Lauf",
     h_partial: "{ok} von {n} Diensten laufen", h_noVouch: "Für keinen der {n} Dienste liegt eine Gerätemeldung vor",
     h_bad1Stopped: "{name} läuft gerade nicht", h_bad1Fault: "{name} meldet: {word}",
-    h_badMany: "{b} Dienste laufen gerade nicht", h_badOp: "{b} von {n} Diensten gestört",
+    h_badManyStopped: "{b} Dienste laufen gerade nicht", h_badManyFault: "{b} Dienste melden eine Störung",
+    h_badMix: "{b} Dienste mit Problemen: {s} ausgefallen, {f} gestört", h_badOp: "{b} von {n} Diensten gestört",
     h_away1: "{name} ist von hier nicht erreichbar", h_awayMany: "{a} Dienste sind von hier nicht erreichbar",
     h_awayOp1: "{name} von diesem Browser nicht erreichbar", h_awayOpMany: "{a} Dienste von diesem Browser nicht erreichbar",
     h_staleF: "Das Gerät hat sich seit {m} Minuten nicht gemeldet", h_staleO: "Statusdatei {age} alt – wird ignoriert",
@@ -794,12 +802,14 @@ const STRINGS = {
     s_reached: "{list} nur von diesem Browser erreicht.", s_reachedMany: "{k} Dienste nur von diesem Browser erreicht.",
     s_jobs: "Letzter Lauf ok: {list}.", s_jobsMany: "{k} mit erfolgreichem letztem Lauf.",
     s_runFOne: "{list} läuft laut Gerät.", s_runFMany: "{list} laufen laut Gerät.",
-    s_badF: "{u} von {n} Diensten laufen.",
-    s_awayHostF: "Laut Gerät läuft der Dienst. Nur dieses Gerät kommt gerade nicht durch.",
-    s_awayHostFMany: "Laut Gerät laufen die Dienste. Nur dieses Gerät kommt gerade nicht durch.",
-    s_awayHostO: "Laut Gerät in Betrieb. Der Weg von diesem Browser ist gestört, nicht der Dienst.",
+    s_badF: "{r} von {n} Diensten laufen laut Gerät.",
+    s_awayHostF: "Laut Gerät läuft der Dienst, aber dieses Gerät erreicht ihn gerade nicht.",
+    s_awayHostFMany: "Laut Gerät laufen die Dienste, aber dieses Gerät erreicht sie gerade nicht.",
+    s_awayHostO: "Laut Gerät in Betrieb; von diesem Browser nicht erreichbar.",
+    s_awayHostOkO: "Die eigene HTTP-Prüfung des Geräts bekommt eine Antwort.",
     s_awayOnlyF: "Dieses Gerät kommt gerade nicht durch.",
-    s_awayOnlyO: "Keine Verbindung von diesem Browser, und das Gerät meldet dazu nichts.",
+    s_awayOnlyO: "Von diesem Browser nicht erreichbar; kein Betriebszustand vom Gerät.",
+    s_awayMixO: "Von diesem Browser nicht erreichbar: {s} laut Gerät in Betrieb, {a} ohne Betriebszustand vom Gerät.",
     s_quietF: "Darum zeigt die Seite nur, was dieser Browser selbst prüfen kann.",
     s_staleO: "Grenze 5 Min. · Gerätezustände ausgeblendet · {u} Adressen prüft dieser Browser",
     s_noneO: "{path} {why} · {u} Adressen prüft dieser Browser",
@@ -812,10 +822,10 @@ const STRINGS = {
     tr_checking: "Wird geprüft …", tr_checkingSub: "Statusdatei und Erreichbarkeit", tr_empty: "Keine Dienste", tr_emptySub: "nichts zu prüfen",
     ageSeconds: "{n} s", ageMinutes: "{n} Min.", ageHours: "{n} Std.",
     liveExplanation: "Das Gerät selbst meldet, welche Container und Systemdienste laufen. Die Zustände dieser Übersicht sind gemessen.",
-    missingExplanation: "Kein nutzbarer Gerätestatus. Die Zustände beruhen auf Browserprüfungen, die keinen HTTP-Statuscode lesen können. Ein Dienst kann laufen und trotzdem als nicht erreichbar erscheinen.",
-    hostOkExplanation: "Der Dienst läuft, und das Gerät selbst erhält HTTP {code}. Nur dieser Browser kann ihn nicht erreichen — etwa wegen eines selbstsignierten Zertifikats, des falschen Netzwerks oder einer VPN-Verbindung.",
+    missingExplanation: "Kein nutzbarer Gerätestatus. Die Zustände beruhen auf Prüfungen dieses Browsers: Sie zeigen, ob ein Dienst antwortet, nicht ob er gesund ist (einen Statuscode liest er nur auf dem eigenen Server dieser Übersicht). Ein Dienst kann laufen und trotzdem als nicht erreichbar erscheinen.",
+    hostOkExplanation: "Der Dienst läuft, und das Gerät selbst erhält HTTP {code}. Dieser Browser erreicht ihn nicht; mögliche Gründe: ein selbstsigniertes Zertifikat, ein anderes Netzwerk, eine VPN-Verbindung.",
     gTitle: "Was jetzt?",
-    g_othersOne: "{list} lässt sich weiterhin öffnen.", g_othersMany: "{list} lassen sich weiterhin öffnen.", g_allOpen: "Die Dienste zum Öffnen funktionieren normal.",
+    g_othersOne: "{list} lässt sich weiterhin öffnen.", g_othersMany: "{list} lassen sich weiterhin öffnen.", g_allOpen: "Alle Dienste mit Weboberfläche lassen sich weiterhin öffnen.",
     g_runOne: "{list} läuft laut Gerät weiterhin.", g_runMany: "{list} laufen laut Gerät weiterhin.",
     g_tell: "Am besten {name} Bescheid geben.", g_tellNeutral: "Am besten der Person Bescheid geben, die das Gerät betreut.",
     g_auto: "Die Seite prüft jede Minute von selbst neu.",
@@ -823,7 +833,7 @@ const STRINGS = {
     g_still: "Geht es weiterhin nicht: {name} Bescheid geben.", g_stillNeutral: "Geht es weiterhin nicht: der Person Bescheid geben, die das Gerät betreut.",
     g_tryOpenOne: "{list} lässt sich öffnen.", g_tryOpenMany: "{list} lassen sich öffnen.",
     g_broken: "Funktioniert etwas nicht: {name} Bescheid geben.", g_brokenNeutral: "Funktioniert etwas nicht: der Person Bescheid geben, die das Gerät betreut.",
-    g_empty1: "Hier ist nichts kaputt – die Seite ist noch leer.", g_empty2: "{name} richtet die Dienste ein.",
+    g_empty1: "Die Seite funktioniert, sie hat nur noch keine Dienste.", g_empty2: "{name} kann die Dienste einrichten.",
     reload: "Seite neu laden", reloadStatus: "Status neu laden", retry: "Erneut versuchen",
     att: "Braucht Aufmerksamkeit", next: "Nächster Schritt", attLabel: "{name}: {word}. {ev}. In der Liste zeigen",
     nStale: "Der Generator auf dem Gerät sollte {path} alle 60 s neu schreiben. Prüfen, ob er noch läuft.",
@@ -833,18 +843,20 @@ const STRINGS = {
     blankF: "Hier erscheint der erste Dienst, sobald er eingerichtet ist.", blankO: "Die Konfiguration enthält noch keinen Dienst.",
     configMissing: "Für diese Übersicht gibt es keine nutzbare Konfiguration.",
     fLegend: "Was die Lichter bedeuten", fHost: "Gerät", fHelp: "Hilfe",
-    lg_on: "leuchtet grün: das Gerät meldet, dass der Dienst läuft oder zuletzt erfolgreich lief", lg_ring: "grüner Ring: nur dieser Browser hat ihn erreicht",
-    lg_split: "grün mit gelbem Ring: läuft, aber von hier nicht erreichbar",
-    lg_bad: "leuchtet rot: eine Störung wurde gemeldet", lg_off: "aus: kein Beleg – die Seite behauptet dann nichts",
+    lg_on: "leuchtet grün: das Gerät meldet, dass der Dienst läuft oder zuletzt erfolgreich lief, oder der Dienst meldet sich selbst als gesund", lg_ring: "grüner Ring: von diesem Browser erreicht, kein Gerätestatus",
+    lg_split: "grün mit gelbem Ring: läuft laut Gerät, von hier nicht erreichbar",
+    lg_bad: "leuchtet rot: eine Störung wurde gemeldet oder gemessen", lg_off: "aus: kein Beleg – die Seite behauptet dann nichts",
     idName: "Name", idOs: "System", idAddr: "Adresse", idTz: "Zeitzone", idCfg: "Konfiguration", idStatus: "Statusdatei",
     statusEvery: "alle 60 s, älter als 5 Min. gilt nicht",
     helpF: "Wenn etwas nicht geht oder unklar ist: {name} hilft weiter.",
     helpNeutral: "Wenn etwas nicht geht oder unklar ist: bei der Person melden, die das Gerät betreut.",
     helpO: "Statusmodell: Das Gerät schreibt alle 60 s eine Statusdatei (Container, Systemdienste, eigene HTTP-Prüfung, Eigenmeldungen der Dienste). Älter als 5 Minuten gilt sie nicht. Der Browser prüft zusätzlich nur die Erreichbarkeit.",
-    shAwayHostF: "Der Dienst läuft laut Gerät. Nur dieses Gerät kommt gerade nicht durch.",
-    shAwayHostO: "Laut Gerät in Betrieb. Dieser Browser bekommt keine Verbindung.",
-    shAwayOnly: "Dieser Browser bekommt keine Verbindung. Ohne Gerätestatus ist offen, ob der Dienst selbst läuft.",
-    shAwayOps: "Prüfen: gleiches Netz, DNS für .lan, Zertifikat des Dienstes.", shNote: "Hinweis aus der Konfiguration: {note}.",
+    shAwayHostF: "Laut Gerät läuft der Dienst, aber dieses Gerät erreicht ihn gerade nicht.",
+    shAwayHostO: "Laut Gerät in Betrieb; von diesem Browser nicht erreichbar.", shHostOk: "Die eigene HTTP-Prüfung des Geräts bekommt HTTP {code}.",
+    shAwayOnly: "Von diesem Browser nicht erreichbar. Ohne Betriebszustand vom Gerät ist offen, ob der Dienst selbst läuft.",
+    shAwayOps: "Prüfen: gleiches Netz, DNS für .lan, Zertifikat des Dienstes.",
+    shAwayOpsHost: "Das Gerät prüft ihn nicht per HTTP. Zuerst prüfen, ob er am Gerät selbst antwortet; dann: gleiches Netz, DNS für .lan, Zertifikat des Dienstes.",
+    shNote: "Hinweis aus der Konfiguration: {note}.",
   },
 };
 const LANGUAGE_KEY = "hostdash.lang";
@@ -1080,10 +1092,14 @@ const EvidenceCore = (() => {
             : truth === "checking" ? "ev_checking"
               : svc.container || svc.unit || svc.extra ? "ev_whyUnlisted"
                 : svc.staticState ? "ev_whyStatic" : "ev_whyUnbound";
-    return { s, l: "off", word: null, vars: {}, src: "", ev: [{ key: "ev_none" }, { key: why }], hostOk: null };
+    return { s, l: "off", word: null, vars: {}, src: "", ev: [{ key: "ev_none" }, { key: why }], hostOk: null, run: null };
   }
 
   // ctx: { truth: "live"|"stale"|"none"|"checking", status, probe: settled result|null }
+  //
+  // Every verdict also carries `run`: the host row's running state (true/false), or null
+  // when the artifact has no valid row. Sentences count "running" from it, never from the
+  // LED: a service with an HTTP fault under a running row still runs (HOSTD-83 gate r3).
   //
   // Never throws: whatever the artifact holds, one card's record can neither break the
   // board nor stop the cards after it from updating (HOSTD-83 gate r2). Anything the
@@ -1099,7 +1115,9 @@ const EvidenceCore = (() => {
   function deriveFrom(svc, ctx) {
     const truth = ctx.truth;
     const status = truth === "live" && isObj(ctx.status) ? ctx.status : null;
-    const make = (s, l, word, extra = {}) => ({ s, l, word, vars: {}, src: "", ev: [], hostOk: null, ...extra });
+    const row = hostEntry(status, svc);
+    const run = row && !row.malformed ? row.running : null;
+    const make = (s, l, word, extra = {}) => ({ s, l, word, vars: {}, src: "", ev: [], hostOk: null, run, ...extra });
 
     // A service that publishes its own health outranks everything else (HOSTD-10).
     // desired_volume 0 is NOT a fault: the babycam is muted on purpose most nights.
@@ -1117,7 +1135,7 @@ const EvidenceCore = (() => {
       if (x.desired_volume === 0) return make("muted", "dim", "status_muted", { src: "self", ev: [{ key: "ev_selfMuted" }] });
       return make("up", "on", "listening", { src: "self", ev: [{ key: "ev_selfOk" }] });
     }
-    const records = [hostEntry(status, svc), hostJob(status, svc), hostHttp(status, svc)];
+    const records = [row, hostJob(status, svc), hostHttp(status, svc)];
     const [host, job, http] = records.map(record => record && !record.malformed ? record : null);
     const gap = records.some(record => record?.malformed) ? "ev_badRecord" : self.gap;
     // A stopped unit names the state the host reported, and none it did not.
@@ -1173,6 +1191,9 @@ const EvidenceCore = (() => {
       return make("reachable", "ring", "status_reachable", { src: "browser", ev: [{ key: "ev_reachedOnly" }] });
     }
     const hostOk = http?.kind === "ok" ? http.code : null;
+    // What the probe established: a refused or failed connection, or no answer in time
+    // (a connection may well exist; a hung service looks like this too).
+    const lost = { key: result.kind === "timeout" ? "ev_browserTimeout" : "ev_noConnection" };
     // Unreachable without a running row: the amber ring. A job record is kept as
     // evidence, but it is not "host status" about whether the service runs.
     const unvouched = jobOnly ? runEv : [{ key: "ev_noHost" }];
@@ -1193,13 +1214,14 @@ const EvidenceCore = (() => {
       return make("down", "bad", "status_down", { vars: { code }, src: "browser", ev: [codeEv] });
     }
     if (running) {
-      // Running per host, unreachable from here: the route is broken, not the service.
+      // Running per host, unreachable from here. Where it fails is open unless the host's
+      // own HTTP check got an answer (hostOk); no claim names a cause (HOSTD-83 gate r3).
       return make("unreachable", "split", "status_unreachable", {
         src: "host", hostOk,
-        ev: [...runEv, ...(hostOk ? [{ key: "ev_hostHttpOk", vars: { code: hostOk } }] : []), { key: "ev_noConnection" }],
+        ev: [...runEv, ...(hostOk ? [{ key: "ev_hostHttpOk", vars: { code: hostOk } }] : []), lost],
       });
     }
-    return make("unreachable", "aring", "status_unreachable", { src: "browser", ev: [{ key: "ev_noConnection" }, ...unvouched] });
+    return make("unreachable", "aring", "status_unreachable", { src: "browser", ev: [lost, ...unvouched] });
   }
 
   // May the board say a service "opens" or "works"? Only on THIS browser's own
@@ -1332,6 +1354,188 @@ const EvidenceCore = (() => {
   return { judgeArtifact, resolveTarget, schemeOf, serviceModel, derive, aggregate, opens, runsPerHost, createProber, hostEntry, hostHttp, hostJob, codeOf, epochOf, CLOCK_SKEW_SEC };
 })();
 // </evidence-core>
+
+// <claims>
+// ── CLAIMS: every sentence the board says about its services (HOSTD-83 gate r3) ──
+//
+// The evidence core decides what each CARD may claim; this block decides what the board
+// SAYS about them: headline, subline, "What now?" steps, the recovery sheet, the screen
+// reader's state and a card's explanation. DOM-free like the core, so
+// scripts/test-claims.mjs renders it in both languages for family and operator boards,
+// and scripts/claims.mjs keeps the inventory of every string key and its condition.
+// One rule for every sentence: it claims only what its evidence condition establishes.
+//
+//   running      the host reports the unit or container running (ev.run === true).
+//                Not healthy and not reachable from this browser: those are separate.
+//   not running  only a host row that says so (s "stopped").
+//   fault        a failure measured or reported: an HTTP code, no answer, a failed
+//                health report, a failed last run. The service may well be running, so
+//                a fault is never said as "not running".
+//   reached      this browser got an answer: what "opens" needs.
+//   unreachable  this browser got none. Without the host's own HTTP check that says
+//                nothing about WHERE it fails (a hung app inside a running container
+//                looks exactly like a broken route), so no sentence names a cause.
+//
+// Counts count exactly what they say: running counts running rows, faults count faults,
+// a finished job counts as a job.
+const Claims = (() => {
+  const core = EvidenceCore;
+  const LIVE = "\u0000"; // where the DOM puts a value that ticks (the stale age)
+  const isStopped = ev => ev?.l === "bad" && ev.s === "stopped";
+
+  // items: [{ name, active, url, probeUrl, ev, ...anything the caller keeps }]
+  function summarize(items, truthState, family) {
+    const verdict = core.aggregate(items.map(item => item.ev), truthState);
+    const pick = indexes => indexes.map(i => items[i]);
+    return {
+      list: items, v: verdict.v, lens: verdict.lens, n: verdict.n, family: Boolean(family),
+      bad: pick(verdict.bad), away: pick(verdict.away), vouched: pick(verdict.vouched),
+      running: pick(verdict.running), jobs: pick(verdict.jobs),
+      reached: pick(verdict.reached), pending: pick(verdict.pending), none: pick(verdict.none),
+    };
+  }
+
+  // c (the speaking context): { t(key, vars), join(names), family, truth: { state, key },
+  // statusPath, groups, contact }
+  const openers = m => m.list.filter(item => item.active && core.opens(item.ev)).map(item => item.name);
+  const runners = m => m.list.filter(item => item.active && core.runsPerHost(item.ev)).map(item => item.name);
+  const listPart = (c, names, one, many) => names.length ? c.t(names.length > 1 ? many : one, { list: c.join(names) }) : "";
+  // A few names are listed, more are counted.
+  const namesOrCount = (c, items, one, many) => {
+    if (!items.length) return "";
+    const names = items.map(item => item.name);
+    return names.length <= 3 ? c.t(one, { list: c.join(names) }) : c.t(many, { k: names.length });
+  };
+  // How a fault is named in a sentence. A browser-measured "Down" says its HTTP code:
+  // that is what was measured, not that the service stopped.
+  const faultWord = (c, ev) => ev.s === "down" && Number.isInteger(ev.vars?.code) ? c.t("httpStatus", { code: ev.vars.code }) : c.t(ev.word, ev.vars);
+
+  function headline(m, c) {
+    const f = m.family;
+    switch (m.v) {
+      case "empty": return c.t(f ? "h_emptyF" : "h_emptyO");
+      case "checking": return c.t("h_checking");
+      case "bad": {
+        if (!f) return c.t("h_badOp", { b: m.bad.length, n: m.n });
+        // Stopped and faulted are counted apart: only a stopped row is "not running".
+        const stopped = m.bad.filter(item => isStopped(item.ev)).length;
+        const faults = m.bad.length - stopped;
+        if (m.bad.length === 1) {
+          const [{ name, ev }] = m.bad;
+          return stopped ? c.t("h_bad1Stopped", { name }) : c.t("h_bad1Fault", { name, word: faultWord(c, ev) });
+        }
+        if (!faults) return c.t("h_badManyStopped", { b: stopped });
+        if (!stopped) return c.t("h_badManyFault", { b: faults });
+        return c.t("h_badMix", { b: m.bad.length, s: stopped, f: faults });
+      }
+      case "notice": {
+        const one = m.away.length === 1 ? m.away[0].name : "";
+        if (!f) return one ? c.t("h_awayOp1", { name: one }) : c.t("h_awayOpMany", { a: m.away.length });
+        return one ? c.t("h_away1", { name: one }) : c.t("h_awayMany", { a: m.away.length });
+      }
+      case "quiet":
+        if (c.truth.state === "stale") return f ? c.t("h_staleF", { m: LIVE }) : c.t("h_staleO", { age: LIVE });
+        if (f) return c.t("h_noneF");
+        return c.t(c.truth.key === "unknownSchema" ? "h_schemaO" : c.truth.key === "probesOnly" ? "h_unreadableO" : c.truth.key === "badTime" ? "h_timeO" : "h_noneO");
+      // Running counts only what runs; a job whose last run was ok is said as such.
+      case "partial": return m.vouched.length ? c.t("h_partial", { ok: m.running.length, n: m.n }) : c.t("h_noVouch", { n: m.n });
+      default:
+        if (m.jobs.length) return m.n === 1 ? c.t("h_okJobOne") : c.t("h_okJobs", { n: m.n, r: m.running.length, j: m.jobs.length });
+        return m.n === 1 ? c.t("h_okOne") : c.t("h_okMany", { n: m.n });
+    }
+  }
+
+  function subline(m, c) {
+    const f = m.family;
+    const probed = m.list.filter(item => item.probeUrl).length;
+    switch (m.v) {
+      case "empty": return c.t(f ? "s_emptyF" : "s_emptyO");
+      case "checking": return c.t("s_checking");
+      case "bad": {
+        if (!f) return "";
+        // Running per host: every card whose row says running, whatever else is wrong
+        // with it (a fault, unreachable). Said only when the host reports a row at all.
+        const reported = m.list.filter(item => typeof item.ev?.run === "boolean").length;
+        const running = m.list.filter(item => item.ev?.run === true).length;
+        return [reported ? c.t("s_badF", { r: running, n: m.n }) : "",
+          namesOrCount(c, m.jobs, "s_jobs", "s_jobsMany"), namesOrCount(c, m.reached, "s_reached", "s_reachedMany"),
+          namesOrCount(c, m.none, "s_partial", "s_partialMany")].filter(Boolean).join(" ");
+      }
+      case "notice": {
+        const split = m.away.filter(item => item.ev.l === "split");
+        const unvouched = m.away.length - split.length;
+        if (f) return unvouched ? c.t("s_awayOnlyF") : c.t(split.length > 1 ? "s_awayHostFMany" : "s_awayHostF");
+        // "Answers on the host" only when the host's own HTTP check got an answer from
+        // every one of them; otherwise running per host and unreachable, nothing more.
+        if (!unvouched) return [c.t("s_awayHostO"), split.every(item => item.ev.hostOk) ? c.t("s_awayHostOkO") : ""].filter(Boolean).join(" ");
+        if (!split.length) return c.t("s_awayOnlyO");
+        return c.t("s_awayMixO", { s: split.length, a: unvouched });
+      }
+      case "quiet":
+        if (f) return c.t("s_quietF");
+        if (c.truth.state === "stale") return c.t("s_staleO", { u: probed });
+        return c.t("s_noneO", { path: c.statusPath, why: c.t(`why_${c.truth.key}`), u: probed });
+      case "partial":
+        return [namesOrCount(c, m.jobs, "s_jobs", "s_jobsMany"), namesOrCount(c, m.reached, "s_reached", "s_reachedMany"),
+          namesOrCount(c, m.none, "s_partial", "s_partialMany")].filter(Boolean).join(" ");
+      default:
+        if (!f) return c.t("s_okO", { h: m.vouched.length, u: m.list.filter(item => item.active && item.url).length, w: c.groups });
+        // "Opens" only where this browser reached it; the host's word alone is running.
+        return [listPart(c, openers(m), "s_okFOne", "s_okFMany"), listPart(c, runners(m), "s_runFOne", "s_runFMany")].filter(Boolean).join(" ");
+    }
+  }
+
+  // Family boards only: the "What now?" steps and the one action offered with them.
+  function guide(m, c) {
+    if (!m.family || !["bad", "notice", "quiet", "empty"].includes(m.v)) return null;
+    const who = c.contact;
+    const open = openers(m);
+    const actives = m.list.filter(item => item.active).length;
+    const steps = [];
+    let action = null;
+    if (m.v === "bad") {
+      if (open.length) steps.push(open.length === actives ? c.t("g_allOpen") : listPart(c, open, "g_othersOne", "g_othersMany"));
+      const run = runners(m);
+      if (run.length) steps.push(listPart(c, run, "g_runOne", "g_runMany"));
+      steps.push(who ? c.t("g_tell", { name: who }) : c.t("g_tellNeutral"), c.t("g_auto"));
+      action = "reload";
+    } else if (m.v === "notice") {
+      steps.push(c.t("g_retry"), c.t("g_wifi"), who ? c.t("g_still", { name: who }) : c.t("g_stillNeutral"));
+      action = "retry";
+    } else if (m.v === "quiet") {
+      if (open.length) steps.push(listPart(c, open, "g_tryOpenOne", "g_tryOpenMany"));
+      steps.push(c.t("g_auto"), who ? c.t("g_broken", { name: who }) : c.t("g_brokenNeutral"));
+      action = "reload";
+    } else {
+      steps.push(c.t("g_empty1"));
+      if (who) steps.push(c.t("g_empty2", { name: who }));
+    }
+    return { steps, action };
+  }
+
+  // The recovery sheet of one unreachable service: what is known, then what to try.
+  function sheet(item, c) {
+    const ev = item.ev;
+    const lead = ev.l !== "split" ? c.t("shAwayOnly")
+      : c.family ? c.t("shAwayHostF")
+        : [c.t("shAwayHostO"), ev.hostOk ? c.t("shHostOk", { code: ev.hostOk }) : ""].filter(Boolean).join(" ");
+    return {
+      lead,
+      steps: c.family ? [c.t("g_retry"), c.t("g_wifi"), c.contact ? c.t("g_still", { name: c.contact }) : c.t("g_stillNeutral")] : [],
+      check: c.family ? "" : c.t(ev.hostOk ? "shAwayOps" : "shAwayOpsHost"),
+    };
+  }
+
+  // What a screen reader hears for a card: its word, then whose word it is. For the
+  // split that is the host's running state; the word itself is this browser's.
+  const srState = (ev, c) => ev?.word
+    ? c.t("srState", { word: c.t(ev.word, ev.vars), src: c.t(`src_${ev.l === "split" ? "split" : ev.src || "host"}`) })
+    : c.t("srNone");
+  const explain = (ev, c) => ev?.hostOk ? c.t("hostOkExplanation", { code: ev.hostOk }) : "";
+
+  return { LIVE, summarize, headline, subline, guide, sheet, srState, explain, openers, runners };
+})();
+// </claims>
 
 // ── ICONS: drawn for this board on a 24 px grid; brand marks included ──────────
 const SHIELD = "M12 3.4 19 6.3v5.3c0 4.3-2.9 7.5-7 9-4.1-1.5-7-4.7-7-9V6.3z";
@@ -1748,12 +1952,17 @@ const footOf = service => localize(service.active ? service.raw.port || service.
 const wingOf = service => WINGS.find(wing => wing.id === service.wing);
 const isBad = ev => ev?.l === "bad";
 const isAway = ev => ev?.l === "split" || ev?.l === "aring";
-// "Opens" needs this browser's own reachability evidence; a host-only green gets
-// running wording instead (EvidenceCore.opens, HOSTD-83 gate r2).
-const opensFine = ev => EvidenceCore.opens(ev);
-const runsPerHost = ev => EvidenceCore.runsPerHost(ev);
 const wordOf = ev => ev?.word ? t(ev.word, ev.vars) : "";
 const contactName = () => CONTACT ? localize(CONTACT.name) : "";
+const joinNames = names => {
+  const and = language === "de" ? " und " : " and ";
+  return names.length <= 1 ? (names[0] || "") : `${names.slice(0, -1).join(", ")}${and}${names[names.length - 1]}`;
+};
+// What every sentence about the services is said with (Claims, HOSTD-83 gate r3).
+const speaker = () => ({
+  t, join: joinNames, family: AUDIENCE === "family", truth: TRUTH, statusPath: STATUS_PATH,
+  groups: WINGS_USED.length, contact: contactName(),
+});
 
 function whenWord(epochSec) {
   const date = new Date(epochSec * 1000);
@@ -1775,9 +1984,7 @@ function evText(ev) {
   }).join(" · ");
 }
 
-function srStateOf(ev) {
-  return ev?.word ? t("srState", { word: wordOf(ev), src: t(`src_${ev.src || "host"}`) }) : t("srNone");
-}
+const srStateOf = ev => Claims.srState(ev, speaker());
 
 // ── SERVICES: tiles or list, built per density and language, patched per evidence ──
 let density = (() => {
@@ -1872,7 +2079,7 @@ function paintItem(service) {
   if (prober.result(service.key)) item.dataset.probed = "1";
   item.querySelectorAll(".led").forEach(led => { led.dataset.l = ev.l; });
   const note = localize(service.raw.note);
-  const title = [ev.hostOk ? t("hostOkExplanation", { code: ev.hostOk }) : "", evidence, note].filter(Boolean).join(" · ");
+  const title = [Claims.explain(ev, speaker()), evidence, note].filter(Boolean).join(" · ");
   const label = `${service.active ? t("srOpen", { name }) : name}. ${srStateOf(ev)}.`;
   const tileWord = item.querySelector(".t-word");
   if (tileWord) {
@@ -1903,92 +2110,24 @@ function paintItem(service) {
 }
 
 // ── SUMMARY: hero verdict, rail counts, favicon ───────────────────────────────
+// Each item keeps its service for the DOM; the claims read only name, active, url,
+// probeUrl and ev.
 function summarize() {
-  const list = SERVICES.map(service => ({ service, ev: EV.get(service.key) }));
-  const verdict = EvidenceCore.aggregate(list.map(item => item.ev), TRUTH.state);
-  const pick = indexes => indexes.map(i => list[i]);
-  return {
-    list, v: verdict.v, lens: verdict.lens, n: verdict.n, family: AUDIENCE === "family",
-    bad: pick(verdict.bad), away: pick(verdict.away), vouched: pick(verdict.vouched),
-    running: pick(verdict.running), jobs: pick(verdict.jobs),
-    reached: pick(verdict.reached), pending: pick(verdict.pending), none: pick(verdict.none),
-  };
+  return Claims.summarize(SERVICES.map(service => ({
+    service, key: service.key, name: nameOf(service), active: service.active, url: service.url,
+    probeUrl: service.model.probeUrl, ev: EV.get(service.key),
+  })), TRUTH.state, AUDIENCE === "family");
 }
 
-const joinNames = names => {
-  const and = language === "de" ? " und " : " and ";
-  return names.length <= 1 ? (names[0] || "") : `${names.slice(0, -1).join(", ")}${and}${names[names.length - 1]}`;
-};
-const openersOf = m => m.list.filter(item => item.service.active && opensFine(item.ev)).map(item => nameOf(item.service));
-const runnersOf = m => m.list.filter(item => item.service.active && runsPerHost(item.ev)).map(item => nameOf(item.service));
-const listPart = (names, one, many) => names.length ? t(names.length > 1 ? many : one, { list: joinNames(names) }) : "";
 const lensOf = m => m.lens || "off";
 
+// Plain text from Claims, escaped here; a stale age ticks in its own span.
 function headline(m) {
-  const f = m.family;
-  switch (m.v) {
-    case "empty": return esc(t(f ? "h_emptyF" : "h_emptyO"));
-    case "checking": return esc(t("h_checking"));
-    case "bad": {
-      if (!f) return esc(t("h_badOp", { b: m.bad.length, n: m.n }));
-      if (m.bad.length > 1) return esc(t("h_badMany", { b: m.bad.length }));
-      const [{ service, ev }] = m.bad;
-      return esc(ev.s === "stopped" || ev.s === "down"
-        ? t("h_bad1Stopped", { name: nameOf(service) })
-        : t("h_bad1Fault", { name: nameOf(service), word: wordOf(ev) }));
-    }
-    case "notice": {
-      const one = m.away.length === 1 ? nameOf(m.away[0].service) : "";
-      if (!f) return esc(one ? t("h_awayOp1", { name: one }) : t("h_awayOpMany", { a: m.away.length }));
-      return esc(one ? t("h_away1", { name: one }) : t("h_awayMany", { a: m.away.length }));
-    }
-    case "quiet":
-      if (TRUTH.state === "stale") return f ? esc(t("h_staleF", { m: "\u0000" })).replace("\u0000", '<span data-live="staleMin"></span>')
-        : esc(t("h_staleO", { age: "\u0000" })).replace("\u0000", '<span data-live="staleAge"></span>');
-      if (f) return esc(t("h_noneF"));
-      return esc(t(TRUTH.key === "unknownSchema" ? "h_schemaO" : TRUTH.key === "probesOnly" ? "h_unreadableO" : TRUTH.key === "badTime" ? "h_timeO" : "h_noneO"));
-    // Running counts only what runs; a job whose last run was ok is said as such.
-    case "partial": return esc(m.vouched.length ? t("h_partial", { ok: m.running.length, n: m.n }) : t("h_noVouch", { n: m.n }));
-    default:
-      if (m.jobs.length) return esc(m.n === 1 ? t("h_okJobOne") : t("h_okJobs", { n: m.n, r: m.running.length, j: m.jobs.length }));
-      return esc(m.n === 1 ? t("h_okOne") : t("h_okMany", { n: m.n }));
-  }
+  const live = TRUTH.state === "stale" ? `<span data-live="${m.family ? "staleMin" : "staleAge"}"></span>` : "";
+  return esc(Claims.headline(m, speaker())).replace(Claims.LIVE, live);
 }
 
-function subline(m) {
-  const f = m.family;
-  const urls = m.list.filter(item => item.service.model.probeUrl).length;
-  switch (m.v) {
-    case "empty": return t(f ? "s_emptyF" : "s_emptyO");
-    case "checking": return t("s_checking");
-    case "bad": return f ? t("s_badF", { u: m.running.length + m.away.filter(item => item.ev.l === "split").length, n: m.n }) : "";
-    case "notice": {
-      const hostVouched = m.away.every(item => item.ev.l === "split");
-      if (!hostVouched) return t(f ? "s_awayOnlyF" : "s_awayOnlyO");
-      return f ? t(m.away.length > 1 ? "s_awayHostFMany" : "s_awayHostF") : t("s_awayHostO");
-    }
-    case "quiet":
-      if (f) return t("s_quietF");
-      if (TRUTH.state === "stale") return t("s_staleO", { u: urls });
-      return t("s_noneO", { path: STATUS_PATH, why: t(`why_${TRUTH.key}`), u: urls });
-    case "partial": {
-      const part = (items, one, many) => {
-        if (!items.length) return "";
-        const names = items.map(item => nameOf(item.service));
-        return names.length <= 3 ? t(one, { list: joinNames(names) }) : t(many, { k: names.length });
-      };
-      return [part(m.jobs, "s_jobs", "s_jobsMany"), part(m.reached, "s_reached", "s_reachedMany"), part(m.none, "s_partial", "s_partialMany")].filter(Boolean).join(" ");
-    }
-    default: {
-      if (!f) {
-        const vouched = m.list.filter(item => item.ev.src === "host" || item.ev.src === "both" || item.ev.src === "self").length;
-        return t("s_okO", { h: vouched, u: urls, w: WINGS_USED.length });
-      }
-      // "Opens" only where this browser reached it; the host's word alone is running.
-      return [listPart(openersOf(m), "s_okFOne", "s_okFMany"), listPart(runnersOf(m), "s_runFOne", "s_runFMany")].filter(Boolean).join(" ");
-    }
-  }
-}
+const subline = m => Claims.subline(m, speaker());
 
 function truthTitle() {
   const live = TRUTH.state === "live";
@@ -2030,32 +2169,11 @@ const button = (act, label, iconName, { cls = "", key = "", fk = "" } = {}) =>
   `<button type="button" class="btn${cls ? ` ${cls}` : ""}" data-act="${act}" data-fk="${act}${key ? `-${esc(key)}` : ""}${fk ? `-${fk}` : ""}"${key ? ` data-key="${esc(key)}"` : ""}>${iconName ? icon(iconName) : ""}<span>${esc(label)}</span></button>`;
 
 function guideHTML(m) {
-  if (!m.family || !["bad", "notice", "quiet", "empty"].includes(m.v)) return "";
-  const who = contactName();
-  const okOpeners = openersOf(m);
-  const urls = m.list.filter(item => item.service.active).length;
-  const steps = [];
-  let actions = "";
-  if (m.v === "bad") {
-    if (okOpeners.length) steps.push(okOpeners.length === urls ? t("g_allOpen") : t(okOpeners.length > 1 ? "g_othersMany" : "g_othersOne", { list: joinNames(okOpeners) }));
-    const runners = runnersOf(m);
-    if (runners.length) steps.push(listPart(runners, "g_runOne", "g_runMany"));
-    steps.push(who ? t("g_tell", { name: who }) : t("g_tellNeutral"));
-    steps.push(t("g_auto"));
-    actions = button("reload", t("reload"), "reload", { cls: "primary" });
-  } else if (m.v === "notice") {
-    steps.push(t("g_retry"), t("g_wifi"), who ? t("g_still", { name: who }) : t("g_stillNeutral"));
-    actions = button("retry", t("retry"), "reload", { cls: "primary", fk: "g" });
-  } else if (m.v === "quiet") {
-    if (okOpeners.length) steps.push(t(okOpeners.length > 1 ? "g_tryOpenMany" : "g_tryOpenOne", { list: joinNames(okOpeners) }));
-    steps.push(t("g_auto"));
-    steps.push(who ? t("g_broken", { name: who }) : t("g_brokenNeutral"));
-    actions = button("reload", t("reload"), "reload", { cls: "primary" });
-  } else {
-    steps.push(t("g_empty1"));
-    if (who) steps.push(t("g_empty2", { name: who }));
-  }
-  return `<section class="guide" aria-labelledby="guideH"><h3 id="guideH">${esc(t("gTitle"))}</h3><ol>${steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol>${actions ? `<div class="guide-act">${actions}</div>` : ""}</section>`;
+  const said = Claims.guide(m, speaker());
+  if (!said) return "";
+  const actions = said.action === "reload" ? button("reload", t("reload"), "reload", { cls: "primary" })
+    : said.action === "retry" ? button("retry", t("retry"), "reload", { cls: "primary", fk: "g" }) : "";
+  return `<section class="guide" aria-labelledby="guideH"><h3 id="guideH">${esc(t("gTitle"))}</h3><ol>${said.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol>${actions ? `<div class="guide-act">${actions}</div>` : ""}</section>`;
 }
 
 function attHTML(m) {
@@ -2384,12 +2502,11 @@ let sheetKey = null;
 let sheetCache = "";
 
 function sheetHTML(service, ev) {
-  const who = contactName();
-  const family = AUDIENCE === "family";
-  const text = ev.l === "aring" ? t("shAwayOnly") : family ? t("shAwayHostF") : t("shAwayHostO");
-  const steps = family
-    ? `<ol><li>${esc(t("g_retry"))}</li><li>${esc(t("g_wifi"))}</li><li>${esc(who ? t("g_still", { name: who }) : t("g_stillNeutral"))}</li></ol>`
-    : `<p>${esc(t("shAwayOps"))}</p><p class="m">${esc(evText(ev))}</p>`;
+  const said = Claims.sheet({ name: nameOf(service), ev }, speaker());
+  const text = said.lead;
+  const steps = said.steps.length
+    ? `<ol>${said.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol>`
+    : `<p>${esc(said.check)}</p><p class="m">${esc(evText(ev))}</p>`;
   const note = localize(service.raw.note);
   return `<div class="sheet-top"><div class="sheet-head"><span class="app-ic">${icon(service.raw.icon)}</span><div><h3 id="sheetTitle">${esc(nameOf(service))}</h3>
     <span class="sh-st"><span class="led" data-l="${ev.l}" aria-hidden="true"></span>${esc(wordOf(ev))}</span></div></div>

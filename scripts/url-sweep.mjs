@@ -27,6 +27,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import vm from "node:vm";
+import { cut, marked } from "./page-source.mjs";
 
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
 const args = process.argv.slice(2);
@@ -42,38 +43,6 @@ const gitShow = (ref, path) => execFileSync("git", ["show", `${ref}:${path}`], {
 const readNew = path => newRef
   ? (existsSync(newRef) ? readFileSync(newRef, "utf8") : gitShow(newRef, path))
   : readFileSync(join(repoRoot, path), "utf8");
-
-// ── cutting definitions out of a source file ────────────────────────────────
-// A top-level `function NAME(…) { … }` (brace-matched, strings skipped) or a
-// `const NAME = …;` (up to the first `;` at bracket depth 0).
-function cut(source, name) {
-  const fn = new RegExp(`^(async )?function ${name}\\(`, "m").exec(source);
-  const konst = new RegExp(`^const ${name} = `, "m").exec(source);
-  const start = fn ? fn.index : konst ? konst.index : -1;
-  if (start < 0) throw new Error(`definition of ${name} not found`);
-  let depth = 0;
-  let quote = null;
-  let seenBrace = false;
-  for (let i = start; i < source.length; i += 1) {
-    const c = source[i];
-    if (quote) {
-      if (c === "\\") i += 1;
-      else if (c === quote) quote = null;
-      continue;
-    }
-    // Line comments ("dashboard's") are not strings.
-    if (c === "/" && source[i + 1] === "/") { i = source.indexOf("\n", i); if (i < 0) break; continue; }
-    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
-    if (c === "{" || c === "(" || c === "[") { depth += 1; if (c === "{") seenBrace = true; continue; }
-    if (c === "}" || c === ")" || c === "]") {
-      depth -= 1;
-      if (fn && depth === 0 && c === "}" && seenBrace) return source.slice(start, i + 1);
-      continue;
-    }
-    if (!fn && depth === 0 && c === ";") return source.slice(start, i + 1);
-  }
-  throw new Error(`end of ${name} not found`);
-}
 
 const CLEAN_HELPERS = ["isObject", "objectOr", "arrayOrEmpty", "stringOr", "isLocalizable", "localizedOr", "cleanServices"];
 
@@ -106,10 +75,8 @@ function baseResolve(service, pageHref) {
 
 // This branch: the evidence core as shipped.
 const newHtml = readNew("public/index.html");
-const block = newHtml.match(/\/\/ <evidence-core>\n([\s\S]*?)\/\/ <\/evidence-core>/);
-if (!block) throw new Error("evidence-core markers not found in the new page");
 const newSandbox = { URL };
-vm.runInNewContext([...CLEAN_HELPERS.map(name => cut(newHtml, name)), block[1],
+vm.runInNewContext([...CLEAN_HELPERS.map(name => cut(newHtml, name)), marked(newHtml, "evidence-core"),
   "this.cleanServices = cleanServices; this.core = EvidenceCore;"].join("\n"), newSandbox);
 function newResolve(service, pageHref) {
   const url = newSandbox.core.resolveTarget(service, pageHref);
