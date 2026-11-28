@@ -18,8 +18,13 @@ non-HTTP origins; served over HTTP, `sameHost` with `port`/`path` alone resolves
 An optional `scheme` switches it to `http` or `https` (any case, with or without
 the colon: `"https"`, `"HTTPS:"`, `"https:"`, as the browser's URL setter reads it);
 any other scheme keeps the dashboard's own. `scripts/url-sweep.mjs` resolves every
-service's link and probe with `origin/main`'s code and this one's, on an http and an
-https dashboard, and fails on any difference it cannot classify as intended.
+service's link and probe with the pre-rewrite board's code and this one's, on an http
+and an https dashboard, and fails on any difference it cannot classify as intended.
+That baseline is frozen: `scripts/fixtures/url-baseline-7e4896d.js`, a verbatim copy
+of commit 7e4896d's resolution logic, so the sweep needs no git history and no
+branch. `scripts/test-url-sweep.mjs` runs it as it runs after a merge (main is this
+tree) and without any history, and proves the copy byte-identical to that commit
+when the commit is available (CI fetches it by SHA).
 
 A service served by the dashboard's own nginx declares `path` and no `port`
 (hsb0's hausnetz at `/ops/`, In flight at `/inflight/`). It keeps the
@@ -81,7 +86,11 @@ a stopped one and a fault together read `2 Dienste mit Problemen: 1 ausgefallen,
 gestört`. A running row with a failed probe and no HTTP check on the host says
 `Laut Gerät in Betrieb; von diesem Browser nicht erreichbar` and names no cause (a
 hung service looks the same as a broken route); only with the host's own HTTP answer
-does it add that the host gets one. These sentences live in a DOM-free `// <claims>`
+does it add that the host gets one. A card keeps its fixed word, and its accessible
+status (tile and row label) names the HTTP code that was measured with it: a
+same-origin 502 without a host row is `Ausgefallen (HTTP 502), von diesem Browser
+geprüft` / `Down (HTTP 502), checked by this browser`, a 403 under a running row
+`Nicht erreichbar (HTTP 403), läuft laut Gerät`. These sentences live in a DOM-free `// <claims>`
 block next to the evidence core; `scripts/claims.mjs` prints the inventory of every
 string key, what it claims and when it is rendered (`--check` fails on a key without
 a row, a row without a key, or a key never rendered).
@@ -253,10 +262,14 @@ jobs under running units, one stopped plus one fault, a running row with no host
 HTTP and a failed probe, mixed running/finished-job/fault counts), then every real
 board under the same scenarios against invariants ("not running" only on a stopped
 row, running counts count rows, no cause for "unreachable", no health from
-reachability, every key in both languages). It ends with the claim inventory check
+reachability, every key in both languages, every measured HTTP code heard in the
+card's accessible status exactly once). It ends with the claim inventory check
 and its self-test (an unlisted key and a vanished key must both fail). The round-3
 smoke checks render the same scenarios on the real page of each board, in both
-languages.
+languages. The round-4 smoke check answers the same-origin path service itself
+(hsb0's hausnetz, hsb9's Fernsehaufnahmen): 502 without a host row, then 403 under a
+running row; the word stays `Down` / `Unreachable`, and the tile and row labels name
+the code, in both languages.
 
 ## Host Status Artifact
 
@@ -323,6 +336,7 @@ scripts/check-package.sh
 node scripts/test-evidence.mjs
 node scripts/test-claims.mjs
 node scripts/url-sweep.mjs
+node scripts/test-url-sweep.mjs
 node --check scripts/smoke-ui.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
