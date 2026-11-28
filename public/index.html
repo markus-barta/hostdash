@@ -936,6 +936,16 @@ const EvidenceCore = (() => {
     return { state: "live", key: "liveStatus", ageSec, generated };
   }
 
+  // A same-host `scheme` as origin/main's URL setter read it: what comes before the
+  // first colon, in any case, so "https", "HTTPS:", "https:" and "https://" all mean
+  // https. Only http and https pass; anything else keeps the page's own scheme (HOSTD-83
+  // gate r3: the allowlist compared the raw string, so "https" silently became http).
+  function schemeOf(value) {
+    if (typeof value !== "string") return null;
+    const scheme = value.split(":")[0].trim().toLowerCase();
+    return scheme === "http" || scheme === "https" ? `${scheme}:` : null;
+  }
+
   // Where a service's link and probe point, or null. A same-host service resolves
   // against the page's own origin (port and path from the config); it needs no `url` of
   // its own (HOSTD-83 gate r1: `sameHost: true, path: "/ops/"` alone lost link and probe).
@@ -946,7 +956,8 @@ const EvidenceCore = (() => {
     try { page = new URL(pageHref); } catch { page = null; }
     if (service.sameHost === true && page && /^https?:$/.test(page.protocol) && page.hostname) {
       const target = new URL(page.href);
-      if (typeof service.scheme === "string" && /^https?:$/.test(service.scheme)) target.protocol = service.scheme;
+      const scheme = schemeOf(service.scheme);
+      if (scheme) target.protocol = scheme;
       // A path-only service (no port) lives on this dashboard's own server: keep its port.
       const port = String(service.hostPort || service.port || "").replace(/^:/, "").split(/\s+/)[0];
       if (/^\d+$/.test(port)) target.port = port;
@@ -1318,7 +1329,7 @@ const EvidenceCore = (() => {
     };
   }
 
-  return { judgeArtifact, resolveTarget, serviceModel, derive, aggregate, opens, runsPerHost, createProber, hostEntry, hostHttp, hostJob, codeOf, epochOf, CLOCK_SKEW_SEC };
+  return { judgeArtifact, resolveTarget, schemeOf, serviceModel, derive, aggregate, opens, runsPerHost, createProber, hostEntry, hostHttp, hostJob, codeOf, epochOf, CLOCK_SKEW_SEC };
 })();
 // </evidence-core>
 

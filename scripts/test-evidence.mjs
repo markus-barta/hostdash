@@ -27,7 +27,9 @@ import { join, resolve } from "node:path";
 import vm from "node:vm";
 
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
-const html = await readFile(join(repoRoot, "public", "index.html"), "utf8");
+// HOSTDASH_INDEX runs the checks against another copy of the page (e.g. the previous
+// commit's), which is how the PR shows each new check failing before its fix.
+const html = await readFile(process.env.HOSTDASH_INDEX || join(repoRoot, "public", "index.html"), "utf8");
 const block = html.match(/\/\/ <evidence-core>\n([\s\S]*?)\/\/ <\/evidence-core>/);
 if (!block) throw new Error("Evidence core markers not found in public/index.html");
 const core = vm.runInNewContext(`${block[1]}\nEvidenceCore`, {
@@ -502,6 +504,30 @@ const live = status => ({ truth: "live", status });
   check("(r2 sweep) a stopped unit without an active state invents none", bare.s === "stopped" && bare.ev[0].key === "ev_unitNotActive" && !bare.ev[0].vars.active, bare);
   const named = core.derive(unit, live(artifact({ units: { "x.service": { running: false, active: "failed" } } })));
   check("(r2 sweep) a stopped unit keeps the state the host named", named.ev[0].key === "ev_unitStopped" && named.ev[0].vars.active === "failed", named);
+}
+
+// ── (r3) HOSTD-83 gate round 3 ────────────────────────────────────────────────
+{
+  // M3 — a same-host `scheme` is read the way origin/main's URL setter read it: any case,
+  // with or without the colon. Only http and https switch the scheme.
+  const resolve = (raw, page) => safely(() => core.resolveTarget(raw, page));
+  const scrypted = scheme => ({ sameHost: true, scheme, port: ":10443" });
+  for (const scheme of ["https", "HTTPS:", "https:", "HTTPS", "Https:", "https://", " https "]) {
+    const got = resolve(scrypted(scheme), "http://hsb1.lan/");
+    check(`(r3 M3) scheme ${JSON.stringify(scheme)} + port on an http dashboard is https`, got === "https://hsb1.lan:10443/", got);
+  }
+  for (const scheme of ["http", "HTTP:", "http:"]) {
+    const got = resolve(scrypted(scheme), "https://hsb1.lan/");
+    check(`(r3 M3) scheme ${JSON.stringify(scheme)} on an https dashboard is http`, got === "http://hsb1.lan:10443/", got);
+  }
+  for (const scheme of ["ftp", "javascript:", "data:", "", "htt ps", "httpss", null, 42, {}]) {
+    const got = resolve(scrypted(scheme), "http://hsb1.lan/");
+    check(`(r3 M3) scheme ${JSON.stringify(scheme)} keeps the page's own scheme`, got === "http://hsb1.lan:10443/", got);
+  }
+  const path = resolve({ sameHost: true, scheme: "HTTPS", path: "/fernsehen/" }, "http://hsb9.lan/index.html");
+  check("(r3 M3) scheme without colon on a path-only service", path === "https://hsb9.lan/fernsehen/", path);
+  check("(r3 M3) schemeOf normalizes case and colon only", safely(() => core.schemeOf("HTTPS")) === "https:" &&
+    core.schemeOf("http:") === "http:" && core.schemeOf("wss") === null && core.schemeOf(undefined) === null, {});
 }
 
 if (failures.length) {
