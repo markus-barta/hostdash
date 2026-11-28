@@ -1395,6 +1395,108 @@ try {
       }
       await controlProbes(null);
     }
+
+    // r2 M3 — an open recovery sheet follows its service: dismissed when the service
+    // stops or recovers, re-worded when the host status expires. The service's own
+    // probe is refused here (unreachable from this browser), everything else answers.
+    {
+      const name = expected.httpCard;
+      const key = await cardKey(name);
+      const probe = await value(`(() => { ${itemJs} return byName(${JSON.stringify(name)})?.dataset.probe || null; })()`);
+      if (key && probe) {
+        let refuse = true;
+        await controlProbes(url => refuse && url.startsWith(probe) ? "fail" : "ok");
+        const base = { [expected.truthContainer]: { running: true } };
+        const up = { ...base, [expected.httpContainer]: { running: true } };
+        const ok200 = { [expected.httpContainer]: { code: 200, ms: 9 } };
+        const sheetState = () => value(`(() => {
+          const sheet = document.getElementById("sheet");
+          return { open: !sheet.hidden, led: sheet.querySelector(".led")?.dataset.l || null, word: sheet.querySelector(".sh-st")?.textContent.trim() || "",
+            text: sheet.textContent.replace(/\\s+/g, " ").trim().slice(0, 400), focusInSheet: sheet.contains(document.activeElement) };
+        })()`);
+        const openIt = async () => {
+          const card = await sampleCard(name);
+          const clicked = await value(`(() => { ${itemJs} const item = byName(${JSON.stringify(name)});
+            if (!item || !["split", "aring"].includes(item.dataset.l)) return false; linkOf(item).click(); return true; })()`);
+          return { card, clicked, sheet: await sheetState() };
+        };
+        const hostWords = family ? englishStrings.shAwayHostF : englishStrings.shAwayHostO;
+        await localPage.writeStatus(up, 0, ok200);
+        const opened = await openIt();
+        await localPage.writeStatus({ ...base, [expected.httpContainer]: { running: false } }, 0, ok200);
+        const stoppedCard = await sampleCard(name);
+        const afterStop = await sheetState();
+        const focusAfterStop = await visibleFocus();
+        await localPage.writeStatus(up, 0, ok200);
+        const reopened = await openIt();
+        await localPage.writeStatus(up, 600, ok200);
+        const expiredCard = await sampleCard(name);
+        const afterExpiry = await sheetState();
+        refuse = false;
+        await localPage.writeStatus(up, 0, ok200);
+        const recoveredCard = await sampleCard(name);
+        const afterRecovery = await sheetState();
+        round2.sheet = { name, opened, stoppedCard, afterStop, focusAfterStop, reopened, expiredCard, afterExpiry, recoveredCard, afterRecovery };
+        if (!opened.clicked || !opened.sheet.open || opened.sheet.led !== "split" || !opened.sheet.text.includes(hostWords)) {
+          throw new Error(`Recovery sheet did not open for a host-confirmed unreachable ${name}: ${JSON.stringify(opened)}`);
+        }
+        if (stoppedCard.state !== "stopped" || afterStop.open) {
+          round1Fail(`r2 M3: the recovery sheet kept claiming "running per host" after ${name} stopped: ${JSON.stringify({ stoppedCard, afterStop })}`);
+        }
+        if (focusAfterStop.body || !focusAfterStop.visible) {
+          round1Fail(`r2 M3: dismissing the sheet dropped keyboard focus: ${JSON.stringify(focusAfterStop)}`);
+        }
+        if (!reopened.sheet.open || expiredCard.led !== "aring" || !afterExpiry.open || afterExpiry.led !== "aring" ||
+            !afterExpiry.text.includes(englishStrings.shAwayOnly) || afterExpiry.text.includes(hostWords)) {
+          round1Fail(`r2 M3: the recovery sheet kept the host's word after the status file expired: ${JSON.stringify({ reopened, expiredCard, afterExpiry })}`);
+        }
+        if (!["up", "running"].includes(recoveredCard.state) || afterRecovery.open) {
+          round1Fail(`r2 M3: the recovery sheet stayed open after ${name} recovered: ${JSON.stringify({ recoveredCard, afterRecovery })}`);
+        }
+        await value(`(() => { document.getElementById("sheet").hidden || document.querySelector('#sheet [data-act="close"]')?.click(); document.activeElement?.blur(); return true; })()`);
+        await controlProbes(null);
+      }
+    }
+
+    // r2 L1 — focus survives a PARTIAL recovery under the Failures filter: two failures,
+    // the focused one recovers, the filter stays, and its row disappears. Focus must land
+    // on something visible (the other failure, or a stable control), never <body>.
+    {
+      const truthKey = await cardKey(expected.truthCard);
+      const twoFailures = { [expected.truthContainer]: { running: false }, [expected.httpContainer]: { running: true } };
+      const oneFailure = { [expected.truthContainer]: { running: true }, [expected.httpContainer]: { running: true } };
+      const http503 = { [expected.httpContainer]: { code: 503, ms: 9 } };
+      const recoverFrom = async focusJs => {
+        await localPage.writeStatus(twoFailures, 0, http503);
+        await sampleTruth();
+        const focused = await value(`(() => {
+          const problems = document.querySelector('#groups .grp[data-wing="problems"]');
+          if (problems && problems.getAttribute("aria-pressed") !== "true") problems.click();
+          const target = (${focusJs})();
+          target?.focus();
+          return { focused: Boolean(target) && document.activeElement === target, filter: document.querySelector('#groups .grp[aria-pressed="true"]')?.dataset.wing || null };
+        })()`);
+        await localPage.writeStatus(oneFailure, 0, http503);
+        await sampleTruth();
+        return { ...focused, after: await visibleFocus(),
+          filterAfter: await value(`document.querySelector('#groups .grp[aria-pressed="true"]')?.dataset.wing || null`) };
+      };
+      const row = await recoverFrom(`() => { ${itemJs} const item = items().find(node => node.dataset.item === ${JSON.stringify(truthKey)}); return item ? (item.matches("a,[tabindex]") ? item : item.querySelector("a,[tabindex]")) : null; }`);
+      const chip = family ? null : await recoverFrom(`() => document.querySelector('#hero .att-chip[data-key="' + ${JSON.stringify(truthKey)} + '"]')`);
+      round2.partialRecovery = { row, chip };
+      for (const [label, state] of [["its row", row], ["its attention chip", chip]]) {
+        if (!state) continue;
+        if (!state.focused || state.filter !== "problems" || state.filterAfter !== "problems") {
+          throw new Error(`Partial-recovery fixture did not hold (${label}): ${JSON.stringify(state)}`);
+        }
+        if (state.after.body || !state.after.visible || state.after.item === truthKey) {
+          round1Fail(`r2 L1: a partial recovery under Failures dropped focus from ${label}: ${JSON.stringify(state)}`);
+        }
+      }
+      await value(`(() => { document.querySelector('#groups .grp[data-wing="all"]')?.click(); document.activeElement?.blur(); return true; })()`);
+      await localPage.writeStatus({ [expected.truthContainer]: { running: true } });
+      await sampleTruth();
+    }
   }
 
   // ── LAYOUT: phone width ─────────────────────────────────────────────────────

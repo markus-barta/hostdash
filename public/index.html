@@ -2133,7 +2133,35 @@ function scheduleSummary() {
   });
 }
 
+// Where keyboard focus is before a refresh, and which service it belongs to (a card, or
+// an attention chip pointing at one). Only focus inside the board's own regions counts.
+const FOCUS_REGIONS = "#hero, #services, #groups, #count, #empty, #sheet";
+function focusMemo() {
+  const node = document.activeElement;
+  if (!node || node === document.body || !node.closest?.(FOCUS_REGIONS)) return null;
+  const fk = node.dataset?.fk || "";
+  return { key: node.closest("#services [data-item]")?.dataset.item || (fk.startsWith("att-") ? fk.slice(4) : null) };
+}
+
+// A refresh must never leave focus on <body>, or on a control the filter just hid
+// (HOSTD-83 gate r2: under Failures, the row of a service that recovered while it held
+// focus disappears; so did the row refocusHero() had picked). After filtering, focus
+// moves to the nearest visible service (the next one first), else the selected group,
+// else the hero heading.
+function keepFocusVisible(memo) {
+  if (!memo) return;
+  const shown = node => Boolean(node?.isConnected && node.getClientRects().length);
+  const now = document.activeElement;
+  if (now && now !== document.body && shown(now)) return;
+  const at = memo.key ? SERVICES.findIndex(service => service.key === memo.key) : -1;
+  const near = at < 0 ? [] : [...SERVICES.slice(at + 1), ...SERVICES.slice(0, at).reverse()];
+  const target = near.map(service => focusTargetOf(itemOf(service))).find(shown)
+    || [$('#groups .grp[aria-pressed="true"]'), $("#heroH")].find(shown);
+  target?.focus({ preventScroll: true });
+}
+
 function renderSummary() {
+  const memo = focusMemo();
   const m = summarize();
   document.documentElement.dataset.v = m.v;
   document.documentElement.dataset.truth = TRUTH.state;
@@ -2141,6 +2169,8 @@ function renderSummary() {
   renderRail(m);
   renderFavicon(lensOf(m));
   applyFilter();
+  syncSheet();
+  keepFocusVisible(memo);
 }
 
 // ── HOST INFO, MAIN HEAD, FOOTER ─────────────────────────────────────────────
@@ -2318,10 +2348,15 @@ function fitAll(reset = true) {
 }
 
 // ── SHEET: an unreachable service explains itself before it opens ─────────────
+// The sheet shows ONE service's evidence. HOSTD-83 gate r2: it used to keep saying
+// "Running per host" after the container stopped or the artifact expired. Now it is
+// re-rendered from the current evidence on every summary, and dismissed once the
+// service is no longer unreachable (stopped, recovered, or nothing known any more).
 let sheetOpener = null;
-function openSheet(service) {
-  const ev = EV.get(service.key);
-  const sheet = $("#sheet");
+let sheetKey = null;
+let sheetCache = "";
+
+function sheetHTML(service, ev) {
   const who = contactName();
   const family = AUDIENCE === "family";
   const text = ev.l === "aring" ? t("shAwayOnly") : family ? t("shAwayHostF") : t("shAwayHostO");
@@ -2329,22 +2364,55 @@ function openSheet(service) {
     ? `<ol><li>${esc(t("g_retry"))}</li><li>${esc(t("g_wifi"))}</li><li>${esc(who ? t("g_still", { name: who }) : t("g_stillNeutral"))}</li></ol>`
     : `<p>${esc(t("shAwayOps"))}</p><p class="m">${esc(evText(ev))}</p>`;
   const note = localize(service.raw.note);
-  sheetOpener = document.activeElement;
-  sheet.innerHTML = `<div class="sheet-top"><div class="sheet-head"><span class="app-ic">${icon(service.raw.icon)}</span><div><h3 id="sheetTitle">${esc(nameOf(service))}</h3>
+  return `<div class="sheet-top"><div class="sheet-head"><span class="app-ic">${icon(service.raw.icon)}</span><div><h3 id="sheetTitle">${esc(nameOf(service))}</h3>
     <span class="sh-st"><span class="led" data-l="${ev.l}" aria-hidden="true"></span>${esc(wordOf(ev))}</span></div></div>
     <button type="button" class="icon-btn" data-act="close" data-fk="sheet-close" aria-label="${esc(t("close"))}">${icon("x")}</button></div>
     <p>${esc(text)}</p>${note ? `<p>${esc(t("shNote", { note }))}</p>` : ""}${steps}<code class="url">${esc(service.url)}</code>
-    <div class="sheet-act">${button("retry", t("retry"), "reload", { cls: "primary", fk: "sheet" })}<a class="btn" href="${esc(service.url)}" target="_blank" rel="noopener" data-act="close-after">${icon("arrow-ur")}<span>${esc(t("openAnyway"))}</span></a></div>`;
+    <div class="sheet-act">${button("retry", t("retry"), "reload", { cls: "primary", fk: "sheet" })}<a class="btn" href="${esc(service.url)}" target="_blank" rel="noopener" data-act="close-after" data-fk="sheet-open">${icon("arrow-ur")}<span>${esc(t("openAnyway"))}</span></a></div>`;
+}
+
+function openSheet(service) {
+  const sheet = $("#sheet");
+  sheetOpener = document.activeElement;
+  sheetKey = service.key;
+  sheetCache = sheetHTML(service, EV.get(service.key));
+  sheet.innerHTML = sheetCache;
   sheet.hidden = false;
   sheet.querySelector('[data-fk="sheet-close"]')?.focus({ preventScroll: true });
+}
+
+// Called after every summary: the sheet follows its service's evidence or goes.
+function syncSheet() {
+  const sheet = $("#sheet");
+  if (sheet.hidden || !sheetKey) return;
+  const service = BY_KEY.get(sheetKey);
+  const ev = service ? EV.get(service.key) : null;
+  if (!service || !isAway(ev)) { closeSheet(); return; }
+  const html = sheetHTML(service, ev);
+  if (html === sheetCache) return;
+  const fk = sheet.contains(document.activeElement) ? document.activeElement.dataset?.fk || "" : null;
+  sheetCache = html;
+  sheet.innerHTML = html;
+  if (fk !== null) (sheet.querySelector(`[data-fk="${CSS.escape(fk)}"]`) || sheet.querySelector('[data-fk="sheet-close"]'))?.focus({ preventScroll: true });
 }
 
 function closeSheet() {
   const sheet = $("#sheet");
   if (sheet.hidden) return false;
+  // Focus goes back only if it was in the sheet (or nowhere): a dismissal by a refresh
+  // must not pull focus away from wherever the user is now.
+  const hadFocus = sheet.contains(document.activeElement) || !document.activeElement || document.activeElement === document.body;
+  const service = sheetKey ? BY_KEY.get(sheetKey) : null;
   sheet.hidden = true;
   sheet.innerHTML = "";
-  if (sheetOpener?.isConnected) sheetOpener.focus({ preventScroll: true });
+  sheetCache = "";
+  sheetKey = null;
+  if (hadFocus) {
+    const shown = node => Boolean(node && node !== document.body && node.isConnected && node.getClientRects().length);
+    // The opener is gone after a language or density switch: its service's new control.
+    const back = [sheetOpener, service ? focusTargetOf(itemOf(service)) : null, $("#heroH")].find(shown);
+    back?.focus({ preventScroll: true });
+  }
   sheetOpener = null;
   return true;
 }
