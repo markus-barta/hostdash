@@ -180,6 +180,31 @@ const live = status => ({ truth: "live", status });
   check("(b) statusPolicy.staticState is the same opt-out", policy.probeUrl === null && core.derive(policy, live(artifact())).l === "off", policy);
 }
 
+// HOSTD-85: a container-backed probe opt-out still reports host failures.
+{
+  const url = "https://hsb1.lan:10443/";
+  const config = vm.runInNewContext(`${await readFile(join(repoRoot, "hosts/hsb1/config.js"), "utf8")}\nwindow.HOSTDASH_CONFIG`, { window: {} });
+  const service = config.services.find(service => service.name === "Scrypted");
+  const target = core.resolveTarget(service, "http://hsb1.lan/");
+  const model = core.serviceModel(service, target);
+  check("(HOSTD-85) Scrypted keeps its HTTPS link and certificate warning",
+    target === url && service.certIssue === true && service.note === "service answers with a self-signed localhost certificate", service);
+  check("(HOSTD-85) host-only Scrypted has no browser probe", service.probe === false && model.probeUrl === null, model);
+  for (const [running, code, state, led, word] of [
+    [true, 200, "running", "on", "status_running"],
+    [true, 302, "running", "on", "status_running"],
+    [false, 302, "stopped", "bad", "status_stopped"],
+    [true, 503, "fault", "bad", "httpStatus"],
+    [true, 0, "fault", "bad", "noAnswer"],
+  ]) {
+    const derived = core.derive(model, live(artifact({
+      containers: { scrypted: { running } }, http: { scrypted: { code } },
+    })));
+    check(`(HOSTD-85) probe:false, container running=${running}, host HTTP ${code}: ${state}`,
+      derived.s === state && derived.l === led && derived.word === word && derived.src === "host", derived);
+  }
+}
+
 // ── the rest of the truth model, so a refactor cannot quietly loosen it ────────
 {
   const passive = core.serviceModel({ container: "mosquitto", passive: true }, null);

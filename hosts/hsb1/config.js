@@ -50,7 +50,7 @@ window.HOSTDASH_CONFIG = {
     // `desired_volume: 0` is a deliberate nightly mute, NOT a fault — see extraState().
     { wing: "safety", name: "Babycam", purpose: "Kiosk feed \u2014 audio + video watchdog", icon: "camera", passive: true, extra: "babycam", foot: "kiosk \u00b7 self-healing" },
     { wing: "safety", name: "Kiosk volume", unit: "mqtt-volume-control.service", purpose: "Babycam kiosk VLC volume over MQTT", icon: "sliders", passive: true, foot: "MQTT listener · no UI" },
-    { wing: "safety", name: "Scrypted", container: "scrypted", purpose: "Camera/NVR hub to HomeKit/HA", icon: "logo-scrypted", url: "https://hsb1.lan:10443/", sameHost: true, scheme: "https:", port: ":10443", certIssue: true, note: "service answers with a self-signed localhost certificate" },
+    { wing: "safety", name: "Scrypted", container: "scrypted", purpose: "Camera/NVR hub to HomeKit/HA", icon: "logo-scrypted", url: "https://hsb1.lan:10443/", sameHost: true, scheme: "https:", port: ":10443", probe: false, certIssue: true, note: "service answers with a self-signed localhost certificate" },
     { wing: "safety", name: "fritz-tripwire", container: "fritz-tripwire", purpose: "Snapshots mesh on device drop", icon: "shield-alert", url: "http://hsb1.lan:9000/", sameHost: true, port: ":9000", note: "plain-text status endpoint" },
 
     { wing: "infra", name: "Container updates", unit: "compose-hsb1-update.timer", purpose: "Weekly updates for the compose stack", icon: "refresh-cw", passive: true, foot: "Sat 05:00 · scheduled" },
