@@ -13,12 +13,16 @@ Host-local services should set `sameHost: true` and keep their canonical `.lan`
 URL as `url`. At runtime the app rewrites the service link/probe to the hostname
 used for the dashboard itself, so `http://hsb8.lan/`, `http://192.168.1.100/`,
 and `http://100.64.0.3/` probe `:8123` on the matching address instead of
-hardcoding one network.
+hardcoding one network. The `url` is the fallback for `file://` and other
+non-HTTP origins; served over HTTP, `sameHost` with `port`/`path` alone resolves.
 
 A service served by the dashboard's own nginx declares `path` and no `port`
 (hsb0's hausnetz at `/ops/`, In flight at `/inflight/`). It keeps the
-dashboard's own origin, port included. Its probe is same-origin and so readable:
-a `403` or `502` from that nginx counts as a failed probe, not as online.
+dashboard's own origin, port included. Its probe is same-origin and so readable,
+and the code is kept: a `404` or `5xx` from that nginx is a measured failure
+(`HTTP 502` in red when the host says the service runs, `Down` when the host says
+nothing); a `401`/`403` is that server refusing this browser (hausnetz is
+LAN-only), so it reads `Unreachable` with the code in its evidence, never as online.
 
 ## Board
 
@@ -35,7 +39,7 @@ Each status is a small glass LED, and the rule is: **no evidence, no claim**.
 | green ring, dark core | reachable from this browser, the host says nothing | browser probe only |
 | green core, amber ring | running per host, but this device cannot get through | host + failed probe |
 | amber ring, dark core | this browser cannot get through, the host says nothing | failed probe only |
-| lit red | a failure was measured: stopped, host-side HTTP 5xx or no answer, a failed job run, a self-reported fault (`Ton ausgefallen` …), or a same-origin 403/404/502 | host, self-report, or this dashboard's own nginx |
+| lit red | a failure was measured: stopped, host-side HTTP 5xx or no answer, a failed job run, a self-reported fault (`Ton ausgefallen` …), or a same-origin 404/5xx | host, self-report, or this dashboard's own nginx |
 | dark glass | no evidence (still checking, no or stale `status.json`, not listed in it), so no word either | — |
 
 Status words stay fixed: `In Betrieb` / `Ausgefallen` / `Nicht erreichbar` (EN
@@ -44,6 +48,15 @@ Status words stay fixed: `In Betrieb` / `Ausgefallen` / `Nicht erreichbar` (EN
 A static `status`, `statusPolicy.staticState` or `probe: false` in a config only
 turns the browser probe off for that URL (CORP, auth walls); it is never shown as a
 state. Such a card lights only on the host's word.
+
+The hero's lens and headline claim no more than the cards do. Only host-vouched
+cards (lit green: host, self-report, or both) count as running, so `All N services
+running` and a solid green lens need every card vouched. A green ring alone (this
+browser reached it) never counts: a fresh artifact that lists none of the services
+reads `No host report for any of the N services` under a ringed or dark lens; a
+mix reads `K of N services running` under a dimmed lens. The split lens (green in
+amber) is shown only when every unreachable card is host-confirmed; otherwise the
+lens is an amber ring.
 
 The board re-reads `status.json` and re-probes about every 60 s. A probe that is
 still in flight is never replaced or discarded by the next sweep, so its result
@@ -92,7 +105,10 @@ User-visible config strings can remain plain strings or use translation objects,
 for example `purpose: { en: "Home automation", de: "Hausautomation" }`. Host,
 metadata, wing, and service text resolves to the selected language, then English,
 then the first available string. Search uses the displayed language. Plain-string
-manifests continue to work unchanged.
+manifests continue to work unchanged. One exception: a plain `heading` that is just
+the stock word (`"Services"` or `"Dienste"`) is chrome, not a name, and follows the
+language switch; any other plain string stays as configured. The family boards
+(hsb8, hsb9) give their names and purposes in both languages.
 
 ## Build
 
@@ -122,9 +138,13 @@ invalid.
 
 The packaged `index.html` loads `config.js?v=<first 16 hex of its sha256>`, so a
 browser that cached an old `config.js` fetches the new one on the next reload.
+The stamp is applied in a phase of its own after every standard phase
+(`postPhases`), so it hashes the `config.js` that is actually served, after any
+consumer override in `postInstall`, `postFixup` or a replaced `installPhase`.
 `scripts/check-package.sh` asserts the stamp, that the package is otherwise
-byte-identical to `public/index.html`, and that the two `hosts/hsb0/config.js`
-strings nixcfg's hsb0 override replaces still exist.
+byte-identical to `public/index.html`, that the two `hosts/hsb0/config.js`
+strings nixcfg's hsb0 override replaces still exist, and, on an hsb0 package
+overridden the way nixcfg does it, that the stamp follows the overridden file.
 
 ## UI Smoke Test
 
@@ -162,12 +182,22 @@ instead of being trusted, and that host-side HTTP codes render as `HTTP 503`,
 `No answer`, or (HTTP 200 on the host, no connection here) `Unreachable`. Path-only
 services answer slower than a sweep on purpose, so a starved probe fails the run;
 csb1's static `INSPR site` must stay dark until the host vouches for `inspr-www`.
+The gate round-1 checks add: an artifact that lists no service never yields a green
+or split lens or a "running" headline; `generated: "Infinity"` or a day ahead is not
+evidence; a failed job record without a unit row is loud and a finished oneshot is
+not `Down`; a running path-only service behind a same-origin 404 reads `HTTP 404`;
+the babycam's empty or malformed telemetry claims nothing; focus survives a
+recovery (attention chip, guide button, Failures group); the theme switch flips
+with storage blocked; and the section heading follows the language on every board.
+`SMOKE_SOFT=1` collects those round-1 failures instead of stopping at the first.
 
 `scripts/test-evidence.mjs` runs the page's evidence core (the block between the
 `// <evidence-core>` markers in `public/index.html`) in a bare Node VM: probes
 cannot be starved by fast sweeps, a hung probe still settles, the probe queue
-cannot starve its tail, static statuses go through the evidence rules, and the
-rest of the truth model holds. No browser needed.
+cannot starve its tail but drains in batches, static statuses go through the
+evidence rules, timestamps, telemetry, jobs, same-origin HTTP codes, same-host URL
+resolution and the hero verdict follow the evidence, and the rest of the truth
+model holds. Every check runs; failures are listed together. No browser needed.
 
 ## Host Status Artifact
 
@@ -185,10 +215,20 @@ by `services.hostdash.status` in nixcfg. Schema `inspr.hostdash.status.v1`:
 }
 ```
 
+`generated` must be epoch seconds (a number, or a plain decimal string). An
+artifact without a valid one, or dated more than 120 s ahead of the browser's
+clock, is not evidence (`Status file not usable`): a stamp that cannot age would
+never expire. `extras` count only as an explicit health report: an object whose
+`health` is a non-empty string (`"OK"`, or a fault code). `{}`, `null` or a
+non-string `health` claim nothing, and the card falls back to its other evidence.
+
 `http` is optional and keyed by container/unit name (or a service's `httpKey`).
 So is `jobs`, keyed the same way: `{ "restic.timer": { "ok": false, "last": 1786200000 } }`
 renders as `Letzter Lauf fehlgeschlagen` / `Last run failed`; `ok: true` as
-`Letzter Lauf ok`. Today's generator does not write it.
+`Letzter Lauf ok`. A job record counts on its own, with or without a `units`
+row, and a oneshot unit that is `inactive` between runs with an ok last run is a
+finished job, not a stopped daemon (`failed` stays red; a stopped container stays
+`Down`). Today's generator does not write it.
 It exists because a browser cannot read a status code — a `no-cors` fetch resolves
 on a 500 exactly as on a 200 — so only the host can distinguish a broken service
 from an unreachable one. `code >= 500` renders as `HTTP 503` (red), `code: 0`
