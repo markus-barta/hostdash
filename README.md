@@ -20,9 +20,68 @@ A service served by the dashboard's own nginx declares `path` and no `port`
 dashboard's own origin, port included. Its probe is same-origin and so readable:
 a `403` or `502` from that nginx counts as a failed probe, not as online.
 
+## Board
+
+Every board (csb0, csb1, hsb0, hsb1, hsb8, hsb9) renders the same page: the host
+header with a live clock, a hero that states the overall state first, a group rail
+(search, groups with counts, size), and the services as **Tiles** or a grouped
+**List**. Light and dark follow the system until the header switch is used.
+
+Each status is a small glass LED, and the rule is: **no evidence, no claim**.
+
+| LED | Meaning | Source |
+| --- | --- | --- |
+| lit green | running | the host's `status.json` (or a service's own self-report) |
+| green ring, dark core | reachable from this browser, the host says nothing | browser probe only |
+| green core, amber ring | running per host, but this device cannot get through | host + failed probe |
+| amber ring, dark core | this browser cannot get through, the host says nothing | failed probe only |
+| lit red | a failure was measured: stopped, host-side HTTP 5xx or no answer, a failed job run, a self-reported fault (`Ton ausgefallen` …), or a same-origin 403/404/502 | host, self-report, or this dashboard's own nginx |
+| dark glass | no evidence (still checking, no or stale `status.json`, not listed in it), so no word either | — |
+
+Status words stay fixed: `In Betrieb` / `Ausgefallen` / `Nicht erreichbar` (EN
+`Running` / `Down` / `Unreachable`), plus the specific ones (`HTTP 503`,
+`Keine Antwort`, `Letzter Lauf fehlgeschlagen`, `Absichtlich stumm`, health words).
+A static `status`, `statusPolicy.staticState` or `probe: false` in a config only
+turns the browser probe off for that URL (CORP, auth walls); it is never shown as a
+state. Such a card lights only on the host's word.
+
+The board re-reads `status.json` and re-probes about every 60 s. A probe that is
+still in flight is never replaced or discarded by the next sweep, so its result
+always lands, and a re-check keeps the previous answer on screen (`aria-busy`)
+instead of flickering. A single failed read of `status.json` keeps the last
+artifact while it is younger than five minutes; after that it is ignored.
+
+### Presentation fields
+
+All optional, in `config.js` (or a manifest):
+
+```js
+presentation: { audience: "family", density: "tiles" }, // or "operator", "list"
+contact: { name: "Markus" },                            // first name only, may be { en, de }
+palette: { accent: "blue" },                            // "blue", "graphite" or "#RRGGBB"
+```
+
+- `audience: "family"` gives larger tiles, plain-language headlines and a
+  "Was jetzt? / What now?" guide on failure, unreachable and stale states.
+  `"operator"` (the default) gives an attention list with the evidence per failure.
+- `density` is the start layout; family boards default to tiles, operator boards to
+  the list. A choice made on the board is remembered per board.
+- `contact.name` is named in the guidance ("Am besten Markus Bescheid geben").
+  **This repository is public: a first name only, never a phone number, email or
+  address.** Without a contact the guide says to tell whoever looks after the device.
+- `palette.accent` colours buttons, focus rings and the host badge. Hex accents are
+  darkened or lightened per appearance until they meet WCAG AA contrast. A manifest's
+  `palette.accent` (or `gradient.primary`) is used the same way.
+
+A nixcfg manifest carries services but no presentation; the board's own `config.js`
+still supplies `presentation` and `contact` when its `slug` matches.
+
+Remembered in `localStorage`: `hostdash.lang` and `hostdash.theme` (origin-wide),
+and per board `hostdash.<board>.wing`, `.zoom`, `.zoomMode` and `.density`.
+
 ## Language
 
-Use the sidebar's DE / EN buttons to switch language without reloading. HostDash
+Use the header's DE / EN buttons to switch language without reloading. HostDash
 uses the first supported language in the browser's language list, defaulting to
 English, until a choice is saved in the origin-wide `localStorage` key
 `hostdash.lang` (`de` or `en`). Same-origin apps such as `/fernsehen/` may share
@@ -61,6 +120,12 @@ If `manifest.json` is present beside `config.js`, the app loads the versioned
 manifest first and falls back to `config.js` if the manifest is missing or
 invalid.
 
+The packaged `index.html` loads `config.js?v=<first 16 hex of its sha256>`, so a
+browser that cached an old `config.js` fetches the new one on the next reload.
+`scripts/check-package.sh` asserts the stamp, that the package is otherwise
+byte-identical to `public/index.html`, and that the two `hosts/hsb0/config.js`
+strings nixcfg's hsb0 override replaces still exist.
+
 ## UI Smoke Test
 
 ```bash
@@ -76,9 +141,12 @@ HOSTDASH_HOST=hsb8 HOSTDASH_CONFIG_MODE=manifest node scripts/smoke-ui.mjs
 
 The test launches a temporary headless Chromium-compatible browser profile,
 assembles the same app/config shape as the package output, serves it over HTTP,
-and verifies render counts, online counters, search hotkeys/filtering, Escape
-reset, zoom behavior, cert-flagged services, and that search/zoom controls remain
-in the responsive sidebar. Set `BROWSER_PATH` to use a different
+and verifies service counts, host bindings, same-host and path-only URLs,
+cert-flagged services, the board's audience and start density, the evidence rule
+(no lit LED or word without evidence, every failure visible and named), failure
+guidance, search (`/`, Esc clears, a second Esc leaves), zoom (slider, steps, Fit,
+100 %), Tiles/List, light/dark, the phone layout, both languages, and that the page
+itself loads nothing from another origin. Set `BROWSER_PATH` to use a different
 Chromium-compatible browser.
 
 The `hsb1` manifest run adds test-local sentinels for all three host-truth
@@ -89,8 +157,17 @@ cannot silently fall back to browser-only truth.
 For every host, the smoke test also serves a synthetic `status/status.json` and
 rewrites it mid-session to check
 that the board re-reads host truth on every sweep rather than once at load, that
-an artifact older than `STATUS_MAX_AGE_MS` degrades to `unknown` instead of being
-trusted, and that host-side HTTP codes render as `Fault`/`OK on host`.
+an artifact older than `STATUS_MAX_AGE_MS` or a missing one leaves cards dark
+instead of being trusted, and that host-side HTTP codes render as `HTTP 503`,
+`No answer`, or (HTTP 200 on the host, no connection here) `Unreachable`. Path-only
+services answer slower than a sweep on purpose, so a starved probe fails the run;
+csb1's static `INSPR site` must stay dark until the host vouches for `inspr-www`.
+
+`scripts/test-evidence.mjs` runs the page's evidence core (the block between the
+`// <evidence-core>` markers in `public/index.html`) in a bare Node VM: probes
+cannot be starved by fast sweeps, a hung probe still settles, the probe queue
+cannot starve its tail, static statuses go through the evidence rules, and the
+rest of the truth model holds. No browser needed.
 
 ## Host Status Artifact
 
@@ -109,12 +186,16 @@ by `services.hostdash.status` in nixcfg. Schema `inspr.hostdash.status.v1`:
 ```
 
 `http` is optional and keyed by container/unit name (or a service's `httpKey`).
+So is `jobs`, keyed the same way: `{ "restic.timer": { "ok": false, "last": 1786200000 } }`
+renders as `Letzter Lauf fehlgeschlagen` / `Last run failed`; `ok: true` as
+`Letzter Lauf ok`. Today's generator does not write it.
 It exists because a browser cannot read a status code — a `no-cors` fetch resolves
 on a 500 exactly as on a 200 — so only the host can distinguish a broken service
-from an unreachable one. `code >= 500` renders as `Fault`, `code: 0` (curl got no
-response at all) as `Fault · no answer`, and a good code paired with a failing
-browser probe as `OK on host`: running and answering, just not reachable from
-here. Omit the section entirely and every card falls back to probe-only behavior.
+from an unreachable one. `code >= 500` renders as `HTTP 503` (red), `code: 0`
+(curl got no response at all) as `No answer` (red), and a good code paired with a
+failing browser probe as `Unreachable` with a green core in an amber ring and
+"HTTP 200 on the host" in its evidence: running and answering, just not reachable
+from here. Omit the section entirely and every card falls back to probe-only behavior.
 
 ## JoeDesk
 
@@ -130,6 +211,7 @@ Before pushing or redeploying, run:
 
 ```bash
 scripts/check-package.sh
+node scripts/test-evidence.mjs
 node --check scripts/smoke-ui.mjs
 node scripts/smoke-ui.mjs
 HOSTDASH_HOST=hsb0 node scripts/smoke-ui.mjs
@@ -171,8 +253,12 @@ output, and mounting that package into the host's nginx dashboard service.
 
 ## Design Reference
 
-`docs/design/hsb1-dashboard-concept.png` is the generated visual reference used
-for the first redesign pass. The shipped page remains static HTML/CSS/JS.
+The shipped board (HOSTD-83) implements the approved HOSTD-82 direction
+"Lichter": glass LEDs, Tiles/List, the group rail, the hero with a bezel lens and an
+LED front panel, Apple system fonts only, continuous corners where the engine
+supports `corner-shape`, and reduced motion respected. `docs/design/hsb1-dashboard-concept.png`
+is the historical reference from the first redesign pass. The page remains static
+HTML/CSS/JS with no external fonts, scripts or requests of its own.
 
 ## Safety Notes
 
