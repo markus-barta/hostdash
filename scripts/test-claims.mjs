@@ -343,6 +343,17 @@ const web = name => ({ wing: "w", name, container: name.toLowerCase(), url: `htt
   }
 }
 
+{
+  // A tile's foot claims "no web UI" only when the tile has no link.
+  for (const lang of langs) {
+    const c = { t: say(lang) };
+    api.setLanguage(lang);
+    check(`tile foot (${lang}): a linked service without port or path never says "no web UI"`, Claims.foot("", "http://board.lan/", c) === "", Claims.foot("", "http://board.lan/", c));
+    check(`tile foot (${lang}): a service without a link says "no web UI"`, Claims.foot("", null, c) === want(lang, "noUi"), Claims.foot("", null, c));
+    check(`tile foot (${lang}): a configured foot is kept`, Claims.foot(":8123", null, c) === ":8123", {});
+  }
+}
+
 // ── every real board, as family and as operator, under the same scenarios ──────
 const hosts = (await readdir(join(repoRoot, "hosts"))).filter(name => existsSync(join(repoRoot, "hosts", name, "config.js"))).sort();
 const configOf = async host => {

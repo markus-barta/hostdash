@@ -14,11 +14,15 @@
 //          in "_" or whose fixed suffix starts upper-case (`src_${…}`, `why_${…}`,
 //          `health_${…}`, `${…}Undated`): every key with that prefix/suffix is rendered
 //          there.
+//          Sites over-approximate on purpose: a data value spelled like a key in a
+//          ternary or call ("dark" in the theme code, "list" as a density) lists its
+//          line too. A key with no site at all fails the check (never rendered).
 // The INVENTORY below gives each key its claim and evidence condition. The check fails
 // for a key without an inventory row, an inventory row without a key, a key in only one
 // language, and a key the page never renders.
 //
-//   node scripts/claims.mjs              # the inventory as a markdown table
+//   node scripts/claims.mjs              # the inventory as a markdown table (with EN and DE text)
+//   node scripts/claims.mjs --pr         # the same, compact (no texts, bare line numbers)
 //   node scripts/claims.mjs --check      # exit 1 on any problem
 //   node scripts/claims.mjs --self-test  # proves the check catches an unlisted and a vanished key
 import { readFileSync } from "node:fs";
@@ -62,7 +66,7 @@ export const INVENTORY = {
   open: ["none", "an active tile whose card is not lit red (paintItem: !isBad)"],
   openAnyway: ["failed", "an active tile whose card is lit red (paintItem: isBad), and the recovery sheet's link (sheetHTML: card unreachable)"],
   srOpen: ["none", "accessible name of an active card (paintItem)"],
-  noUi: ["none", "a passive card's foot when the config gives none (tileHTML)"],
+  noUi: ["none", "a tile without a link (passive, or no web target) whose config gives no foot; a tile with a link never says it (Claims.foot)"],
   close: ["none", "recovery sheet close button (sheetHTML)"],
   today: ["evidence detail", "a job record's `last` is today (whenWord)"],
   yesterday: ["evidence detail", "a job record's `last` was yesterday (whenWord)"],
@@ -107,7 +111,7 @@ export const INVENTORY = {
   // ── screen reader: whose word the card's word is ──
   srState: ["evidence detail", "every card with a word: \"{word}, {source}\" (Claims.srState)"],
   srNone: ["no evidence", "every card without a word, and a chip whose card has none (Claims.srState, attHTML)"],
-  src_host: ["running", "the card's word comes from the host's artifact: row, job record or loopback HTTP (ev.src host, l not split)"],
+  src_host: ["evidence detail", "the card's word comes from the host's artifact: row, job record or loopback HTTP (ev.src host, l not split)"],
   src_both: ["reachable from this browser", "running per host AND reached by this browser's probe (ev.src both)"],
   src_browser: ["evidence detail", "the card's word comes from this browser's probe alone (ev.src browser)"],
   src_self: ["healthy", "the card's word comes from the service's own report (ev.src self)"],
@@ -179,7 +183,7 @@ export const INVENTORY = {
   // ── subline (Claims.subline) ──
   s_okFOne: ["reachable from this browser", "family, v ok: active cards this browser reached (EvidenceCore.opens: ring, or on/dim with src both); one"],
   s_okFMany: ["reachable from this browser", "family, v ok: the same, several"],
-  s_runFOne: ["running", "family, v ok: active host-only greens (runsPerHost: lit, not a job, not reached); one"],
+  s_runFOne: ["running", "family, v ok: active cards lit by the host's artifact (a running row, or a self-report it carries) and not reached from here (runsPerHost); one"],
   s_runFMany: ["running", "family, v ok: the same, several"],
   s_okO: ["count", "operator, v ok: h = vouched cards, u = active cards with a link, w = groups"],
   s_partial: ["no evidence", "v partial, or family v bad: cards without evidence (m.none), up to 3 named"],
@@ -329,6 +333,15 @@ export function selfTest(html) {
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 const cell = text => String(text).replace(/\|/g, "\\|").replace(/\n/g, " ");
+// --pr: the same rows without the texts and with bare line numbers, to fit a PR body.
+export function compactTable(extracted, inventory = INVENTORY) {
+  const rows = extracted.keys.map(key => {
+    const [claim, when] = inventory[key] || ["—", "NOT IN INVENTORY"];
+    return `| \`${key}\` | ${claim} | ${cell(when)} | ${(extracted.sites.get(key) || []).join(" ") || "—"} |`;
+  });
+  return [`| key | claims | evidence condition | lines in ${PAGE} |`, "| --- | --- | --- | --- |", ...rows].join("\n");
+}
+
 export function table(extracted, inventory = INVENTORY) {
   const rows = extracted.keys.map(key => {
     const [claim, when] = inventory[key] || ["—", "NOT IN INVENTORY"];
@@ -353,6 +366,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.log(`claims self-test: unlisted key ${self.unlistedCaught ? "caught" : "MISSED"}, vanished key ${self.vanishedCaught ? "caught" : "MISSED"}`);
     failed ||= !self.unlistedCaught || !self.vanishedCaught;
   }
-  if (!args.includes("--check") && !args.includes("--self-test")) console.log(table(extracted));
+  if (!args.includes("--check") && !args.includes("--self-test")) console.log(args.includes("--pr") ? compactTable(extracted) : table(extracted));
   process.exit(failed ? 1 : 0);
 }

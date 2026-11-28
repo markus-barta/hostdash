@@ -1532,8 +1532,11 @@ const Claims = (() => {
     ? c.t("srState", { word: c.t(ev.word, ev.vars), src: c.t(`src_${ev.l === "split" ? "split" : ev.src || "host"}`) })
     : c.t("srNone");
   const explain = (ev, c) => ev?.hostOk ? c.t("hostOkExplanation", { code: ev.hostOk }) : "";
+  // A tile's foot: the config's port, path or foot; "no web UI" only on a tile without a
+  // link (an active service whose config names no port or path still has one).
+  const foot = (text, url, c) => text || (url ? "" : c.t("noUi"));
 
-  return { LIVE, summarize, headline, subline, guide, sheet, srState, explain, openers, runners };
+  return { LIVE, summarize, headline, subline, guide, sheet, srState, explain, foot, openers, runners };
 })();
 // </claims>
 
@@ -2018,7 +2021,7 @@ function tileHTML(service) {
   const linkAttrs = service.url ? `href="${esc(service.url)}" target="_blank" rel="noopener" aria-describedby="p-${service.key}"` : "";
   const inner = `<span class="t-head"><span class="app-ic">${icon(service.raw.icon)}</span><span class="t-ht"><span class="t-name" data-name="${esc(name)}">${esc(name)}</span><span class="t-st"><span class="led" data-l="off" aria-hidden="true"></span><span class="t-word"></span></span></span></span>
       <span class="t-purpose" id="p-${service.key}">${esc(purposeOf(service))}</span><span class="t-ev" hidden></span>
-      <span class="t-foot"><span class="t-code" title="${esc(footOf(service))}">${esc(footOf(service) || t("noUi"))}</span>${service.active ? `<span class="t-open"><span class="t-open-l">${esc(t("open"))}</span>${icon("arrow-ur")}</span>` : ""}</span>`;
+      <span class="t-foot"><span class="t-code" title="${esc(footOf(service))}">${esc(Claims.foot(footOf(service), service.url, speaker()))}</span>${service.active ? `<span class="t-open"><span class="t-open-l">${esc(t("open"))}</span>${icon("arrow-ur")}</span>` : ""}</span>`;
   return service.active
     ? `<a class="tile" ${linkAttrs} ${itemAttrs(service)}>${inner}</a>`
     : `<div class="tile passive" tabindex="-1" role="group" ${itemAttrs(service)}>${inner}</div>`;
