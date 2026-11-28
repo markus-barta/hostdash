@@ -16,7 +16,7 @@
 //
 // Every check runs; failures are listed together and the exit code is 1.
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { cut } from "./page-source.mjs";
@@ -42,8 +42,12 @@ const sweep = cwd => {
 const summary = out => out.json && JSON.stringify({ services: out.json.services, compared: out.json.compared, diffs: out.json.diffs, unexpected: out.json.unexpected });
 
 // This tree's files, without its .git: what the sweep reads, and nothing else to lean on.
+// Every copy is removed again on exit, pass or fail.
+const copies = [];
+process.on("exit", () => copies.forEach(dir => rmSync(dir, { recursive: true, force: true })));
 const copyTree = () => {
   const dir = mkdtempSync(join(tmpdir(), "hostdash-sweep-"));
+  copies.push(dir);
   for (const part of ["public", "hosts", "scripts"]) cpSync(join(repoRoot, part), join(dir, part), { recursive: true });
   return dir;
 };
