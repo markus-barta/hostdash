@@ -15,11 +15,20 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          # url-sweep.mjs compares against origin/main's page.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Evidence core (probe starvation, static statuses, truth model)
         run: node scripts/test-evidence.mjs
+      - name: Claims (sentences per evidence, both audiences and languages; claim inventory)
+        run: node scripts/test-claims.mjs
+      - name: URL compatibility sweep against origin/main
+        run: |
+          git rev-parse --verify -q origin/main >/dev/null || git fetch --no-tags origin main:refs/remotes/origin/main
+          node scripts/url-sweep.mjs
 
   smoke:
     runs-on: ubuntu-latest
