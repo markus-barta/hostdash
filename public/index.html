@@ -1407,6 +1407,26 @@ renderChrome();
 // ── CONFIG: config.js, or the versioned manifest first (inspr.hostdash.config.v1) ──
 const FALLBACK_CONFIG = window.HOSTDASH_CONFIG || null;
 const MANIFEST_URL = window.HOSTDASH_MANIFEST_URL || "./manifest.json";
+// The manifest is optional and config.js is already loaded, so the board never waits
+// longer than this for it (HOSTD-83 gate r2: a stalled response left it uninitialized).
+const MANIFEST_DEADLINE_MS = 3000;
+
+// One bounded read for every same-origin JSON the board depends on: the request AND the
+// body finish within `ms`, or the read rejects. The abort stops the transfer; the race
+// holds even where a fetch or body read ignores its signal.
+function readJsonWithin(url, ms) {
+  const controller = new AbortController();
+  let timer = 0;
+  const deadline = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      try { controller.abort(); } catch { /* already settled */ }
+      reject(new Error(`no complete answer within ${ms} ms`));
+    }, ms);
+  });
+  const read = fetch(url, { cache: "no-store", signal: controller.signal })
+    .then(async response => response.ok ? { ok: true, data: await response.json() } : { ok: false, status: response.status });
+  return Promise.race([read, deadline]).finally(() => clearTimeout(timer));
+}
 
 const isObject = value => value && typeof value === "object" && !Array.isArray(value);
 const isHex = value => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
@@ -1533,9 +1553,9 @@ function manifestToConfig(manifest) {
 
 async function loadManifestConfig() {
   try {
-    const response = await fetch(MANIFEST_URL, { cache: "no-store" });
-    if (!response.ok) return null;
-    return manifestToConfig(await response.json());
+    const read = await readJsonWithin(MANIFEST_URL, MANIFEST_DEADLINE_MS);
+    if (!read.ok) return null;
+    return manifestToConfig(read.data);
   } catch (error) {
     console.warn(`HostDash manifest ignored: ${error.message}`);
     return null;
@@ -1625,16 +1645,14 @@ let lastGoodArtifact = null;
 let lastTruthWarning = "";
 
 async function readHostStatus() {
-  // Bounded: a half-open connection must not stall every later sweep on old states.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000);
   try {
-    const response = await fetch(STATUS_URL, { cache: "no-store", signal: controller.signal });
-    if (!response.ok) {
+    // Bounded: a half-open connection must not stall every later sweep on old states.
+    const read = await readJsonWithin(STATUS_URL, 4000);
+    if (!read.ok) {
       lastGoodArtifact = null;
       return { state: "none", key: "noArtifact" };
     }
-    const data = await response.json();
+    const data = read.data;
     const verdict = EvidenceCore.judgeArtifact(data, Date.now(), STATUS_MAX_AGE_MS);
     lastGoodArtifact = verdict.state === "live" ? data : null;
     return verdict.state === "live" ? { ...verdict, data } : verdict;
@@ -1649,8 +1667,6 @@ async function readHostStatus() {
       return verdict;
     }
     return { state: "none", key: "probesOnly" };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

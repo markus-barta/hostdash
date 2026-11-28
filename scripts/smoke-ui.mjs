@@ -357,6 +357,8 @@ function manifestFromConfig(config) {
   };
 }
 
+// `control.manifest` makes the optional manifest misbehave (HOSTD-83 gate r2): "hang"
+// never answers, "body" sends headers and half a body, then nothing.
 async function serveDirectory(root, control = { manifest: "normal" }) {
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://127.0.0.1");
@@ -364,6 +366,12 @@ async function serveDirectory(root, control = { manifest: "normal" }) {
     if (!name || name.includes("..") || name.startsWith("/")) {
       response.writeHead(400);
       response.end("bad request");
+      return;
+    }
+    if (name === "manifest.json" && control.manifest === "hang") return;
+    if (name === "manifest.json" && control.manifest === "body") {
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      response.write('{"schema": "inspr.hostdash.config.v1", "version": 1, "services": [');
       return;
     }
     // A directory-like path is a path-only service on this nginx: answer it late.
@@ -416,6 +424,7 @@ async function localPageUrl() {
   const manifestSource = manifestMode ? await readFile(join(site, "manifest.json"), "utf8") : null;
   return {
     url: server.url,
+    setManifest: mode => { control.manifest = mode; },
     // Probe disabled in the config (`probe: false`) on every active service, in
     // whichever source this board reads its services from. `false` restores it.
     setProbeDisabled: async disabled => {
@@ -1878,6 +1887,26 @@ try {
     }
     // Back to the board as configured.
     if (!(await reloadUntil({ verdict: false }))) throw new Error("Board did not come back after the probe-wording checks");
+  }
+
+  // r2 M6 — the optional manifest is bounded: a manifest that never answers, or sends
+  // half a body and stalls, must not keep the board from starting on its config.js.
+  if (localPage) {
+    const fallbackCards = defaults[host]?.cards || defaults.hsb1.cards;
+    const stalls = {};
+    for (const mode of ["hang", "body"]) {
+      localPage.setManifest(mode);
+      const ms = await reloadUntil({ cards: fallbackCards, source: "config-js", verdict: false, timeoutMs: 12000 });
+      stalls[mode] = { ms, cards: await value(`document.querySelectorAll("#services [data-item]").length`), source: await value("document.documentElement.dataset.configSource || null") };
+    }
+    localPage.setManifest("normal");
+    round2 = { ...round2, stalls };
+    for (const [mode, stall] of Object.entries(stalls)) {
+      if (!stall.ms || stall.ms > 8000) {
+        round1Fail(`r2 M6: a stalled manifest (${mode}) kept the board from starting on config.js: ${JSON.stringify(stall)}`);
+      }
+    }
+    if (!(await reloadUntil({ verdict: false }))) throw new Error("Board did not come back after the manifest-stall checks");
   }
 
   if (softFailures.length) {
