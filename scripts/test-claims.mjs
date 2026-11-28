@@ -133,6 +133,13 @@ function invariants(label, r, lang) {
     const expected = want(lang, "s_badF", { r: running, n: r.m.n });
     check(`${label}: the running count counts running rows`, r.subline.startsWith(expected), { subline: r.subline, expected });
   }
+  // A measured HTTP code is heard on every card that has one, once (gate r4: "Down"
+  // alone lost a same-origin 502).
+  for (const item of r.items.filter(entry => Number.isInteger(entry.ev?.vars?.code))) {
+    const heard = r.sr[item.name] || "";
+    check(`${label}: ${item.name}'s accessible status names its HTTP ${item.ev.vars.code}, once`,
+      heard.split(`HTTP ${item.ev.vars.code}`).length === 2, { heard, ev: item.ev });
+  }
   const answering = [want(lang, "s_awayHostOkO")];
   if (text.some(line => answering.some(words => line.includes(words)))) {
     check(`${label}: "answers on the host" only with the host's HTTP evidence for every one`,
@@ -331,6 +338,49 @@ const web = name => ({ wing: "w", name, container: name.toLowerCase(), url: `htt
     check(`browser-measured 502 without host truth (family, ${lang}): reports the code`,
       r.headline === want(lang, "h_bad1Fault", { name: "Recordings", word: "HTTP 502" }) && !r.subline.includes(want(lang, "s_badF", { r: 0, n: 2 })), { headline: r.headline, subline: r.subline });
     invariants(`browser-measured 502 (family, ${lang})`, r, lang);
+  }
+}
+
+{
+  // Gate r4 (LOW): the card's word stays the approved "Down" / "Unreachable", and its
+  // accessible status (tile aria-label, row aria-label) names the HTTP code that was
+  // measured. Said literally in both languages, for both audiences.
+  const services = prepare([
+    { wing: "w", name: "Recordings", container: "media", sameHost: true, path: "/rec/" },
+    { wing: "w", name: "Hausnetz", unit: "hausnetz.service", sameHost: true, path: "/net/" },
+    web("Alpha"),
+  ]);
+  const literal = {
+    down502: { en: "Down (HTTP 502), checked by this browser", de: "Ausgefallen (HTTP 502), von diesem Browser geprüft" },
+    refused403Split: { en: "Unreachable (HTTP 403), running per host", de: "Nicht erreichbar (HTTP 403), läuft laut Gerät" },
+    refused403Alone: { en: "Unreachable (HTTP 403), checked by this browser", de: "Nicht erreichbar (HTTP 403), von diesem Browser geprüft" },
+    fault502: { en: "HTTP 502, checked by this browser", de: "HTTP 502, von diesem Browser geprüft" },
+    host503: { en: "HTTP 503, per host", de: "HTTP 503, laut Gerät" },
+  };
+  const probes = code => ({ s0: { ok: false, kind: "http", code }, s1: { ok: false, kind: "http", code: 403 }, s2: { ok: true, kind: "ok" } });
+  for (const [audience, family] of audiences) for (const lang of langs) {
+    const label = `accessible HTTP code (${audience}, ${lang})`;
+    // No status file at all: a same-origin 502 is "Down", a 403 is "Unreachable".
+    const none = render(services, { status: null, truth: "none", truthKey: "noArtifact", probes: probes(502), family, lang });
+    check(`${label}: a same-origin 502 without a host row keeps the word Down`, none.items[0].ev.word === "status_down", none.items[0].ev);
+    check(`${label}: … and is heard as "${literal.down502[lang]}"`, none.sr.Recordings === literal.down502[lang], none.sr);
+    check(`${label}: a same-origin 403 without a host row is heard as "${literal.refused403Alone[lang]}"`, none.sr.Hausnetz === literal.refused403Alone[lang], none.sr);
+    invariants(`${label}, no status file`, none, lang);
+    // Live artifact, Hausnetz's unit running, Recordings' container absent: the 403 is
+    // the split; the 502 is still Down.
+    const status = healthy(services);
+    delete status.containers.media;
+    const live = render(services, { status, probes: probes(502), family, lang });
+    check(`${label}: a running unit behind a same-origin 403 is heard as "${literal.refused403Split[lang]}"`, live.sr.Hausnetz === literal.refused403Split[lang], live.sr);
+    check(`${label}: a live artifact without the row: still "${literal.down502[lang]}"`, live.sr.Recordings === literal.down502[lang], live.sr);
+    invariants(`${label}, live`, live, lang);
+    // Where the word already is the code, it is not said twice.
+    const running = healthy(services);
+    running.http = { alpha: { code: 503 } };
+    const fault = render(services, { status: running, probes: probes(502), family, lang });
+    check(`${label}: a running row behind a same-origin 502 is heard as "${literal.fault502[lang]}"`, fault.sr.Recordings === literal.fault502[lang], fault.sr);
+    check(`${label}: the host's own HTTP 503 is heard as "${literal.host503[lang]}"`, fault.sr.Alpha === literal.host503[lang], fault.sr);
+    invariants(`${label}, faults`, fault, lang);
   }
 }
 

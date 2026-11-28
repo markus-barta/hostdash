@@ -109,7 +109,8 @@ export const INVENTORY = {
   healthFault: ["failed", "the service's own report: any other non-OK health string (deriveFrom)"],
 
   // ── screen reader: whose word the card's word is ──
-  srState: ["evidence detail", "every card with a word: \"{word}, {source}\" (Claims.srState)"],
+  srState: ["evidence detail", "every card with a word, except one whose word leaves out a measured HTTP code (srStateCode): \"{word}, {source}\" (Claims.srState)"],
+  srStateCode: ["evidence detail", "a card whose word does not say the HTTP code it measured (Down after a same-origin 404/5xx, Unreachable after a 401/403; ev.vars.code, word not httpStatus): \"{word} (HTTP {code}), {source}\" (Claims.srState, gate r4)"],
   srNone: ["no evidence", "every card without a word, and a chip whose card has none (Claims.srState, attHTML)"],
   src_host: ["evidence detail", "the card's word comes from the host's artifact: row, job record or loopback HTTP (ev.src host, l not split)"],
   src_both: ["reachable from this browser", "running per host AND reached by this browser's probe (ev.src both)"],

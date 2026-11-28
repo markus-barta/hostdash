@@ -605,8 +605,9 @@ try {
   // The round-2 checks need reachability they decide themselves, not the test machine's
   // network. While a policy is set, every request that is not one of the board's own
   // files (page, config, manifest, status) is answered here: "ok" (an HTTP 200),
-  // "fail" (connection refused) or "hold" (never answered until released). The board's
-  // own files always go to the test server.
+  // "fail" (connection refused), "hold" (never answered until released) or "http:NNN"
+  // (an answer with that status code; legible to the page only same-origin). The
+  // board's own files always go to the test server.
   const pageOrigin = new URL(pageUrl).origin;
   const appFile = url => {
     try {
@@ -616,8 +617,8 @@ try {
   };
   let probePolicy = null;
   const heldRequests = [];
-  const answer = (requestId, action) => (action === "ok"
-    ? send("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "text/plain" }], body: Buffer.from("ok").toString("base64") })
+  const answer = (requestId, action) => (action === "ok" || /^http:\d{3}$/.test(action)
+    ? send("Fetch.fulfillRequest", { requestId, responseCode: action === "ok" ? 200 : Number(action.slice(5)), responseHeaders: [{ name: "content-type", value: "text/plain" }], body: Buffer.from(action).toString("base64") })
     : action === "fail" ? send("Fetch.failRequest", { requestId, errorReason: "ConnectionRefused" })
       : send("Fetch.continueRequest", { requestId })).catch(() => {}); // the page may have given up on it already
   onPaused = ({ requestId, request }) => {
@@ -1680,6 +1681,62 @@ try {
           } else if (hero.headline !== say(lang, "h_badOp", { b: 1, n })) return "headline does not count the one fault";
           return null;
         });
+      }
+      // GATE ROUND 4 (LOW) — the same-origin path service, answered 502 with no host row:
+      // its card keeps the approved word ("Down"), and the accessible status of its tile
+      // AND its row names HTTP 502. Then 403 under a running row: "Unreachable", heard
+      // with its 403. Both languages, both densities, read off the real page.
+      const pathCard = pathOnlyKey ? cards.find(card => card.key === pathOnlyKey) : null;
+      if (pathCard?.probe) {
+        const startDensity = await value("document.documentElement.dataset.density");
+        // The switch runs inside a view transition where the browser has one: wait for it.
+        const switchTo = layout => value(`new Promise(resolve => {
+          document.querySelector('[data-density="${layout}"]').click();
+          const until = Date.now() + 3000;
+          const tick = () => document.documentElement.dataset.density === "${layout}" || Date.now() > until
+            ? resolve(document.documentElement.dataset.density) : setTimeout(tick, 25);
+          tick();
+        })`);
+        const readAccessible = async () => {
+          const out = [];
+          for (const layout of ["tiles", "list"]) {
+            await switchTo(layout);
+            for (const lang of ["en", "de"]) {
+              await value(`document.querySelector('[data-language="${lang}"]').click()`);
+              out.push(await value(`(() => {
+                const item = document.querySelector('#services [data-item="${pathCard.key}"]');
+                const word = item?.querySelector(".t-word, .badge");
+                return { layout: document.documentElement.dataset.density, lang: document.documentElement.lang,
+                  label: item?.getAttribute("aria-label") || item?.querySelector(".row")?.getAttribute("aria-label") || "",
+                  word: word && !word.hidden ? word.textContent : "" };
+              })()`));
+            }
+          }
+          await switchTo(startDensity);
+          await value(`document.querySelector('[data-language="en"]').click()`);
+          return out;
+        };
+        const probeAnswer = code => url => url.startsWith(pathCard.probe) ? `http:${code}` : "ok";
+        const expectHeard = (label, heard, word, src, code) => {
+          const read = heard.map(seen => `${seen.layout}/${seen.lang}`).sort().join(" ");
+          if (read !== "list/de list/en tiles/de tiles/en") round1Fail(`r4 ${label}: not read in both layouts and languages: ${read}`);
+          for (const seen of heard) {
+            const sentence = say(seen.lang, "srStateCode", { word: say(seen.lang, word), code, src: say(seen.lang, src) });
+            if (seen.word !== say(seen.lang, word) || !seen.label.includes(sentence)) {
+              round1Fail(`r4 ${label} (${seen.layout}, ${seen.lang}): word "${seen.word}", accessible status "${seen.label}"; want "${say(seen.lang, word)}" and "${sentence}"`);
+            }
+          }
+        };
+        await run(f => { delete f.containers[pathCard.container]; delete f.units[pathCard.unit]; }, { policy: probeAnswer(502) });
+        const down = await readAccessible();
+        expectHeard("L1 same-origin 502 without a host row", down, "status_down", "src_browser", 502);
+        let refused = null;
+        if (pathCard.container || pathCard.unit) {
+          await run(() => {}, { policy: probeAnswer(403) });
+          refused = await readAccessible();
+          expectHeard("L1 same-origin 403 under a running row", refused, "status_unreachable", "src_split", 403);
+        }
+        claims.accessibleCode = { down, refused };
       }
       round2.claims = claims;
       await controlProbes(null);

@@ -647,7 +647,7 @@ const STRINGS = {
     count: "{a} of {b} shown", clear: "Reset selection",
     noMatch: "No service matches “{q}”.", noneInFilter: "Nothing in this selection.",
     open: "Open", openAnyway: "Open anyway", srOpen: "Open {name}", noUi: "no web UI", close: "Close",
-    srState: "{word}, {src}", srNone: "no evidence",
+    srState: "{word}, {src}", srStateCode: "{word} (HTTP {code}), {src}", srNone: "no evidence",
     status_running: "Running", status_reachable: "Reachable", status_unreachable: "Unreachable",
     status_stopped: "Down", status_down: "Down", status_muted: "Muted (on purpose)",
     listening: "Listening", noAnswer: "No answer", httpStatus: "HTTP {code}",
@@ -758,7 +758,7 @@ const STRINGS = {
     count: "{a} von {b} sichtbar", clear: "Auswahl zurücksetzen",
     noMatch: "Kein Dienst passt zu „{q}“.", noneInFilter: "In dieser Auswahl ist nichts.",
     open: "Öffnen", openAnyway: "Trotzdem öffnen", srOpen: "{name} öffnen", noUi: "ohne Weboberfläche", close: "Schließen",
-    srState: "{word}, {src}", srNone: "kein Beleg",
+    srState: "{word}, {src}", srStateCode: "{word} (HTTP {code}), {src}", srNone: "kein Beleg",
     status_running: "In Betrieb", status_reachable: "Erreichbar", status_unreachable: "Nicht erreichbar",
     status_stopped: "Ausgefallen", status_down: "Ausgefallen", status_muted: "Absichtlich stumm",
     listening: "Hört zu", noAnswer: "Keine Antwort", httpStatus: "HTTP {code}",
@@ -1527,10 +1527,16 @@ const Claims = (() => {
   }
 
   // What a screen reader hears for a card: its word, then whose word it is. For the
-  // split that is the host's running state; the word itself is this browser's.
-  const srState = (ev, c) => ev?.word
-    ? c.t("srState", { word: c.t(ev.word, ev.vars), src: c.t(`src_${ev.l === "split" ? "split" : ev.src || "host"}`) })
-    : c.t("srNone");
+  // split that is the host's running state; the word itself is this browser's. A word
+  // that does not say a measured HTTP code ("Down", "Unreachable" after a 401/403) is
+  // heard with it: the card keeps its approved word, the accessible status names what
+  // was measured (HOSTD-83 gate r4).
+  const srState = (ev, c) => {
+    if (!ev?.word) return c.t("srNone");
+    const said = { word: c.t(ev.word, ev.vars), src: c.t(`src_${ev.l === "split" ? "split" : ev.src || "host"}`) };
+    const code = ev.vars?.code;
+    return Number.isInteger(code) && ev.word !== "httpStatus" ? c.t("srStateCode", { ...said, code }) : c.t("srState", said);
+  };
   const explain = (ev, c) => ev?.hostOk ? c.t("hostOkExplanation", { code: ev.hostOk }) : "";
   // A tile's foot: the config's port, path or foot; "no web UI" only on a tile without a
   // link (an active service whose config names no port or path still has one).
