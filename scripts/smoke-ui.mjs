@@ -593,6 +593,7 @@ try {
     ${itemJs}
     const text = selector => document.querySelector(selector)?.textContent || "";
     const recordings = byName("Fernsehaufnahmen");
+    const purposeOf = item => item.querySelector(".t-purpose, .r-purpose")?.textContent || "";
     const chrome = [...document.querySelectorAll(
       ".rail-h, #mainCount, .zoom-row2 .btn span, .grp .gn, #heroH, .truth-t.now, .fcard h3, .seg button span, .t-open-l, .guide h3, .hero-sub"
     )].map(node => node.textContent.trim()).concat(items().map(item => item.dataset.word || "").filter(Boolean));
@@ -603,6 +604,7 @@ try {
       wings: [...document.querySelectorAll("#services .wing-h .wt")].map(node => node.textContent),
       purpose: recordings?.querySelector(".t-purpose, .r-purpose")?.textContent || null,
       cardNames: items().map(nameOf),
+      purposes: items().map(purposeOf),
       role: text("#hostRole"), title: document.title,
       meta: text("#meta"),
       searchPlaceholder: document.getElementById("q").placeholder,
@@ -623,6 +625,17 @@ try {
         !/^(Das Gerät selbst meldet|Kein nutzbarer Gerätestatus\.)/.test(state.statusSourceTitle) ||
         state.englishChrome.length || state.englishAttributes.length) {
       throw new Error(`German UI chrome did not translate: ${JSON.stringify(state)}`);
+    }
+    // HOSTD-83 L-a: the stock section heading is chrome and follows the language on every
+    // board (hsb1 read "Services" in German while hsb9 read "Dienste").
+    if (state.heading !== "Dienste") {
+      round1Fail(`Section heading did not follow the language switch: ${JSON.stringify(state.heading)}`);
+    }
+    // HOSTD-83 L-b: hsb8 is a family board; its names and purposes speak German too.
+    if (host === "hsb8" && (!state.wings.includes("Hausautomation") || !state.cardNames.includes("Container-Updates") ||
+        !state.purposes.includes("Zentrale der Hausautomation") || state.role !== "Zuhause" ||
+        state.title !== "hsb8 · Zuhause" || !state.meta.includes("Europa/Wien"))) {
+      round1Fail(`hsb8 German config did not translate: ${JSON.stringify(state)}`);
     }
     if (host === "hsb9" && (state.heading !== "Dienste" || !state.wings.includes("Zuhause & Medien") ||
         state.purpose !== "Aufnahmen ansehen, umbenennen, aufräumen" || state.role !== "Zuhause" ||

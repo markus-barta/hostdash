@@ -2065,6 +2065,16 @@ const metaPlain = () => arrayOrEmpty(CONFIG.meta)
   .filter(item => !(isObject(item) && item.code))
   .map(item => localize(isObject(item) && "text" in item ? item.text : item)).filter(Boolean);
 
+// The stock section heading is chrome, not content: a config that just says "Services"
+// (or "Dienste") follows the language switch. Any other heading is a configured name and
+// stays as configured, localized only where the config gives {en, de}.
+const STOCK_HEADINGS = new Set(Object.values(STRINGS).map(strings => strings.services));
+function headingOf(host) {
+  const configured = host.heading;
+  if (typeof configured === "string" && STOCK_HEADINGS.has(configured.trim())) return t("services");
+  return localize(configured) || t("services");
+}
+
 function renderHost() {
   const host = objectOr(CONFIG.host);
   const name = localize(host.name) || "HostDash";
@@ -2077,7 +2087,7 @@ function renderHost() {
   ].filter(([text]) => text);
   $("#hostFacts").innerHTML = facts.map(([text, cls]) => `<span${cls ? ` class="${cls}"` : ""}>${esc(text)}</span>`).join("");
   $("#clock").setAttribute("aria-label", metaPlain()[0] || "");
-  $("#mainTitle").textContent = localize(host.heading) || t("services");
+  $("#mainTitle").textContent = headingOf(host);
   $("#mainCount").textContent = WINGS_USED.length === 1
     ? t("nInOne", { n: SERVICES.length })
     : t("nIn", { n: SERVICES.length, w: WINGS_USED.length });
