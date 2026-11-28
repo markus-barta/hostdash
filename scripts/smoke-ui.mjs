@@ -636,7 +636,9 @@ try {
   async function releaseHeld(action) {
     for (const requestId of heldRequests.splice(0)) await answer(requestId, action);
   }
-  const fmt = (key, vars = {}) => englishStrings[key].replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
+  // Missing keys read as the key itself, so a run against an older board fails a check
+  // instead of crashing the test.
+  const fmt = (key, vars = {}) => (englishStrings[key] ?? key).replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
 
   const key = async (key, code, keyCode, text) => {
     await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, ...(text ? { text } : {}), windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
@@ -1338,9 +1340,10 @@ try {
     const exceptionsBefore = exceptions.length;
 
     // r2 M4 — malformed host records are no evidence and never stop the other cards.
-    // The hostile record belongs to the first host-bound service in sweep order, so a
-    // throw there used to leave every later card (the truth card, `laterService`) on
-    // its previous state, with an unhandled exception in the console.
+    // The hostile code belongs to the first host-bound service in sweep order, under a
+    // valid running row so it is actually read: converting it used to throw and leave
+    // every later card (the truth card, `laterService`) on its previous state, with an
+    // unhandled exception in the console.
     if (hostileService) {
       const hostileName = englishOf(hostileService.name);
       const hostileKey = hostileService.httpKey || hostileService.container || hostileService.unit;
@@ -1351,12 +1354,12 @@ try {
         {
           [expected.truthContainer]: { running: false },
           [expected.httpContainer]: { running: true },
-          ...(hostileService.container ? { [hostileService.container]: {} } : {}),
+          ...(hostileService.container ? { [hostileService.container]: { running: true } } : {}),
           ...(laterService ? { [laterService.container]: { running: false } } : {}),
         },
         0,
         { [hostileKey]: { code: { toString: null } }, [expected.httpContainer]: { code: null } },
-        hostileService.unit && !hostileService.container ? { units: { [hostileService.unit]: {} } } : {},
+        hostileService.unit && !hostileService.container ? { units: { [hostileService.unit]: { running: true, active: "active" } } } : {},
       );
       const truthAfter = await sampleTruth();
       const hostile = await sampleCard(hostileName);
@@ -1367,7 +1370,7 @@ try {
         round1Fail(`r2 M4: a hostile record stopped the other cards from updating: ${JSON.stringify(round2.malformed)}`);
       }
       if (["stopped", "fault"].includes(hostile.state) || hostile.word === englishStrings.status_stopped || /^HTTP|No answer/.test(hostile.word)) {
-        round1Fail(`r2 M4: an empty record or a hostile code became a verdict for ${hostileName}: ${JSON.stringify(hostile)}`);
+        round1Fail(`r2 M4: a hostile code became a verdict for ${hostileName}: ${JSON.stringify(hostile)}`);
       }
       if (nullCode.word === englishStrings.noAnswer || nullCode.led === "bad") {
         round1Fail(`r2 M4: an HTTP code of null read as curl's 0 ("No answer"): ${JSON.stringify(nullCode)}`);
@@ -1822,7 +1825,7 @@ try {
   }))()`);
   // What a family board may only say with this browser's own reachability evidence,
   // and what it says on the host's word alone (EN, the language the smoke runs in).
-  const tail = key => englishStrings[key].replace("{list}", "");
+  const tail = key => (englishStrings[key] ?? key).replace("{list}", "");
   const opensWords = ["s_okFOne", "s_okFMany", "g_othersOne", "g_othersMany", "g_allOpen"].map(key => key === "g_allOpen" ? englishStrings[key] : tail(key));
   const saysOpens = text => opensWords.some(words => text.includes(words));
 
